@@ -1,0 +1,59 @@
+---
+import Base from '../layouts/Base.astro';
+import { getItems, getSite } from '../lib/db';
+const site = await getSite();
+const [writing, music, films] = await Promise.all([getItems('writing'), getItems('music'), getItems('films')]);
+const pad = (i: number) => String(i + 1).padStart(2, '0');
+const isAudio = (u?: string) => !!u && /\.(mp3|m4a|wav|ogg|flac)(\?|$)/i.test(u);
+const nav = ['works', 'music', 'video', 'about', 'contact'];
+---
+<Base title={`${site.name} — Archive`}>
+  <canvas id="gl" aria-hidden="true"></canvas>
+  <div id="neon" class="neon"><a class="sign" href="#home" aria-label={`${site.name} — home`}><canvas aria-hidden="true"></canvas></a></div>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="loader"><span class="count">000</span></div>
+
+  <header class="bar">
+    <nav>{nav.map((n) => <a href={`#${n}`}>{n}</a>)}</nav>
+  </header>
+
+  <main>
+    <section id="home" class="s">
+      <h1 class="sr">{site.name} — Red Room Archive</h1>
+      <div class="meta"><span>{site.name}</span><span>Audio, film and writing</span><span>Scroll</span></div>
+    </section>
+
+    <section id="works" class="s l">
+      <h2 class="sec">Works<sup>{writing.length}</sup></h2>
+      <ul class="list">{writing.map((w, i) => (
+        <li><a class="row" href={`/writing/${w.slug}`}><span class="n">{pad(i)}</span><span class="t">{w.title}</span><span>{w.data.type}</span><span>{w.data.year}</span><span class="r"></span></a></li>
+      ))}</ul>
+    </section>
+
+    <section id="music" class="s l">
+      <h2 class="sec">Music<sup>{music.length}</sup></h2>
+      <ul class="list">{music.map((m, i) => (
+        <li><a class="row" href={m.data.url || '#'} data-audio={isAudio(m.data.url) ? m.data.url : undefined} target={isAudio(m.data.url) || !m.data.url ? undefined : '_blank'} rel="noopener">
+          <span class="n">{pad(i)}</span><span class="t">{m.title}</span><span>{m.data.artist}</span><span>{m.data.year}</span><span class="r">{m.data.duration}</span></a></li>
+      ))}</ul>
+    </section>
+
+    <section id="video" class="s l">
+      <h2 class="sec">Video<sup>{films.length}</sup></h2>
+      <ul class="list">{films.map((f, i) => (
+        <li><a class="row" href={f.data.url || '#'} target={f.data.url ? '_blank' : undefined} rel="noopener">
+          <span class="n">{pad(i)}</span><span class="t">{f.title}</span><span>{f.data.director}</span><span>{f.data.year}</span><span class="r">{f.data.rating ? `${f.data.rating}/10` : ''}</span></a></li>
+      ))}</ul>
+    </section>
+
+    <section id="about" class="s">
+      <div class="panel"><h2>About</h2><p>{site.about}</p></div>
+    </section>
+
+    <section id="contact" class="s">
+      <a class="mail" href={`mailto:${site.email}`}>{site.email}</a>
+    </section>
+  </main>
+
+  <script>import '../scripts/main';</script>
+</Base>
