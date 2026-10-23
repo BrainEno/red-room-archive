@@ -1,38 +1,57 @@
 # Claude Web-Only Development Workflow
 
-This repository is maintained with Claude's web chat (including the free plan). Do not assume Claude Code, a local shell, Desktop, or a direct Git working tree is available.
+This repository is maintained with Claude's web chat, including the free plan. Do not assume Claude Code, a local shell, Claude Desktop, or a direct Git working tree is available.
 
 ## Repository facts
 
 - Stack: Astro 5 SSR on Node, TypeScript, Three.js, GSAP, Lenis, SQLite and Notion integration.
 - Default branch: `main`.
 - Build command: `npm ci && npm run build`.
-- Automated validation: GitHub Actions workflow `Validate` runs on PRs and pushes to `main`.
+- Automated validation: GitHub Actions workflow `Validate` runs on PRs and pushes to `main`, and can be dispatched against a task branch.
 - Runtime secrets and production data must never be added to Git. Use `.env.example` as the safe template.
 
 ## Required workflow for every task
 
-1. Start by reading this file, `README.md`, `package.json`, the current default branch SHA, relevant source files, and recent PR/CI results. Do not download or re-upload a ZIP unless there is no alternative.
+1. Start by reading this file, `README.md`, `package.json`, the current default branch SHA, relevant source files, recent PRs, and CI results. Do not download or re-upload a ZIP unless there is no alternative.
 2. Define the smallest useful change, acceptance criteria, relevant files, and checks before editing. Avoid broad rewrites and unrelated formatting.
-3. Make changes on a dedicated branch named `claude/<short-task-slug>` or `task/<short-task-slug>`; never commit directly to `main`.
-4. Prefer a pull request with a small, reviewable diff. Include the task intent, design decisions, changed files, validation results, known risks, and a recovery note in the PR body.
-5. Do not claim tests passed unless the GitHub Actions run actually confirms success. This project currently has a build validation workflow; do not claim it has unit or integration tests unless they are added and executed.
-6. If a check fails, inspect the exact failing step and log, fix only the root cause, and rerun the smallest relevant check before rerunning the full build.
-7. Never force-push, rewrite shared history, reset the default branch, or merge a PR without explicit user authorization. Do not overwrite a file based on stale content: check the latest file SHA or branch head before updates.
+3. Use a dedicated branch named `claude/<short-task-slug>` or `task/<short-task-slug>`; never commit directly to `main`.
+4. Keep the patch small and reviewable. The resulting PR should state the objective, changed files, validation results, known risks, and recovery note.
+5. Do not claim tests passed unless a GitHub Actions run confirms success. The current automated check runs dependency installation and a production build; do not claim unit or integration tests exist unless added and executed.
+6. If a check fails, inspect the exact failing step and log, fix only the root cause, and rerun the relevant check.
+7. Never force-push, rewrite shared history, reset the default branch, or merge a PR without explicit user authorization. Check the latest branch/file SHA before updates.
 8. Never commit `.env`, tokens, credentials, database files, uploaded user content, generated build output, or other secrets/data. Do not echo secrets into logs.
-9. Keep work resumable. In each PR description or task issue, record task ID and objective; base branch and base commit SHA; completed changes and changed paths; CI run URL and actual result; outstanding work and the exact next action.
-10. If the free usage limit interrupts work, stop. Resume by reading the task/PR, current branch head, diff, and CI status. Continue only incomplete work; do not repeat repository discovery or reimplement already completed changes.
+9. Keep work resumable. Record the task objective, base SHA, changed paths, CI URL/result, outstanding work, and exact next action.
+10. If the free usage limit interrupts work, stop. Resume by reading the task/PR, branch head, diff, and CI status; continue only incomplete work.
 
-## How to transfer changes without ZIP files
+## ZIP-free patch handoff
 
-Use the GitHub web interface and PRs as the source of truth. When direct branch editing is unavailable in Claude chat, ask Claude to produce a unified diff patch limited to the named files, with no binary files. Apply that patch in a dedicated branch using GitHub's supported editing workflow or a trusted local Git client, then open/update the PR. Do not paste a whole repository into chat.
+The repository now includes `.github/workflows/apply-claude-patch.yml`. It lets you transfer a text patch from Claude's web chat through a GitHub Issue or existing PR. It does **not** give Claude direct Git access.
 
-For small text-only changes, GitHub's file editor can be used directly on the task branch. For multi-file changes, use a local Git client or a trusted patch-application tool to apply the unified diff, inspect `git diff --check` and `git diff`, then push the branch. Avoid ZIP round-trips.
+1. Create a GitHub Issue describing the coding task, or use an existing PR if one is already open.
+2. Ask Claude to return a **unified diff only**, in one fenced `diff` code block. It must target only files in the allowed paths listed below. Do not ask it to include shell commands or binary files.
+3. Review the diff yourself. In the Issue or PR conversation, post a comment whose first line is exactly `/apply-patch`, then include the single fenced `diff` block on the following lines. The comment body must have this shape:
+
+   First line: `/apply-patch`
+
+   Next, paste one complete fenced `diff` block containing the unified diff. Do not include extra `diff` or `patch` code blocks.
+
+4. GitHub Actions checks the comment author, validates the patch, applies it on an isolated branch, runs `npm ci` and `npm run build`, then commits and pushes only if the build passes.
+5. If you commented on an Issue, the workflow opens a PR. If you commented on an existing PR, it pushes to that PR's branch. It also dispatches the `Validate` workflow against the resulting branch.
+6. Review the complete PR diff and CI result. The workflow never merges a PR. If the job fails, inspect its Actions log; the patch is not committed unless the build passed.
+
+### Safety boundaries
+
+- Only comments by the repository owner account `BrainEno` that start with `/apply-patch` are accepted. If the account name changes, update the allowlist in the workflow.
+- The patch is treated as data, never executed as a shell script.
+- Binary patches, file mode changes, renames, and copies are rejected.
+- The path allowlist is limited to `src/**`, `public/**`, `docs/**`, and selected project configuration/documentation files. Workflow files, secrets, local databases, and uploaded data are not patchable through this mechanism.
+- The patch is built without a persisted checkout credential. The write token is used only after the build, to push the commit and create/update the PR.
+- This workflow does not give Claude web chat shell access, does not run arbitrary Claude-generated commands, and does not auto-merge.
 
 ## Prompt template for Claude web
 
-> Work only on BrainEno/red-room-archive. Follow CLAUDE_WEB_WORKFLOW.md. First inspect the latest main SHA, relevant source files, open PRs, and the latest Validate workflow result. Propose a small plan and acceptance criteria. Implement only the scoped change on a dedicated branch/PR; do not modify main directly. Keep the diff small, inspect the final diff for accidental changes and secrets, and report actual CI status. If you cannot write to GitHub or execute Git operations from this chat, do not pretend you did: return a unified diff patch for only the necessary files plus exact apply/verify commands. Record the base SHA, changed paths, CI URL/result, and the next action so the work can resume without re-analysis.
+> Work only on BrainEno/red-room-archive. Follow CLAUDE_WEB_WORKFLOW.md. Inspect the latest main SHA, relevant source files, open PRs, and the latest Validate result. State a small plan and acceptance criteria first. Implement only the scoped change. If you cannot write to GitHub directly, return one complete unified diff in a single fenced `diff` block, with no surrounding prose inside the block, no binary files, no shell commands, and only allowed paths. Make sure the patch applies to the latest target branch. Then list the changed paths, rationale, risks, and how to verify. Do not claim CI passed until GitHub Actions confirms it.
 
 ## Current limitations
 
-The repository workflow validates dependency installation and the production build. It does not itself give Claude web chat repository write access or shell access. GitHub's connected app permissions and the Claude interface determine which actions are available. The Validate workflow is intentionally read-only (`contents: read`); it does not execute arbitrary model-supplied shell commands, commit patches, or merge PRs.
+The patch handoff avoids ZIP round-trips, but a person must still review Claude's patch and explicitly post the `/apply-patch` command. Build validation is not a substitute for reviewing the code or testing the site in a browser. Keep secrets and production data out of prompts and patches.
