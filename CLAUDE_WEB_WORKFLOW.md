@@ -29,15 +29,11 @@ The repository now includes `.github/workflows/apply-claude-patch.yml`. It lets 
 
 1. Create a GitHub Issue describing the coding task, or use an existing PR if one is already open.
 2. Ask Claude to return a **unified diff only**, in one fenced `diff` code block. It must target only files in the allowed paths listed below. Do not ask it to include shell commands or binary files.
-3. Review the diff yourself. In the Issue or PR conversation, post a comment that begins exactly with `/apply-patch`, followed by the single fenced diff block. Example:
+3. Review the diff yourself. In the Issue or PR conversation, post a comment whose first line is exactly `/apply-patch`, then include the single fenced `diff` block on the following lines. The comment body must have this shape:
 
-   ```text
-   /apply-patch
-   ```diff
-   diff --git a/src/example.ts b/src/example.ts
-   ...
-   ```
-   ```
+   First line: `/apply-patch`
+
+   Next, paste one complete fenced `diff` block containing the unified diff. Do not include extra `diff` or `patch` code blocks.
 
 4. GitHub Actions checks the comment author, validates the patch, applies it on an isolated branch, runs `npm ci` and `npm run build`, then commits and pushes only if the build passes.
 5. If you commented on an Issue, the workflow opens a PR. If you commented on an existing PR, it pushes to that PR's branch. It also dispatches the `Validate` workflow against the resulting branch.
