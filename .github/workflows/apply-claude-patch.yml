@@ -163,7 +163,7 @@ jobs:
           if [[ "$CREATE_PR" == "true" ]]; then
             gh pr create --repo "$REPO" --base main --head "$TARGET_BRANCH" \
               --title "Claude web patch for issue #$ISSUE_NUMBER" \
-              --body "## Summary\n\nApplied a patch explicitly submitted by the repository owner in issue #$ISSUE_NUMBER.\n\n## Validation\n\nThe patched working tree passed `npm ci` and `npm run build` before commit.\n\n## Review\n\nPlease review the complete diff. This workflow does not merge pull requests."
+              --body "$(printf '%s\\n' '## Summary' '' "Applied a patch explicitly submitted by the repository owner in issue #$ISSUE_NUMBER." '' '## Validation' '' 'The patched working tree passed npm ci and npm run build before commit.' '' '## Review' '' 'Please review the complete diff. This workflow does not merge pull requests.')"
           else
             gh api --method POST "repos/$REPO/issues/$ISSUE_NUMBER/comments" \
               -f body="Claude patch applied to branch $TARGET_BRANCH. The patched working tree passed npm ci and npm run build before the commit. Review the new commit and PR diff; this workflow never merges the PR."
