@@ -168,3 +168,14 @@ jobs:
             gh api --method POST "repos/$REPO/issues/$ISSUE_NUMBER/comments" \
               -f body="Claude patch applied to branch $TARGET_BRANCH. The patched working tree passed npm ci and npm run build before the commit. Review the new commit and PR diff; this workflow never merges the PR."
           fi
+
+      - name: Report failure in the originating conversation
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          gh api --method POST "repos/$REPO/issues/$ISSUE_NUMBER/comments" \
+            -f body="The Claude patch workflow failed. Inspect the run logs at https://github.com/$REPO/actions/runs/$RUN_ID. No PR is merged automatically; if the push step already ran, review the target branch before retrying."
