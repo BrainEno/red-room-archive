@@ -6,6 +6,7 @@ on:
 
 # Only the repository owner can request this. Patch text is never executed as shell code.
 permissions:
+  actions: write
   contents: write
   pull-requests: write
   issues: write
@@ -157,6 +158,8 @@ jobs:
           git commit -m "Apply reviewed Claude web patch"
           gh auth setup-git
           git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          # GITHUB_TOKEN pushes do not trigger ordinary push/PR workflows, so dispatch validation explicitly.
+          gh workflow run validate.yml --repo "$REPO" --ref "$TARGET_BRANCH"
           if [[ "$CREATE_PR" == "true" ]]; then
             gh pr create --repo "$REPO" --base main --head "$TARGET_BRANCH" \
               --title "Claude web patch for issue #$ISSUE_NUMBER" \
