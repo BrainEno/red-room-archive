@@ -26,13 +26,17 @@ void main(){
 }`;
 
 // 窗帘：顶部固定、下摆自由。uSway = 弹簧摆动，uRip/uPh = 沿高度传播的涟漪
-const CURTAIN_V = `uniform float uT, uSway, uRip, uPh;
-varying float vH; varying vec2 vUv; varying vec3 vN, vV;
+// 左右两片是同一张布：折痕位移用整张布的坐标 sx（uSide = -1 / +1）计算，而不是各自的局部 x，
+// 否则两片的接缝处相位不同 → 深度不同 → 镜头移动/转向时屏幕上出现纵向错位。
+const CURTAIN_V = `uniform float uT, uSway, uRip, uPh, uSide;
+varying float vH, vS; varying vec2 vUv; varying vec3 vN, vV;
 void main(){
   vUv = uv; vec3 p = position;
   float hang = clamp((8. - p.y)/16., 0., 1.);
   float amp = .38*(1. + .5*uRip);
-  float a = p.x*3.2 + sin(p.y*.4 + uT*.5)*.7 + sin(p.x*.9 + uT*.3)*.5;
+  float sx = p.x + uSide*9.;                      // 整张布 x：左片 -18..0，右片 0..18
+  vS = (sx + 18.)/36.;
+  float a = sx*3.2 + sin(p.y*.4 + uT*.5)*.7 + sin(sx*.9 + uT*.3)*.5;
   float dz = cos(a)*3.2*amp;
   p.z += sin(a)*amp*(1. - hang*.25);
   p.z += uSway*hang*hang*.55 + sin(hang*5. - uPh)*uRip*hang*.35;
@@ -44,7 +48,7 @@ void main(){
   gl_Position = projectionMatrix*mv;
 }`;
 // 丝绒质感：褶皱内侧遮蔽 + 漫反射 + 掠射角丝光 + 纤维/染色噪声 + 细颗粒
-const CURTAIN_F = `uniform float uFade, uT; varying float vH; varying vec2 vUv; varying vec3 vN, vV;
+const CURTAIN_F = `uniform float uFade, uT; varying float vH, vS; varying vec2 vUv; varying vec3 vN, vV;
 float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.-2.*f);
   return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y); }
@@ -53,7 +57,7 @@ void main(){
   float diff = max(dot(N, normalize(vec3(.3,.7,.65))), 0.);
   float sheen = pow(1. - abs(dot(N, V)), 3.);
   float ao = mix(.35, 1., vH*.5 + .5);
-  float fiber = n(vec2(vUv.x*700., vUv.y*40.))*.5 + n(vUv*vec2(90., 9.))*.5;
+  float fiber = n(vec2(vS*1400., vUv.y*40.))*.5 + n(vec2(vS*180., vUv.y*9.))*.5;
   vec3 col = vec3(.62,.04,.08)*(.85 + .3*fiber)*(.12 + 1.05*diff*ao) + vec3(.9,.22,.18)*sheen*.55*ao;
   col *= mix(.4, 1., smoothstep(0., .55, vUv.y))*mix(1., .5, smoothstep(.6, 1., vUv.y));
   col += (h(vUv*vec2(1200., 700.) + uT) - .5)*.03;
@@ -79,8 +83,9 @@ export function initScene(canvas: HTMLCanvasElement) {
   scene.add(floor);
 
   const cg = new THREE.PlaneGeometry(18, 16, 180, 8);
-  const cm = new THREE.ShaderMaterial({ vertexShader: CURTAIN_V, fragmentShader: CURTAIN_F, uniforms: { uT, uFade, uSway, uRip, uPh }, side: THREE.DoubleSide });
-  const L = new THREE.Mesh(cg, cm), R = new THREE.Mesh(cg, cm);
+  const curtainMat = (side: number) => new THREE.ShaderMaterial({ vertexShader: CURTAIN_V, fragmentShader: CURTAIN_F,
+    uniforms: { uT, uFade, uSway, uRip, uPh, uSide: { value: side } }, side: THREE.DoubleSide });
+  const L = new THREE.Mesh(cg, curtainMat(-1)), R = new THREE.Mesh(cg, curtainMat(1));
   L.position.set(-9, 7, -6); R.position.set(9, 7, -6);
   scene.add(L, R);
 
