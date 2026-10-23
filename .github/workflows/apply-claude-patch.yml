@@ -1,0 +1,144 @@
+name: Apply Claude Patch
+
+on:
+  issue_comment:
+    types: [created]
+
+# This workflow only accepts an explicit command from the repository owner.
+# The patch is data; it is never executed as shell code.
+permissions:
+  contents: write
+  pull-requests: read
+  issues: write
+
+concurrency:
+  group: claude-patch-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: >-
+      github.event.issue.pull_request != null &&
+      github.event.comment.user.login == 'BrainEno' &&
+      startsWith(github.event.comment.body, '/apply-patch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Resolve and validate target PR
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/$REPO/pulls/$PR_NUMBER")"
+          head_ref="$(jq -r '.head.ref' <<<"$pr")"
+          head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr")"
+          base_ref="$(jq -r '.base.ref' <<<"$pr")"
+          if [[ "$head_repo" != "$REPO" ]]; then
+            echo "Refusing patches to fork PRs."
+            exit 1
+          fi
+          if [[ "$head_ref" == "main" || "$base_ref" != "main" ]]; then
+            echo "Target must be a non-main branch PR targeting main."
+            exit 1
+          fi
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Check out PR branch without persisting credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.head_ref }}
+          persist-credentials: false
+
+      - name: Extract and validate unified diff
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          PATCH_FILE: ${{ runner.temp }}/claude.patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          import sys
+          from pathlib import PurePosixPath
+
+          body = os.environ["COMMENT_BODY"]
+          match = re.search(r"```(?:diff|patch)\s*\n(.*?)\n```", body, re.S)
+          if not body.startswith("/apply-patch"):
+              sys.exit("Comment must begin with /apply-patch.")
+          if not match:
+              sys.exit("Add exactly one fenced diff or patch code block.")
+          patch = match.group(1) + "\n"
+          if "GIT binary patch" in patch or "Binary files " in patch:
+              sys.exit("Binary patches are not supported.")
+
+          paths = []
+          for line in patch.splitlines():
+              if line.startswith(("--- ", "+++ ")):
+                  path = line[4:].split("\t", 1)[0]
+                  if path == "/dev/null":
+                      continue
+                  if path.startswith(("a/", "b/")):
+                      path = path[2:]
+                  p = PurePosixPath(path)
+                  if p.is_absolute() or ".." in p.parts:
+                      sys.exit(f"Unsafe path in patch: {path}")
+                  allowed = (
+                      path.startswith("src/")
+                      or path.startswith("public/")
+                      or path.startswith("docs/")
+                      or path in {
+                          "README.md", "CLAUDE_WEB_WORKFLOW.md", "package.json",
+                          "package-lock.json", "astro.config.mjs", "tsconfig.json",
+                          ".gitignore"
+                      }
+                  )
+                  if not allowed:
+                      sys.exit(f"Path is outside the patch allowlist: {path}")
+                  paths.append(path)
+
+          if not paths or not patch.lstrip().startswith(("diff --git ", "--- ")):
+              sys.exit("No valid unified diff file headers found.")
+          with open(os.environ["PATCH_FILE"], "w", encoding="utf-8", newline="\n") as f:
+              f.write(patch)
+          print("Validated patch paths:")
+          for path in sorted(set(paths)):
+              print(f" - {path}")
+          PY
+          git apply --check "$PATCH_FILE"
+          git apply "$PATCH_FILE"
+          git diff --check
+          if git diff --quiet; then
+            echo "Patch produced no changes."
+            exit 1
+          fi
+
+      - name: Build patched project before committing
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit and push to the PR branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TARGET_BRANCH: ${{ steps.target.outputs.head_ref }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src public docs README.md CLAUDE_WEB_WORKFLOW.md package.json package-lock.json astro.config.mjs tsconfig.json .gitignore 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No staged changes to commit."
+            exit 1
+          fi
+          git commit -m "Apply reviewed Claude web patch"
+          gh auth setup-git
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" \
+            -f body="Claude patch applied and committed to $TARGET_BRANCH. The patched working tree passed npm ci and npm run build before the commit. Review the new commit and PR diff; this workflow never merges the PR."
