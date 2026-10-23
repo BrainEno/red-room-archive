@@ -4,11 +4,10 @@ on:
   issue_comment:
     types: [created]
 
-# This workflow only accepts an explicit command from the repository owner.
-# The patch is data; it is never executed as shell code.
+# Only the repository owner can request this. Patch text is never executed as shell code.
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
   issues: write
 
 concurrency:
@@ -18,40 +17,55 @@ concurrency:
 jobs:
   apply:
     if: >-
-      github.event.issue.pull_request != null &&
       github.event.comment.user.login == 'BrainEno' &&
       startsWith(github.event.comment.body, '/apply-patch')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Resolve and validate target PR
+      - name: Resolve target branch
         id: target
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          IS_PR: ${{ toJSON(github.event.issue.pull_request != null) }}
         shell: bash
         run: |
           set -euo pipefail
-          pr="$(gh api "repos/$REPO/pulls/$PR_NUMBER")"
-          head_ref="$(jq -r '.head.ref' <<<"$pr")"
-          head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr")"
-          base_ref="$(jq -r '.base.ref' <<<"$pr")"
-          if [[ "$head_repo" != "$REPO" ]]; then
-            echo "Refusing patches to fork PRs."
-            exit 1
+          if [[ "$IS_PR" == "true" ]]; then
+            pr="$(gh api "repos/$REPO/pulls/$ISSUE_NUMBER")"
+            head_ref="$(jq -r '.head.ref' <<<"$pr")"
+            head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr")"
+            base_ref="$(jq -r '.base.ref' <<<"$pr")"
+            if [[ "$head_repo" != "$REPO" ]]; then
+              echo "Refusing patches to fork PRs."
+              exit 1
+            fi
+            if [[ "$head_ref" == "main" || "$base_ref" != "main" ]]; then
+              echo "Target must be a non-main branch PR targeting main."
+              exit 1
+            fi
+            echo "checkout_ref=$head_ref" >> "$GITHUB_OUTPUT"
+            echo "target_branch=$head_ref" >> "$GITHUB_OUTPUT"
+            echo "create_pr=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "checkout_ref=main" >> "$GITHUB_OUTPUT"
+            echo "target_branch=claude/patch-$ISSUE_NUMBER-$COMMENT_ID" >> "$GITHUB_OUTPUT"
+            echo "create_pr=true" >> "$GITHUB_OUTPUT"
           fi
-          if [[ "$head_ref" == "main" || "$base_ref" != "main" ]]; then
-            echo "Target must be a non-main branch PR targeting main."
-            exit 1
-          fi
-          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
 
-      - name: Check out PR branch without persisting credentials
+      - name: Check out target without persisting credentials
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.target.outputs.head_ref }}
+          ref: ${{ steps.target.outputs.checkout_ref }}
           persist-credentials: false
+
+      - name: Create isolated branch for issue-based patches
+        if: steps.target.outputs.create_pr == 'true'
+        env:
+          TARGET_BRANCH: ${{ steps.target.outputs.target_branch }}
+        run: git switch --create "$TARGET_BRANCH"
 
       - name: Extract and validate unified diff
         env:
@@ -66,14 +80,16 @@ jobs:
           from pathlib import PurePosixPath
 
           body = os.environ["COMMENT_BODY"]
-          match = re.search(r"```(?:diff|patch)\s*\n(.*?)\n```", body, re.S)
+          matches = re.findall(r"```(?:diff|patch)\s*\n(.*?)\n```", body, re.S)
           if not body.startswith("/apply-patch"):
               sys.exit("Comment must begin with /apply-patch.")
-          if not match:
+          if len(matches) != 1:
               sys.exit("Add exactly one fenced diff or patch code block.")
-          patch = match.group(1) + "\n"
+          patch = matches[0] + "\n"
           if "GIT binary patch" in patch or "Binary files " in patch:
               sys.exit("Binary patches are not supported.")
+          if re.search(r"^(old mode|new mode|rename from|rename to|copy from|copy to) ", patch, re.M):
+              sys.exit("File mode changes, renames, and copies are not supported.")
 
           paths = []
           for line in patch.splitlines():
@@ -121,18 +137,19 @@ jobs:
           npm ci
           npm run build
 
-      - name: Commit and push to the PR branch
+      - name: Commit and push reviewed patch
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          TARGET_BRANCH: ${{ steps.target.outputs.head_ref }}
-          PR_NUMBER: ${{ github.event.issue.number }}
+          TARGET_BRANCH: ${{ steps.target.outputs.target_branch }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          CREATE_PR: ${{ steps.target.outputs.create_pr }}
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- src public docs README.md CLAUDE_WEB_WORKFLOW.md package.json package-lock.json astro.config.mjs tsconfig.json .gitignore 2>/dev/null || true
+          git add -A
           if git diff --cached --quiet; then
             echo "No staged changes to commit."
             exit 1
@@ -140,5 +157,11 @@ jobs:
           git commit -m "Apply reviewed Claude web patch"
           gh auth setup-git
           git push origin "HEAD:refs/heads/$TARGET_BRANCH"
-          gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" \
-            -f body="Claude patch applied and committed to $TARGET_BRANCH. The patched working tree passed npm ci and npm run build before the commit. Review the new commit and PR diff; this workflow never merges the PR."
+          if [[ "$CREATE_PR" == "true" ]]; then
+            gh pr create --repo "$REPO" --base main --head "$TARGET_BRANCH" \
+              --title "Claude web patch for issue #$ISSUE_NUMBER" \
+              --body "## Summary\n\nApplied a patch explicitly submitted by the repository owner in issue #$ISSUE_NUMBER.\n\n## Validation\n\nThe patched working tree passed `npm ci` and `npm run build` before commit.\n\n## Review\n\nPlease review the complete diff. This workflow does not merge pull requests."
+          else
+            gh api --method POST "repos/$REPO/issues/$ISSUE_NUMBER/comments" \
+              -f body="Claude patch applied to branch $TARGET_BRANCH. The patched working tree passed npm ci and npm run build before the commit. Review the new commit and PR diff; this workflow never merges the PR."
+          fi
