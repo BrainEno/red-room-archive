@@ -3,12 +3,18 @@ import gsap from 'gsap';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
-/** 可被 GSAP 补间的状态；sv = 滚动速度（Lenis），驱动窗帘物理 */
+/**
+ * 可被 GSAP 补间的状态；sv = 滚动速度（Lenis），驱动窗帘物理。
+ * cam.ry 现在是“相对镜头的朝向偏移”（弧度，建议 ±0.6 以内），不再是绝对旋转：
+ * 雕像始终自动转向镜头，ry 只在此基础上做小幅侧转。
+ */
 export const world = {
-  cam: { px: 0, py: 2, pz: 10, lx: 1.2, ly: 1.6, lz: 0, open: 0, ry: -0.5, lum: 0.1, st: 0 },
+  cam: { px: 0, py: 2, pz: 10, lx: 0.3, ly: 1.6, lz: 0, open: 0, ry: -0.3, lum: 0, st: 0 },
   fade: { v: 0 }, dolly: { v: 0 }, hover: { v: 0 }, sv: 0,
 };
 const SX = 2.4;
+/** 如果你的 GLB 默认脸朝后（背对镜头），把它改成 Math.PI；侧着就改 ±Math.PI/2 */
+const MODEL_YAW = 0;
 const MODEL_URLS = ['/uploads/venus.glb', '/models/venus.glb']; // 后台上传 → 仓库内文件 → 占位雕像
 
 const FLOOR_V = `varying vec3 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`;
@@ -21,6 +27,7 @@ void main(){
   vec3 col = mix(vec3(.06,.04,.04), vec3(.93,.9,.84), smoothstep(.5-aa, .5+aa, s));
   col *= mix(.08, 1., smoothstep(13., 1.5, length(p - vec2(${SX}, 0.))));
   col = mix(col, col*vec3(1.,.25,.25), .8*smoothstep(1., -7., p.y));
+  col *= mix(.4, 1., smoothstep(-6., -4.2, p.y));   // 窗帘下沿的接地暗角：帘脚落在地上，而不是浮在地面线上
   col *= 1. + uHover*.5;
   gl_FragColor = vec4(col*uFade, 1.);
 }`;
@@ -66,11 +73,14 @@ const spring = (s: Spring, target: number, k: number, c: number, dt: number, for
 export function initScene(canvas: HTMLCanvasElement) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.localClippingEnabled = true;                    // 雕像从地面“长出来”靠裁剪面实现
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;      // 只影响大理石（自定义 Shader 不受影响），高光不再死白
+  renderer.toneMappingExposure = 1.05;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0506);
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
 
-  const uT = { value: 0 }, uFade = { value: 0 }, uHover = { value: 0 };
+  const uT = { value: 0 }, uFade = { value: 0 }, uHover = { value: 0 }, uS = { value: 0 };
   const uSway = { value: 0 }, uRip = { value: 0 }, uPh = { value: 0 };
 
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80),
@@ -82,9 +92,11 @@ export function initScene(canvas: HTMLCanvasElement) {
   const cm = new THREE.ShaderMaterial({ vertexShader: CURTAIN_V, fragmentShader: CURTAIN_F, uniforms: { uT, uFade, uSway, uRip, uPh }, side: THREE.DoubleSide });
   const L = new THREE.Mesh(cg, cm), R = new THREE.Mesh(cg, cm);
   L.position.set(-9, 7, -6); R.position.set(9, 7, -6);
+  R.scale.x = -1;                                          // 右帘是左帘的镜像：褶皱、摆动左右严格对称
   scene.add(L, R);
 
   const marble = new THREE.MeshStandardMaterial({ color: 0xeeeae2, roughness: 0.45 });
+  marble.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)];   // 地面以下不绘制
   const statue = new THREE.Group();
   statue.position.set(SX, 0, 0);
   scene.add(statue);
@@ -95,9 +107,9 @@ export function initScene(canvas: HTMLCanvasElement) {
   placeholder.position.y = 0.6;
   statue.add(plinth, placeholder);
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(1.4, 48), new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false,
+    transparent: true, depthWrite: false, uniforms: { uS },
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-    fragmentShader: `varying vec2 vUv; void main(){ gl_FragColor = vec4(0.,0.,0., .7*smoothstep(1., 0., length(vUv-.5)*2.)); }`,
+    fragmentShader: `varying vec2 vUv; uniform float uS; void main(){ gl_FragColor = vec4(0.,0.,0., .7*uS*smoothstep(1., 0., length(vUv-.5)*2.)); }`,
   }));
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.01;
   statue.add(shadow);
@@ -106,7 +118,8 @@ export function initScene(canvas: HTMLCanvasElement) {
   loader.setMeshoptDecoder(MeshoptDecoder);
   const onLoad = (g: any) => {
     const m = g.scene;
-    m.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = marble; });
+    m.traverse((o: THREE.Object3D) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = marble; });
+    m.rotation.y = MODEL_YAW;
     const box = new THREE.Box3().setFromObject(m);
     m.scale.setScalar(2.6 / (box.max.y - box.min.y));
     box.setFromObject(m);
@@ -117,11 +130,17 @@ export function initScene(canvas: HTMLCanvasElement) {
   const tryModel = (urls: string[]) => { const [u, ...rest] = urls; if (!u) return console.info('[scene] using placeholder statue'); loader.load(u, onLoad, undefined, () => tryModel(rest)); };
   tryModel(MODEL_URLS);
 
-  scene.add(new THREE.HemisphereLight(0xffd6d0, 0x300000, 0.5));
-  const spot = new THREE.SpotLight(0xfff1e0, 140, 30, 0.55, 0.6, 1);
-  spot.position.set(SX + 3, 8, 6); spot.target = statue; scene.add(spot);
-  const rim = new THREE.PointLight(0xff1a2a, 70, 22);
+  // —— 灯光：博物馆式“跟拍主光” + 红色环境底光 + 背后红边光 ——
+  // 主光始终跟着镜头走（从镜头左上方打向雕像），所以无论雕像朝哪，被看到的那一面都是亮的。
+  scene.add(new THREE.HemisphereLight(0xffe4dc, 0x4a1014, 1.7));
+  const aim = new THREE.Object3D(); aim.position.set(SX, 1.4, 0); scene.add(aim);
+  const key = new THREE.SpotLight(0xfff0dc, 100, 0, 0.42, 0.85, 1);   // distance=0 不截断；decay=1，强度每帧按距离补偿
+  key.target = aim; scene.add(key);
+  const fill = new THREE.PointLight(0xff3040, 22, 14, 2);             // 地面红光反弹，给暗部染上房间的颜色
+  fill.position.set(SX - 3.2, 0.8, 3.2); scene.add(fill);
+  const rim = new THREE.PointLight(0xff1a2a, 70, 22);                 // 背后红色轮廓光
   rim.position.set(SX, 2.5, -4); scene.add(rim);
+  const KEY_E = 4.2;   // 主光在雕像上的照度：嫌亮/暗就改这个数
 
   const ptr = { x: 0, y: 0 }, tgt = { x: 0, y: 0 };
   addEventListener('pointermove', (e) => { tgt.x = (e.clientX / innerWidth) * 2 - 1; tgt.y = (e.clientY / innerHeight) * 2 - 1; });
@@ -135,7 +154,7 @@ export function initScene(canvas: HTMLCanvasElement) {
 
   // 物理状态：拉开位置（欠阻尼，会有惯性过冲）、摆动（滚动速度和拉动速度作为外力）
   const gapS: Spring = { x: 9, v: 0 }, sway: Spring = { x: 0, v: 0 };
-  let phase = 0;
+  let phase = 0, yaw = 0, yawInit = false;
 
   gsap.ticker.add((t, dtMs) => {
     const dt = Math.min(dtMs / 1000, 1 / 30), c = world.cam;
@@ -152,9 +171,25 @@ export function initScene(canvas: HTMLCanvasElement) {
     camera.position.set(c.px + ptr.x * 0.5, c.py - ptr.y * 0.3, c.pz + (1 - world.dolly.v) * 5);
     camera.lookAt(c.lx, c.ly, c.lz);
     L.position.x = -gapS.x; R.position.x = gapS.x;
-    statue.rotation.y = c.ry + t * 0.1;
-    const st = c.st * c.st * (3 - 2 * c.st);   // 首页隐藏，随招牌缩小从地面升起
-    statue.visible = st > 0.01; statue.scale.setScalar(Math.max(st, 0.001));
-    renderer.render(scene, camera);
+
+    // 雕像：首页隐藏；随引言滚动从地面“升起”（裁剪面把地下部分切掉）
+    const s = c.st * c.st * (3 - 2 * c.st);
+    statue.visible = s > 0.01;
+    statue.position.y = -(1 - s) * 3.6;
+    uS.value = s;
+
+    // 朝向：永远转向镜头 + 指针牵引 + 缓慢摇摆，不再整圈自转（避免背对屏幕）
+    const target = Math.atan2(camera.position.x - SX, camera.position.z) + c.ry + ptr.x * 0.3 + Math.sin(t * 0.35) * 0.25;
+    if (!yawInit) { yaw = target; yawInit = true; }
+    const d = THREE.MathUtils.euclideanModulo(target - yaw + Math.PI, Math.PI * 2) - Math.PI;
+    yaw += d * (1 - Math.exp(-dt * 3));
+    statue.rotation.y = yaw;
+
+    // 主光跟拍
+    key.position.set(camera.position.x - 1.4, camera.position.y + 2.2, camera.position.z + 0.5);
+    key.intensity = KEY_E * key.position.distanceTo(aim.position);
+
+    // 首页是纯黑背景 + 霓虹招牌，此时不渲染 3D，省 GPU
+    if (c.lum > 0.003 || statue.visible) renderer.render(scene, camera);
   });
 }

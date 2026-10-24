@@ -5,15 +5,30 @@ const site = await getSite();
 const [writing, music, films] = await Promise.all([getItems('writing'), getItems('music'), getItems('films')]);
 const pad = (i: number) => String(i + 1).padStart(2, '0');
 const isAudio = (u?: string) => !!u && /\.(mp3|m4a|wav|ogg|flac)(\?|$)/i.test(u);
-const nav = ['works', 'music', 'video', 'about', 'contact'];
+const nav = ['intro', 'works', 'music', 'video', 'about', 'contact'];
+
+// ───────── 个人简介（占位内容）：直接改这里 ─────────
+// lede = 大段引言（建议 2–3 句、一百个单词以内，会在滚动时逐词点亮）
+// facts = 底部三栏信息，k 是小标题，v 是内容；想要几栏都行，但建议 3 栏
+// 之后如果想从后台管理：在 site 数据里加一个 intro 字符串字段，下面的 lede 会自动优先使用它
+const INTRO = {
+  lede: 'Placeholder — replace this with two or three sentences about yourself. Say who you are, what you make, and what a visitor will find once they step through the curtain.',
+  facts: [
+    { k: 'Based in', v: 'Your city' },
+    { k: 'Working in', v: 'Audio, film and writing' },
+    { k: 'Currently', v: 'A short line about what you are making now' },
+  ],
+};
+const lede: string = (site as any).intro || INTRO.lede;
 ---
 <Base title={`${site.name} — Archive`}>
   <canvas id="gl" aria-hidden="true"></canvas>
-  <div id="neon" class="neon"><a class="sign" href="#home" aria-label={`${site.name} — home`}><canvas aria-hidden="true"></canvas></a></div>
+  <div id="neon" class="neon"><div class="sign" aria-hidden="true"><div class="cam"><canvas></canvas></div></div></div>
   <div class="grain" aria-hidden="true"></div>
   <div class="loader"><span class="count">000</span></div>
 
   <header class="bar">
+    <a class="brand" href="#home">{site.name}</a>
     <nav>{nav.map((n) => <a href={`#${n}`}>{n}</a>)}</nav>
   </header>
 
@@ -21,6 +36,13 @@ const nav = ['works', 'music', 'video', 'about', 'contact'];
     <section id="home" class="s">
       <h1 class="sr">{site.name} — Red Room Archive</h1>
       <div class="meta"><span>{site.name}</span><span>Audio, film and writing</span><span>Scroll</span></div>
+    </section>
+
+    <section id="intro" class="intro">
+      <div class="stage">
+        <p class="lede">{lede}</p>
+        <dl class="facts">{INTRO.facts.map((f) => <div><dt>{f.k}</dt><dd>{f.v}</dd></div>)}</dl>
+      </div>
     </section>
 
     <section id="works" class="s l">

@@ -13,13 +13,14 @@ ul { list-style: none; }
 .grain { position: fixed; inset: 0; z-index: 60; pointer-events: none; opacity: .09; mix-blend-mode: overlay;
   background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
 
-/* 霓虹招牌：.sign 由 GSAP 从居中大图移动/缩放到左上角；低分辨率 canvas 放大 + 扫描线 */
+/* 霓虹招牌：三层 .sign（滚动飞行）→ .cam（开场镜头姿态 / 对焦）→ canvas（指针视差）。
+   低分辨率 canvas 放大 + 扫描线；招牌飞过镜头后由 JS 隐藏，不再驻留在界面上 */
 .neon { position: fixed; inset: 0; z-index: 5; pointer-events: none; --lvl: 0; --wash: 1; }
-.neon::before { content: ""; position: absolute; inset: 0; background: radial-gradient(58% 52% at 50% 50%, rgba(255, 24, 12, calc(var(--lvl) * var(--wash) * .22)), transparent 72%); }
-.sign { position: absolute; left: 0; top: 0; width: min(92vw, 1180px); aspect-ratio: 868 / 468; transform-origin: 0 0; visibility: hidden; will-change: transform; }
-.sign.docked { pointer-events: auto; cursor: pointer; }
-.sign canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; filter: drop-shadow(0 0 22px rgba(255, 30, 10, .35)); }
-.sign::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,.28) 0 1px, transparent 1px 3px); }
+.sign { position: absolute; left: 0; top: 0; width: min(70vw, 1100px, 118svh); aspect-ratio: 868 / 468; visibility: hidden; will-change: transform, filter; --b2: 0px; filter: blur(var(--b2)); }
+.sign::before { content: ""; position: absolute; inset: -38%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 24, 12, calc(var(--lvl) * var(--wash) * .26)), transparent); }
+.sign .cam { position: absolute; inset: 0; --b1: 0px; filter: blur(var(--b1)); }
+.sign .cam::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,.28) 0 1px, transparent 1px 3px); }
+.sign canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
 
 /* 加载计数 */
 .loader { position: fixed; inset: 0; z-index: 100; background: var(--void); display: flex; align-items: flex-end; padding: clamp(16px, 3vw, 40px); }
@@ -28,12 +29,25 @@ ul { list-style: none; }
 /* 12 列瑞士网格 */
 .bar, .s { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 16px; padding-inline: clamp(16px, 3vw, 40px); }
 .bar { position: fixed; inset: 0 0 auto; z-index: 40; padding-block: 18px; mix-blend-mode: difference; font-weight: 600; }
-.bar nav { grid-column: 1 / 13; display: flex; justify-content: flex-end; gap: clamp(14px, 2.4vw, 32px); }
+.bar .brand { grid-column: 1 / 4; align-self: center; font-stretch: 62%; font-weight: 800; font-size: 1.15rem; line-height: 1; white-space: nowrap; opacity: 0; transition: opacity .6s var(--ease); }
+.bar .brand.on { opacity: 1; }
+.bar nav { grid-column: 4 / 13; display: flex; justify-content: flex-end; gap: clamp(14px, 2.4vw, 32px); }
 .bar nav a { position: relative; text-transform: capitalize; }
 .bar nav a::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 1px; background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform .5s var(--ease); }
 .bar nav a:hover::after, .bar nav a.on::after { transform: scaleX(1); }
 .s { min-height: 100svh; padding-block: 120px 40px; align-content: end; }
 .meta { grid-column: 1 / 13; display: flex; justify-content: space-between; font-weight: 600; position: relative; z-index: 6; }
+
+/* 引言：sticky 舞台，滚动时逐词“点亮”，与招牌退场衔接 */
+.intro { position: relative; height: 220svh; }
+.intro .stage { position: sticky; top: 0; height: 100svh; display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: 1fr auto; column-gap: 16px;
+  padding: 120px clamp(16px, 3vw, 40px) 40px; background: linear-gradient(90deg, rgba(10,5,6,.78), transparent 78%); }
+.lede { grid-column: 1 / 9; align-self: center; font-weight: 600; font-size: clamp(1.9rem, 4.4vw, 4.4rem); line-height: 1.06; letter-spacing: -.015em; text-wrap: balance; }
+.facts { grid-column: 1 / 11; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.facts > div { position: relative; padding-top: 12px; }
+.facts > div::before { content: ""; position: absolute; inset: 0 0 auto; height: 1px; background: currentColor; opacity: .7; transform: scaleX(var(--r, 1)); transform-origin: left; }
+.facts dt { font-weight: 600; font-size: 13px; opacity: .55; }
+.facts dd { margin-top: 2px; font-size: 1.05rem; }
 
 .l { align-content: center; padding-block: 140px; background: linear-gradient(90deg, rgba(10,5,6,.8), transparent 82%); }
 .sec { grid-column: 1 / 13; display: flex; align-items: flex-start; gap: .4rem; font-stretch: 62%; font-weight: 800; text-transform: uppercase;
@@ -69,7 +83,11 @@ ul { list-style: none; }
 
 @media (max-width: 720px) {
   .bar nav { gap: 12px; font-size: 13px; } .bar { inset: auto 0 0 0; padding-block: 14px; } .s { padding-bottom: 72px; } .bar nav { grid-column: 1 / 13; justify-content: space-between; }
-  .list, .panel { grid-column: 1 / 13; } .row { grid-template-columns: 2.2rem 1fr 3.2rem; } .row span:nth-child(3), .row .r { display: none; }
+  .list, .panel { grid-column: 1 / 13; }
+  .bar .brand { display: none; } .bar nav { font-size: 12px; gap: 10px; }
+  .sign { width: min(96vw, 118svh); }
+  .intro .stage { padding-bottom: 72px; background: rgba(10,5,6,.55); }
+  .lede { grid-column: 1 / 13; font-size: clamp(1.6rem, 7vw, 2.4rem); } .facts { grid-column: 1 / 13; grid-template-columns: 1fr; gap: 10px; } .row { grid-template-columns: 2.2rem 1fr 3.2rem; } .row span:nth-child(3), .row .r { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .grain { display: none; } }
 
