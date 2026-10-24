@@ -5,7 +5,7 @@ const site = await getSite();
 const [writing, music, films] = await Promise.all([getItems('writing'), getItems('music'), getItems('films')]);
 const pad = (i: number) => String(i + 1).padStart(2, '0');
 const isAudio = (u?: string) => !!u && /\.(mp3|m4a|wav|ogg|flac)(\?|$)/i.test(u);
-const nav = ['intro', 'works', 'music', 'video', 'about', 'contact'];
+const nav = ['intro', 'works', 'music', 'video', 'journal', 'about', 'contact'];
 
 // ───────── 个人简介（占位内容）：直接改这里 ─────────
 // lede = 大段引言（建议 2–3 句、一百个单词以内，会在滚动时逐词点亮）
@@ -29,7 +29,7 @@ const lede: string = (site as any).intro || INTRO.lede;
 
   <header class="bar">
     <a class="brand" href="#home">{site.name}</a>
-    <nav>{nav.map((n) => <a href={`#${n}`}>{n}</a>)}</nav>
+    <nav>{nav.map((n) => <a href={n === 'journal' ? '/journal' : `#${n}`}>{n}</a>)}</nav>
   </header>
 
   <main>
