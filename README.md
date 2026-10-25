@@ -36,4 +36,9 @@ Music 表建议列：Title · Artist · Year · Duration · URL（以 .mp3/.m4a/
 `npm run build && npm start`。SQLite 与上传文件都在磁盘上，需要带持久卷的 Node 环境（VPS / Fly.io / Railway 卷）。
 
 ## 还没做
-编辑/删除已有条目、博客列表页与 Markdown 渲染、对象存储（R2/S3）直传、Notion webhook、页面转场与后处理。
+编辑/删除已有条目、Markdown 渲染、对象存储（R2/S3）直传、Notion webhook、页面转场与后处理。
+
+
+## Journal 站内文章
+
+后台的 **Posts** 用于发布只保存在 SQLite 中的站内文章。公开的 `/journal` 页面列出已发布文章，点击后进入 `/journal/<slug>` 阅读；这些文章与 Notion 管理的 Works / Music / Video 数据分开存储。

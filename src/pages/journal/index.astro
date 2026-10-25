@@ -1,0 +1,34 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getSite, listPosts } from '../../lib/db';
+
+const site = await getSite();
+const posts = listPosts() as { slug: string; title: string; tags: string; created: string }[];
+const dateLabel = (value: unknown) => String(value ?? '').slice(0, 10);
+---
+
+<Base title={`Journal — ${site.name}`} bodyClass="plain">
+  <a class="back" href="/">← Home</a>
+  <main class="prose journal">
+    <p class="journal-label">{site.name} / Journal</p>
+    <h1>Journal</h1>
+    <p class="journal-intro">Notes, fragments and writing from the archive.</p>
+
+    {posts.length ? (
+      <ol class="journal-list">
+        {posts.map((post) => (
+          <li>
+            <a class="journal-entry" href={`/journal/${encodeURIComponent(post.slug)}`}>
+              <span class="journal-date">{dateLabel(post.created)}</span>
+              <span class="journal-title">{post.title}</span>
+              <span class="journal-tags">{post.tags ? post.tags.split(',').map((tag) => tag.trim()).filter(Boolean).join(' / ') : ''}</span>
+              <span class="journal-arrow" aria-hidden="true">↗</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    ) : (
+      <p class="journal-empty">No journal entries yet.</p>
+    )}
+  </main>
+</Base>
