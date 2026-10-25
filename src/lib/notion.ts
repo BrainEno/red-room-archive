@@ -86,7 +86,7 @@ export async function getSchema(kind: Kind) {
 }
 
 const encode = (t: string, v: any): any => ({
-  select: { select: { name: String(v) } }, status: { status: { name: String(v) } },
+  select: { name: String(v) }, status: { name: String(v) },
   multi_select: { multi_select: String(v).split(',').map((x) => ({ name: x.trim() })).filter((x) => x.name) },
   number: { number: Number(v) }, checkbox: { checkbox: v === true || v === 'true' || v === 'on' }, url: { url: String(v) },
   date: { date: { start: String(v) } }, rich_text: { rich_text: [{ text: { content: String(v).slice(0, 2000) } }] },
