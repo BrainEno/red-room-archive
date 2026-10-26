@@ -13,7 +13,7 @@ Astro 5（SSR / Node）+ Three.js + GSAP + Lenis + Canvas 2D 霓虹招牌 + Noti
 
 ## /admin（输入 ADMIN_TOKEN 登录；token 只存在当前标签页的 sessionStorage，请务必用 HTTPS 部署）
 - **Entries**：选 Works / Music / Video，表单字段由你的 Notion 数据库“列定义”动态生成（select 带已有选项），提交即在 Notion 新建页面（含正文）并回写缓存。URL 列旁有“Upload file → fill URL”。
-- **Posts**：写站内文章，只存 SQLite，访问 `/journal/<slug>`。
+- **Posts**：发布站内文章，只存 SQLite；访客可从公开的 `/journal` 索引浏览，再进入 `/journal/<slug>` 阅读。正文支持 Markdown，普通换行会保留，原始 HTML 不会被直接执行。
 - **Files**：上传音频/视频/图片/pdf 到服务器 `data/uploads`（`/uploads/<name>`，支持 Range 拖动进度）；选 “Statue model” 上传 .glb，会替换 3D 雕像（优先级：上传 > `public/models/venus.glb` > 占位）。
 - **Settings**：站点名称/邮箱/简介，Notion token 与三个数据库 ID（优先于 .env），连接状态、缓存条数，“立即同步”。
 
@@ -35,5 +35,8 @@ Music 表建议列：Title · Artist · Year · Duration · URL（以 .mp3/.m4a/
 ## 部署
 `npm run build && npm start`。SQLite 与上传文件都在磁盘上，需要带持久卷的 Node 环境（VPS / Fly.io / Railway 卷）。
 
+## 开发与验证
+`npm test` 运行 Markdown 渲染与安全回归测试；`npm run build` 构建生产站点。CI 会依次执行这两项检查。
+
 ## 还没做
-编辑/删除已有条目、博客列表页与 Markdown 渲染、对象存储（R2/S3）直传、Notion webhook、页面转场与后处理。
+编辑/删除已有条目、Notion 正文的完整块类型与媒体渲染、对象存储（R2/S3）直传、Notion webhook、页面转场与后处理。

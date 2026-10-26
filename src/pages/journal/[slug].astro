@@ -1,13 +1,13 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { getPost } from '../../lib/db';
-import { esc } from '../../lib/notion';
+import { renderMarkdown } from '../../lib/markdown';
 const p = getPost(Astro.params.slug!);
-if (!p) return Astro.redirect('/');
-const html = p.body.split(/\n{2,}/).map((x: string) => `<p>${esc(x)}</p>`).join('');
+if (!p) return Astro.redirect('/journal');
+const html = await renderMarkdown(p.body ?? '');
 ---
 <Base title={p.title} bodyClass="plain">
-  <a class="back" href="/">Home</a>
+  <a class="back" href="/journal">← Journal</a>
   <article class="prose">
     <h1>{p.title}</h1>
     <p class="by">{String(p.created).slice(0, 10)}{p.tags ? ` · ${p.tags}` : ''}</p>
