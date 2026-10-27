@@ -1,16 +1,17 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { getPost } from '../../lib/db';
-import { renderMarkdown } from '../../lib/markdown';
+import { getPost } from '../../lib/db.ts';
+import { renderMarkdown } from '../../lib/markdown.ts';
 const p = getPost(Astro.params.slug!);
-if (!p) return Astro.redirect('/journal');
+// 草稿（published=0）对访客不存在：与真正缺失的 slug 一样回到索引页
+if (!p || !p.published) return Astro.redirect('/journal', 302);
 const html = await renderMarkdown(p.body ?? '');
 ---
 <Base title={p.title} bodyClass="plain">
   <a class="back" href="/journal">← Journal</a>
   <article class="prose">
     <h1>{p.title}</h1>
-    <p class="by">{String(p.created).slice(0, 10)}{p.tags ? ` · ${p.tags}` : ''}</p>
+    <p class="by">{String(p.created).slice(0, 10)}{p.tagsList.length ? ` · ${p.tagsList.join(', ')}` : ''}</p>
     <Fragment set:html={html} />
   </article>
 </Base>

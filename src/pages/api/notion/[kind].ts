@@ -1,25 +1,33 @@
 import type { APIRoute } from 'astro';
-import { authed, deny } from '../../../lib/auth';
-import { syncKind } from '../../../lib/db';
-import { createItem, getSchema, notionReady, type Kind } from '../../../lib/notion';
-import { db } from '../../../lib/db';
+import { guard } from '../../../lib/auth.ts';
+import { db, syncKind } from '../../../lib/db.ts';
+import { createItem, getSchema, isKind, notionReady } from '../../../lib/notion.ts';
+import { fail, handler, readJson } from '../../../lib/http.ts';
 
-const guard = (request: Request, kind: string) => {
-  if (!authed(request)) return deny();
+const guardKind = (request: Request, kind: string) => {
+  const denied = guard(request); if (denied) return denied;
   db();   // 载入后台设置（Notion token / 数据库 ID）
-  if (!['writing', 'films', 'music'].includes(kind) || !notionReady(kind as Kind)) return Response.json({ error: 'unknown kind, or Notion not configured' }, { status: 400 });
+  if (!isKind(kind)) return fail(400, 'unknown kind; expected writing, films or music');
+  if (!notionReady(kind)) return fail(400, 'Notion is not configured for this kind');
+  return null;
 };
+
 // GET  → 该数据库的列定义（后台据此生成表单）
-export const GET: APIRoute = async ({ request, params }) => {
-  const g = guard(request, params.kind!); if (g) return g;
-  try { return Response.json(await getSchema(params.kind as Kind)); } catch (e) { return Response.json({ error: String(e) }, { status: 502 }); }
-};
+export const GET: APIRoute = handler(async ({ request, params }) => {
+  const kind = params.kind!;
+  const denied = guardKind(request, kind); if (denied) return denied;
+  return Response.json(await getSchema(kind as never));
+});
+
 // POST → 新建记录并回写 SQLite
-export const POST: APIRoute = async ({ request, params }) => {
-  const g = guard(request, params.kind!); if (g) return g;
+export const POST: APIRoute = handler(async ({ request, params }) => {
+  const kind = params.kind!;
+  const denied = guardKind(request, kind); if (denied) return denied;
   try {
-    const page = await createItem(params.kind as Kind, await request.json());
-    await syncKind(params.kind as Kind);
+    const page = await createItem(kind as never, await readJson(request));
+    await syncKind(kind as never);
     return Response.json({ ok: true, id: page.id, url: page.url });
-  } catch (e) { return Response.json({ error: String(e) }, { status: 502 }); }
-};
+  } catch (e) {
+    return fail(502, String(e));
+  }
+});

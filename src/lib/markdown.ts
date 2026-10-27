@@ -3,6 +3,7 @@ import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import remarkRehype from 'remark-rehype';
 import rehypeStringify from 'rehype-stringify';
+import { isSafeUrl } from './safety.ts';
 
 /**
  * Preserve single newlines inside Markdown text, which matters for poems and
@@ -40,19 +41,12 @@ function preserveSoftBreaks() {
  * removed only for protocol detection, preventing obfuscated javascript: URLs.
  */
 function sanitizeUrls() {
-  const allowedProtocols = new Set(['http', 'https', 'mailto', 'tel']);
-  const isSafe = (value: string) => {
-    const compact = value.trim().replace(/[\u0000-\u0020]+/g, '');
-    const protocol = /^([a-z][a-z\d+.-]*):/i.exec(compact)?.[1]?.toLowerCase();
-    return !protocol || allowedProtocols.has(protocol);
-  };
-
   return (tree: any) => {
     const visit = (node: any) => {
       if (node.type === 'element' && node.properties) {
         for (const property of ['href', 'src']) {
           const value = node.properties[property];
-          if (typeof value === 'string' && !isSafe(value)) delete node.properties[property];
+          if (typeof value === 'string' && !isSafeUrl(value)) delete node.properties[property];
         }
       }
       if (Array.isArray(node.children)) node.children.forEach(visit);

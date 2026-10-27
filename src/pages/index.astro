@@ -1,6 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
-import { getItems, getSite } from '../lib/db';
+import { getItems, getSite } from '../lib/db.ts';
 const site = await getSite();
 const [writing, music, films] = await Promise.all([getItems('writing'), getItems('music'), getItems('films')]);
 const pad = (i: number) => String(i + 1).padStart(2, '0');
@@ -77,5 +77,5 @@ const lede: string = (site as any).intro || INTRO.lede;
     </section>
   </main>
 
-  <script>import '../scripts/main';</script>
+  <script>import '../scripts/main.ts';</script>
 </Base>
