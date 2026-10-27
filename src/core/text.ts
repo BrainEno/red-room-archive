@@ -2,23 +2,25 @@
  * Small, dependency-free text helpers shared by server rendering and the UI.
  */
 
-/** Strip the most common Markdown syntax so text can be used in summaries. */
-export function markdownToText(source: string): string {
-  return String(source ?? '')
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/^[>#+\-\d.)*\s]+/gm, '')
-    .replace(/[*_~`|]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+/**
+ * Rough reading time in minutes, never below one. Latin text is counted in
+ * words (~220/min), CJK text in characters (~400/min) — Chinese has no spaces,
+ * so a word count alone would call a 3000-character essay a one-minute read.
+ */
+export function readingMinutes(text: string): number {
+  const source = String(text ?? '');
+  const cjk = (source.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu) ?? []).length;
+  const words = source.replace(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu, ' ').split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+  return Math.max(1, Math.round(cjk / 400 + words / 220));
 }
 
-/** Rough reading time in minutes (200 words/minute, never below one). */
-export function readingMinutes(source: string): number {
-  const words = markdownToText(source).split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.round(words / 200));
+/** First `max` characters of `text` on a word boundary, with an ellipsis. */
+export function truncate(text: string, max = 160): string {
+  const clean = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,.;:，。；：、]+$/u, '')}…`;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

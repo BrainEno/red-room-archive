@@ -1,0 +1,32 @@
+---
+import type { ArticleSummary } from '../../shared/contracts.ts';
+import { formatDate } from '../../core/text.ts';
+
+export interface Props {
+  articles: ArticleSummary[];
+  empty?: string;
+  showExcerpt?: boolean;
+  showCovers?: boolean;
+}
+const { articles, empty = 'Nothing published yet.', showExcerpt = false, showCovers = false } = Astro.props;
+---
+{articles.length ? (
+  <ol class="article-list">
+    {articles.map((article) => {
+      const cover = showCovers && article.cover;
+      return (
+        <li>
+          <a class:list={['article-entry', { 'has-cover': cover }]} href={article.href}>
+            <time class="article-date" datetime={String(article.date).slice(0, 10)}>{formatDate(article.date)}</time>
+            <span class="article-title">{article.title}</span>
+            <span class="article-tags">{article.tags.join(' / ')}</span>
+            {cover ? <img class="article-cover" src={cover} alt="" loading="lazy" decoding="async" /> : <span class="article-arrow" aria-hidden="true">↗</span>}
+            {showExcerpt && article.excerpt && <span class="article-excerpt">{article.excerpt}</span>}
+          </a>
+        </li>
+      );
+    })}
+  </ol>
+) : (
+  <p class="article-empty">{empty}</p>
+)}

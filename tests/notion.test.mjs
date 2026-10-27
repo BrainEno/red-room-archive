@@ -1,171 +1,134 @@
+// Notion client, mapper and block-tree fetcher (fetch is replaced by a fake).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { blocksToHtml } from '../src/core/blocks.ts';
-import { NotionClient } from '../src/server/notion/client.ts';
-import { NotionWriter, buildProperties } from '../src/server/notion/writer.ts';
-import { isPageId, toItems } from '../src/server/notion/mapper.ts';
+import { API, ID, compact, createNotionMock } from './fixtures/notion-mock.mjs';
 
-// 用假的 fetch 代替 Notion API：验证我们发出去的请求与解析回来的数据。
-const calls = [];
-const schema = { properties: {
-  Name: { type: 'title' }, Slug: { type: 'rich_text' }, Year: { type: 'number' }, Type: { type: 'select' },
-  Published: { type: 'checkbox' }, Date: { type: 'date' }, Tags: { type: 'multi_select' }, Link: { type: 'url' },
-} };
-const page = { id: 'abcd1234abcd1234abcd1234abcd1234', url: 'https://www.notion.so/x' };
-let childBlocks = [];
-let queryResults = [];
+process.env.NOTION_API_BASE = API;
+const { NotionClient } = await import('../src/server/notion/client.ts');
+const { coverSource, describeSchema, isPageId, parseNotionId, resolveMapping, toArticles } = await import('../src/server/notion/mapper.ts');
+const { fetchBlockTree } = await import('../src/server/notion/tree.ts');
+const { legacyTarget } = await import('../src/server/http/endpoints/legacy.ts');
 
-const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
 const realFetch = globalThis.fetch;
+test.after(() => (globalThis.fetch = realFetch));
 
-globalThis.fetch = async (url, init = {}) => {
-  const u = String(url);
-  const body = init.body ? JSON.parse(init.body) : undefined;
-  calls.push({ url: u, method: init.method ?? 'GET', body });
-  if (u.endsWith('/query')) return json({ results: queryResults, has_more: false });
-  if (/\/databases\/[^/]+$/.test(u)) return json(schema);
-  if (u.endsWith('/pages') && init.method === 'POST') return json(page);
-  if (/\/pages\/[^/]+$/.test(u)) return json(page);
-  if (u.includes('/children')) {
-    if (init.method === 'PATCH') return json({ results: [] });
-    return json({ results: childBlocks, has_more: false });
-  }
-  if (/\/blocks\/[^/]+$/.test(u) && init.method === 'DELETE') return json({});
-  return json({});
-};
+const mock = createNotionMock();
+const NOW = Date.parse('2026-10-27T00:00:00Z');
 
-const client = new NotionClient('secret_test');
-const writer = new NotionWriter(client, { writing: 'db-writing', films: undefined, music: undefined });
-const createItem = (kind, fields) => writer.create(kind, fields);
-const updateItem = (kind, id, fields) => writer.update(kind, id, fields);
-const archiveItem = (id) => writer.archive(id);
-const fetchBody = async (id) => blocksToHtml(await writer.bodyBlocks(id));
-const fetchKind = async () => toItems('writing', await client.queryDatabase('db-writing'));
+test('toArticles keeps published, dated, titled pages and gives twins distinct slugs', () => {
+  const { rows, covers, skipped } = toArticles(mock.state.pages, NOW);
+  assert.deepEqual(rows.map((r) => r.slug), ['first-light', '第二篇', 'first-light-2']);
+  assert.deepEqual(skipped.map((s) => s.reason).sort(), ['scheduled', 'unpublished', 'untitled']);
+  assert.deepEqual(covers, [{ id: compact(ID.first), articleId: ID.first }]);
+  const first = rows[0];
+  assert.deepEqual(first.tags, ['Fiction']);
+  assert.equal(first.date, '2026-10-01');
+  assert.equal(first.rank, 2);
+  assert.equal(first.cover, `/media/notion/${compact(ID.first)}`);
+});
 
-const reset = () => { calls.length = 0; childBlocks = []; queryResults = []; };
-test.after(() => { globalThis.fetch = realFetch; });
+test('the older page keeps the bare slug even when listed after its twin', () => {
+  const reversed = [...mock.state.pages].reverse();
+  const { rows } = toArticles(reversed, NOW);
+  assert.equal(rows.find((r) => r.id === ID.first).slug, 'first-light');
+  assert.equal(rows.find((r) => r.id === ID.twin).slug, 'first-light-2');
+});
 
-test('createItem maps aliases and encodes each property by its real type', async () => {
-  reset();
-  await createItem('writing', {
-    title: 'A Quiet Room', slug: 'a-quiet-room', year: 2026, type: 'Essay',
-    published: true, date: '2026-01-02', tags: 'red, room', link: 'https://example.test/x',
-    body: '# Title\n\nparagraph',
+test('resolveMapping matches aliases by name *and* type, title by type', () => {
+  const mapping = resolveMapping({
+    Name: 'title', Status: 'status', 'Publish Date': 'date', 标签: 'multi_select', Summary: 'rich_text', Cover: 'url', Featured: 'checkbox', Date: 'rich_text',
   });
-  const post = calls.find((c) => c.method === 'POST' && c.url.endsWith('/pages'));
-  assert.ok(post, 'POST /pages was sent');
-  const p = post.body.properties;
-  assert.deepEqual(p.Name, { title: [{ type: 'text', text: { content: 'A Quiet Room' } }] });
-  assert.deepEqual(p.Slug, { rich_text: [{ type: 'text', text: { content: 'a-quiet-room' } }] });
-  assert.deepEqual(p.Year, { number: 2026 });
-  assert.deepEqual(p.Type, { select: { name: 'Essay' } });   // 回归：select/status 需要同名的外层键
-  assert.deepEqual(p.Published, { checkbox: true });
-  assert.deepEqual(p.Date, { date: { start: '2026-01-02' } });
-  assert.deepEqual(p.Tags.multi_select, [{ name: 'red' }, { name: 'room' }]);
-  assert.deepEqual(p.Link, { url: 'https://example.test/x' });
-  assert.equal(post.body.parent.database_id, 'db-writing');
-  assert.equal(post.body.children[0].type, 'heading_1');
-  assert.equal(post.body.children[1].type, 'paragraph');
+  assert.equal(mapping.title.property, 'Name');
+  assert.equal(mapping.published.property, 'Status');
+  assert.equal(mapping.date.property, 'Publish Date', 'a text column called "Date" is not a date');
+  assert.equal(mapping.tags.property, '标签');
+  assert.equal(mapping.excerpt.property, 'Summary');
+  assert.equal(mapping.cover.property, 'Cover');
+  assert.equal(mapping.rank.property, 'Featured');
+  assert.equal(mapping.slug, null);
 });
 
-test('createItem ignores fields that do not match a database column', async () => {
-  reset();
-  await createItem('writing', { title: 'X', nonsense: 'ignored' });
-  const post = calls.find((c) => c.method === 'POST' && c.url.endsWith('/pages'));
-  assert.deepEqual(Object.keys(post.body.properties), ['Name']);
-});
-
-test('updateItem patches only the given properties and leaves the body alone', async () => {
-  reset();
-  await updateItem('writing', page.id, { year: 2027 });
-  const patch = calls.find((c) => c.method === 'PATCH' && c.url.includes('/pages/'));
-  assert.deepEqual(patch.body.properties, { Year: { number: 2027 } });
-  assert.ok(!calls.some((c) => c.method === 'DELETE'), 'body untouched → no block deletion');
-});
-
-test('updateItem with body replaces the page content (delete old blocks, append new)', async () => {
-  reset();
-  childBlocks = [{ id: 'b1', type: 'paragraph', paragraph: { rich_text: [] } }, { id: 'b2', type: 'paragraph', paragraph: { rich_text: [] } }];
-  await updateItem('writing', page.id, { title: 'New', body: '- one\n- two' });
-  const deleted = calls.filter((c) => c.method === 'DELETE').map((c) => c.url.split('/').pop()).sort();
-  assert.deepEqual(deleted, ['b1', 'b2']);
-  const append = calls.filter((c) => c.method === 'PATCH' && c.url.includes('/children')).at(-1);
-  assert.equal(append.body.children.length, 2);
-  assert.equal(append.body.children[0].type, 'bulleted_list_item');
-});
-
-test('updateItem rejects malformed page ids before calling Notion', async () => {
-  reset();
-  await assert.rejects(updateItem('writing', '../../databases/x', { title: 'x' }), /invalid Notion page id/);
-  assert.equal(calls.length, 0);
-});
-
-test('archiveItem sends archived:true', async () => {
-  reset();
-  await archiveItem(page.id);
-  assert.deepEqual(calls[0].body, { archived: true });
-  assert.equal(calls[0].method, 'PATCH');
-});
-
-test('fetchBody renders supported blocks and drops unsafe media', async () => {
-  reset();
-  childBlocks = [
-    { id: 'b1', type: 'heading_1', heading_1: { rich_text: [{ plain_text: 'Hi' }] } },
-    { id: 'b2', type: 'image', image: { type: 'external', external: { url: 'javascript:alert(1)' } } },
-    { id: 'b3', type: 'image', image: { type: 'external', external: { url: 'https://cdn.test/a.png' } } },
+test('status/select publish flags, created-time fallback and page covers', () => {
+  const base = { created_time: '2026-01-02T03:04:05.000Z', last_edited_time: '2026-01-02T03:04:05.000Z' };
+  const title = (t) => ({ type: 'title', title: [{ plain_text: t }] });
+  const pages = [
+    { ...base, id: 'a'.repeat(32), properties: { Name: title('Live one'), Status: { type: 'status', status: { name: 'Published' } } }, cover: { type: 'external', external: { url: 'https://img.test/a.jpg' } } },
+    { ...base, id: 'b'.repeat(32), properties: { Name: title('Draft one'), Status: { type: 'status', status: { name: 'Draft' } } } },
+    { ...base, id: 'c'.repeat(32), properties: { Name: title('No flag') } },
+    { ...base, id: 'd'.repeat(32), archived: true, properties: { Name: title('Archived') } },
   ];
-  const html = await fetchBody(page.id);
-  assert.match(html, /<h2>Hi<\/h2>/);
-  assert.doesNotMatch(html, /javascript:/i);
-  assert.equal((html.match(/<img /g) ?? []).length, 1);
+  const { rows } = toArticles(pages, NOW);
+  assert.deepEqual(rows.map((r) => r.title).sort(), ['Live one', 'No flag']);
+  assert.equal(rows.find((r) => r.title === 'Live one').cover, 'https://img.test/a.jpg', "falls back to the page's own cover");
+  assert.equal(rows[0].date, base.created_time);
+  assert.equal(coverSource({ ...pages[0], cover: { type: 'file', file: { url: 'https://s3.test/x' } } }).kind, 'file');
 });
 
-test('fetchKind reads paginated results, lowercases keys and skips unpublished pages', async () => {
-  reset();
-  queryResults = [
-    { id: '1', created_time: '2026-03-01T00:00:00Z', last_edited_time: '2026-03-02T00:00:00Z',
-      properties: { Name: { type: 'title', title: [{ plain_text: 'Published Piece' }] }, Slug: { type: 'rich_text', rich_text: [{ plain_text: 'piece' }] }, Year: { type: 'number', number: 2026 } } },
-    { id: '2', created_time: '2026-03-01T00:00:00Z', last_edited_time: '2026-03-02T00:00:00Z',
-      properties: { Name: { type: 'title', title: [{ plain_text: 'Draft Piece' }] }, Published: { type: 'checkbox', checkbox: false } } },
-  ];
-  const items = await fetchKind('writing');
-  assert.equal(items.length, 1);
-  assert.equal(items[0].slug, 'piece');
-  assert.equal(items[0].data.year, 2026);
-  assert.equal(items[0].data.name, 'Published Piece');
+test('describeSchema warns about missing Published/Date and mistyped columns', () => {
+  const schema = describeSchema('db', {
+    id: 'db', title: [{ plain_text: 'Notes' }],
+    properties: { Name: { name: 'Name', type: 'title' }, Tags: { name: 'Tags', type: 'rich_text' } },
+  });
+  assert.equal(schema.database.title, 'Notes');
+  assert.equal(schema.mapping.title.property, 'Name');
+  assert.equal(schema.mapping.tags.property, null);
+  assert.equal(schema.warnings.length, 3);
+  assert.match(schema.warnings.join('\n'), /every page in this database will be public/);
+  assert.match(schema.warnings.join('\n'), /"Tags" is a rich_text column/);
 });
 
-test('the Notion client reports upstream failures without leaking the response body', async () => {
-  const previous = globalThis.fetch;
-  globalThis.fetch = async () => new Response('{"message":"database abc is private to workspace XYZ"}', { status: 404 });
-  try {
-    await assert.rejects(client.queryDatabase('db-writing'), (error) => {
-      assert.equal(error.status, 502);
-      assert.equal(error.code, 'upstream_error');
-      assert.doesNotMatch(error.message, /workspace XYZ/);
-      return true;
-    });
-  } finally {
-    globalThis.fetch = previous;
-  }
+test('parseNotionId accepts ids, dashed ids and pasted links; rejects the rest', () => {
+  const id = '0123456789abcdef0123456789abcdef';
+  assert.equal(parseNotionId(id.toUpperCase()), id);
+  assert.equal(parseNotionId('01234567-89ab-cdef-0123-456789abcdef'), id);
+  assert.equal(parseNotionId(`https://www.notion.so/team/My-Blog-${id}?v=ffffffffffffffffffffffffffffffff`), id);
+  assert.equal(parseNotionId('https://www.notion.so/team/My-Blog'), null);
+  assert.equal(parseNotionId(''), null);
+  assert.ok(isPageId(id) && !isPageId('../x'));
 });
 
-test('toItems gives colliding slugs a numeric suffix instead of shadowing', () => {
-  const page = (id, title) => ({ id, created_time: '2026-01-01T00:00:00Z', last_edited_time: '2026-01-01T00:00:00Z',
-    properties: { Name: { type: 'title', title: [{ plain_text: title }] } } });
-  const items = toItems('films', [page('a', 'Night'), page('b', 'Night'), page('c', 'Night')]);
-  assert.deepEqual(items.map((i) => i.slug), ['night', 'night-2', 'night-3']);
+test('client retries 429/5xx, then reports failures without leaking bodies', async () => {
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    if (calls === 1) return new Response('{}', { status: 429, headers: { 'retry-after': '0.01' } });
+    if (calls === 2) return new Response('{}', { status: 503, headers: { 'retry-after': '0.01' } });
+    return Response.json({ ok: true });
+  };
+  assert.deepEqual(await new NotionClient('t').request('/x'), { ok: true });
+  assert.equal(calls, 3);
+
+  globalThis.fetch = async () => new Response('{"message":"workspace secret"}', { status: 401 });
+  await assert.rejects(new NotionClient('t').request('/x'), (error) => {
+    assert.equal(error.status, 502);
+    assert.equal(error.details.notionStatus, 401);
+    assert.doesNotMatch(error.message, /workspace secret/);
+    return true;
+  });
+
+  let tries = 0;
+  globalThis.fetch = async () => { tries += 1; return new Response('', { status: 429, headers: { 'retry-after': '0.01' } }); };
+  await assert.rejects(new NotionClient('t').request('/x'), /rate limit/);
+  assert.equal(tries, 3, 'gives up after two retries');
 });
 
-test('isPageId accepts dashed and undashed ids only', () => {
-  assert.ok(isPageId('abcd1234abcd1234abcd1234abcd1234'));
-  assert.ok(isPageId('abcd1234-abcd-1234-abcd-1234abcd1234'));
-  assert.ok(!isPageId('../x'));
-  assert.ok(!isPageId(''));
+test('fetchBlockTree attaches children, follows synced blocks, skips child pages', async () => {
+  globalThis.fetch = mock.fetch;
+  mock.state.calls.length = 0;
+  const tree = await fetchBlockTree(new NotionClient('t'), ID.first);
+  const byType = (type) => tree.find((b) => b.type === type);
+  assert.equal(byType('toggle').children[0].paragraph.rich_text[0].plain_text, 'Hidden paragraph about owls.');
+  assert.equal(byType('table').children.length, 2);
+  assert.equal(byType('synced_block').children[0].type, 'quote');
+  assert.equal(byType('child_page').children, undefined);
+  assert.ok(!mock.state.calls.some((c) => c.url.includes(compact(ID.child))), 'child page content is never requested');
 });
 
-test('buildProperties drops empty values and unknown columns', () => {
-  const props = buildProperties({ Name: { name: 'Name', type: 'title' }, Year: { name: 'Year', type: 'number' } },
-    { title: 'T', year: '', bogus: 'x' });
-  assert.deepEqual(Object.keys(props), ['Name']);
+test('legacy URLs map onto /articles', () => {
+  const none = new URLSearchParams();
+  assert.equal(legacyTarget(undefined, none), '/articles');
+  assert.equal(legacyTarget('first-light', none), '/articles/first-light');
+  assert.equal(legacyTarget('tag/%E5%B0%8F%E8%AF%B4', none), `/articles?tag=${encodeURIComponent('小说')}`);
+  assert.equal(legacyTarget(undefined, new URLSearchParams('tag=notes')), '/articles?tag=notes');
+  assert.equal(legacyTarget('a/b/c', none), '/articles');
 });

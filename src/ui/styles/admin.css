@@ -21,15 +21,12 @@
 .admin label.check input { width: auto; }
 .row2.tight { margin: 0; }
 .badge { display: inline-block; margin-left: 6px; padding: 0 6px; font-size: 11px; font-weight: 600; border: 1px solid var(--red); color: var(--red); vertical-align: middle; }
-.preview, .preview.prose { margin: 24px 0 0; padding: 24px; border: 1px dashed rgba(241,238,230,.3); max-width: none; }
-.preview h1 { font-size: 2.4rem; margin-bottom: 1rem; }
-/* history + data */
-.history { margin-top: 24px; padding: 20px 24px; border: 1px solid rgba(241,238,230,.25); }
-.history .admin-sec { margin: 0; flex: 1; }
-.diff { margin: 12px 0 0; padding: 12px 0; max-height: 60vh; overflow: auto; font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; background: rgba(241,238,230,.04); white-space: pre-wrap; word-break: break-word; }
-.diff span { display: block; padding: 0 12px; }
-.diff .add, b.add { color: #9fe3a5; } .diff .add { background: rgba(80,200,120,.12); }
-.diff .del, b.del { color: #ff9b94; } .diff .del { background: rgba(230,57,70,.14); }
-.diff .gap { opacity: .4; text-align: center; }
-.report { margin: 4px 0 12px 1.2em; list-style: disc; font-size: 14px; }
+/* articles + schema check */
+.admin table.grid { width: 100%; border-collapse: collapse; margin: 12px 0 24px; font-size: 14px; }
+.admin table.grid th, .admin table.grid td { text-align: left; padding: 8px 10px 8px 0; border-top: 1px solid rgba(241,238,230,.18); vertical-align: top; }
+.admin table.grid th { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; opacity: .55; font-weight: 600; }
+.admin table.grid td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.admin table.grid a:hover { color: var(--red); }
+.admin .ok { color: #9fe3a5; } .admin .warn { color: #ffc56b; }
+.warnings { margin: 0 0 12px 1.2em; list-style: disc; font-size: 14px; color: #ffc56b; }
 .admin code { font-size: .92em; opacity: .85; }

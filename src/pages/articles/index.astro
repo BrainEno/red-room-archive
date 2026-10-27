@@ -1,0 +1,12 @@
+---
+// Route: /articles?tag=&page=
+import ArticlesView from '../../ui/views/ArticlesView.astro';
+import { getArticles, getSite } from '../../server/queries.ts';
+
+const site = getSite();
+const page = Number(Astro.url.searchParams.get('page')) || 1;
+const tag = Astro.url.searchParams.get('tag')?.slice(0, 200) ?? undefined;
+const data = await getArticles({ page, tag });
+if (data.page > data.pages) return Astro.redirect(tag ? `/articles?tag=${encodeURIComponent(tag)}` : '/articles', 302);
+---
+<ArticlesView site={site} {...data} />

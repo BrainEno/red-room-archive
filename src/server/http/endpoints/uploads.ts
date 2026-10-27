@@ -111,34 +111,45 @@ export function parseRange(header: string | null, size: number): { start: number
   return { start, end };
 }
 
-export function serve(context: APIContext, headOnly = false): Response {
-  const file = servedFile(context.params.path ?? '');
-  if (!file) return new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+export interface SendableFile {
+  path: string;
+  size: number;
+  /** Seconds since epoch. */
+  mtime: number;
+  mime: string;
+}
 
+/** Stream a file with ETag/304 and single-range support. */
+export function sendFile(
+  request: Request,
+  file: SendableFile,
+  options: { headOnly?: boolean; cacheControl?: string; headers?: Record<string, string> } = {},
+): Response {
   const etag = `"${file.size.toString(16)}-${file.mtime.toString(16)}"`;
   const lastModified = new Date(file.mtime * 1000).toUTCString();
+  const cacheControl = options.cacheControl ?? 'public, max-age=3600';
   const headers: Record<string, string> = {
     'Content-Type': file.mime,
     'Accept-Ranges': 'bytes',
-    'Cache-Control': 'public, max-age=3600',
+    'Cache-Control': cacheControl,
     'X-Content-Type-Options': 'nosniff',
     ETag: etag,
     'Last-Modified': lastModified,
+    ...(options.headers ?? {}),
   };
 
-  const request = context.request;
   const ifNoneMatch = request.headers.get('if-none-match');
   const ifModifiedSince = Date.parse(request.headers.get('if-modified-since') ?? '');
   const notModified = ifNoneMatch
     ? ifNoneMatch.split(',').map((tag) => tag.trim()).includes(etag)
     : Boolean(ifModifiedSince) && file.mtime * 1000 <= ifModifiedSince;
   if (notModified) {
-    return new Response(null, { status: 304, headers: { ETag: etag, 'Last-Modified': lastModified, 'Cache-Control': headers['Cache-Control']! } });
+    return new Response(null, { status: 304, headers: { ETag: etag, 'Last-Modified': lastModified, 'Cache-Control': cacheControl } });
   }
 
   const range = parseRange(request.headers.get('range'), file.size);
   if (range === 'invalid') return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${file.size}` } });
-  if (range && !headOnly) {
+  if (range && !options.headOnly) {
     return new Response(readRange(file.path, range.start, range.end), {
       status: 206,
       headers: { ...headers, 'Content-Range': `bytes ${range.start}-${range.end}/${file.size}`, 'Content-Length': String(range.end - range.start + 1) },
@@ -146,6 +157,12 @@ export function serve(context: APIContext, headOnly = false): Response {
   }
 
   headers['Content-Length'] = String(file.size);
-  if (headOnly) return new Response(null, { status: 200, headers });
+  if (options.headOnly) return new Response(null, { status: 200, headers });
   return new Response(readRange(file.path), { headers });
+}
+
+export function serve(context: APIContext, headOnly = false): Response {
+  const file = servedFile(context.params.path ?? '');
+  if (!file) return new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  return sendFile(context.request, file, { headOnly });
 }

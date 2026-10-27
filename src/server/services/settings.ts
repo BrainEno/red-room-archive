@@ -6,12 +6,12 @@
  * directly, so a value edited in /admin takes effect everywhere.
  */
 import { readEnv } from '../../core/env.ts';
+import { badRequest } from '../../core/errors.ts';
 import { site as defaults } from '../../content/site.ts';
-import type { SettingKey, SettingValues, SiteResponse } from '../../shared/contracts.ts';
-import { KINDS, type Kind } from '../../shared/kinds.ts';
+import type { SettingKey, SettingValues } from '../../shared/contracts.ts';
 import { settingsRepository } from '../db/settings.repository.ts';
 import { metaRepository } from '../db/meta.repository.ts';
-import { itemsRepository } from '../db/items.repository.ts';
+import { parseNotionId } from '../notion/mapper.ts';
 
 export const SETTING_KEYS: readonly SettingKey[] = [
   'site_name',
@@ -19,16 +19,8 @@ export const SETTING_KEYS: readonly SettingKey[] = [
   'site_about',
   'site_intro',
   'NOTION_TOKEN',
-  'NOTION_DB_WRITING',
-  'NOTION_DB_FILMS',
-  'NOTION_DB_MUSIC',
+  'NOTION_DATABASE_ID',
 ];
-
-const DATABASE_KEYS: Record<Kind, SettingKey> = {
-  writing: 'NOTION_DB_WRITING',
-  films: 'NOTION_DB_FILMS',
-  music: 'NOTION_DB_MUSIC',
-};
 
 /** Stored setting first, environment second. */
 export function resolveSetting(key: string): string | undefined {
@@ -37,22 +29,33 @@ export function resolveSetting(key: string): string | undefined {
   return readEnv(key) || undefined;
 }
 
+const first = (...values: (string | undefined)[]) => values.find((value) => value && value.trim())?.trim();
+
 export interface NotionConfig {
   token?: string;
-  databases: Record<Kind, string | undefined>;
+  databaseId?: string;
 }
 
+/**
+ * Accepted spellings, newest first:
+ * - token: `NOTION_TOKEN`, `NOTION_API_SECRET` (astro-notion)
+ * - database: `NOTION_DATABASE_ID`, the old per-collection `NOTION_DB_WRITING`
+ *   (stored or env), `DATABASE_ID` (astro-notion)
+ */
 export function notionConfig(): NotionConfig {
-  const databases = Object.fromEntries(
-    KINDS.map((kind) => [kind, resolveSetting(DATABASE_KEYS[kind])]),
-  ) as Record<Kind, string | undefined>;
-  return { token: resolveSetting('NOTION_TOKEN'), databases };
+  const token = first(resolveSetting('NOTION_TOKEN'), readEnv('NOTION_API_SECRET'));
+  const rawDatabase = first(
+    resolveSetting('NOTION_DATABASE_ID'),
+    settingsRepository.get('NOTION_DB_WRITING'),
+    readEnv('DATABASE_ID'),
+    readEnv('NOTION_DB_WRITING'),
+  );
+  return { token, databaseId: parseNotionId(rawDatabase) ?? undefined };
 }
 
-export function notionReady(kind?: Kind): boolean {
-  const { token, databases } = notionConfig();
-  if (!token) return false;
-  return kind ? Boolean(databases[kind]) : KINDS.some((k) => Boolean(databases[k]));
+export function notionReady(): boolean {
+  const { token, databaseId } = notionConfig();
+  return Boolean(token && databaseId);
 }
 
 export interface SiteProfile {
@@ -78,27 +81,28 @@ const SITE_DEFAULTS: Partial<Record<SettingKey, string>> = {
   site_intro: defaults.intro,
 };
 
-const mask = (value: string | undefined) =>
-  value ? `••••${value.slice(-4)}` : '';
+const mask = (value: string | undefined) => (value ? `••••${value.slice(-4)}` : '');
 
 /** What /admin sees: real values, token masked, plus a "is a token stored" flag. */
 export function adminSettings(): { values: SettingValues & { hasToken: boolean } } {
-  // Site fields show the *effective* value (override, else content default).
   const profile = siteProfile();
-  const effective: Partial<Record<SettingKey, string>> = {
+  const notion = notionConfig();
+  const values: SettingValues = {
     site_name: profile.name,
     site_email: profile.email,
     site_about: profile.about,
     site_intro: profile.intro,
+    NOTION_TOKEN: mask(notion.token),
+    NOTION_DATABASE_ID: notion.databaseId ?? '',
   };
-  const values = Object.fromEntries(
-    SETTING_KEYS.map((key) => {
-      if (key === 'NOTION_TOKEN') return [key, mask(resolveSetting(key))];
-      return [key, effective[key] ?? resolveSetting(key) ?? ''];
-    }),
-  ) as SettingValues;
-  return { values: { ...values, hasToken: Boolean(resolveSetting('NOTION_TOKEN')) } };
+  return { values: { ...values, hasToken: Boolean(notion.token) } };
 }
+
+type Listener = () => void;
+const listeners: Listener[] = [];
+
+/** Called after the Notion credentials change (the article cache is reset). */
+export const onNotionChange = (listener: Listener) => listeners.push(listener);
 
 /**
  * Apply a partial settings update.
@@ -106,9 +110,11 @@ export function adminSettings(): { values: SettingValues & { hasToken: boolean }
  * - Omitted keys are untouched.
  * - An empty string clears the override (falls back to `.env`).
  * - A masked token (`••••xxxx`) means "keep the stored value".
+ * - The database accepts an id or a pasted Notion link.
  */
 export function updateSettings(patch: Record<string, unknown>): void {
   let notionChanged = false;
+  const before = notionConfig();
 
   for (const key of SETTING_KEYS) {
     if (!(key in patch)) continue;
@@ -117,7 +123,18 @@ export function updateSettings(patch: Record<string, unknown>): void {
     if (key === 'NOTION_TOKEN') {
       if (!value || value.startsWith('••••')) continue;
       settingsRepository.set(key, value);
-      notionChanged = true;
+      continue;
+    }
+
+    if (key === 'NOTION_DATABASE_ID') {
+      if (!value) {
+        settingsRepository.remove(key);
+        settingsRepository.remove('NOTION_DB_WRITING');
+        continue;
+      }
+      const id = parseNotionId(value);
+      if (!id) throw badRequest('NOTION_DATABASE_ID must be a Notion database id or link', { value });
+      settingsRepository.set(key, id);
       continue;
     }
 
@@ -125,33 +142,14 @@ export function updateSettings(patch: Record<string, unknown>): void {
     const fallback = SITE_DEFAULTS[key];
     if (value && value !== fallback) settingsRepository.set(key, value);
     else settingsRepository.remove(key);
-
-    if (key.startsWith('NOTION')) notionChanged = true;
   }
 
+  const after = notionConfig();
+  notionChanged = before.token !== after.token || before.databaseId !== after.databaseId;
   if (notionChanged) {
-    // Credentials changed: the cached snapshot is no longer trustworthy.
+    // Different credentials or database: the cached articles are no longer trustworthy.
     metaRepository.remove('synced');
     metaRepository.remove('sync_error');
-    for (const kind of KINDS) metaRepository.remove(`synced:${kind}`);
+    for (const listener of listeners) listener();
   }
-}
-
-/** Settings that are safe to put in an export: everything except secrets. */
-export const PORTABLE_SETTING_KEYS = SETTING_KEYS.filter((key) => key !== 'NOTION_TOKEN');
-
-/** Stored overrides (not `.env` values, not defaults) minus the Notion token. */
-export function portableSettings(): Partial<SettingValues> {
-  const stored = settingsRepository.all();
-  return Object.fromEntries(
-    PORTABLE_SETTING_KEYS.filter((key) => stored[key]).map((key) => [key, stored[key]]),
-  ) as Partial<SettingValues>;
-}
-
-export function siteResponse(): SiteResponse {
-  return {
-    ...siteProfile(),
-    notionConfigured: notionReady(),
-    counts: itemsRepository.counts(),
-  };
 }

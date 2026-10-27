@@ -104,13 +104,42 @@ const MIGRATIONS: ((db: DatabaseConnection) => void)[] = [
       CREATE INDEX IF NOT EXISTS post_revisions_slug ON post_revisions(slug, id DESC);
     `);
   },
+  // 5 — Notion-only articles. The legacy items/posts/post_revisions tables are
+  //     left untouched (no destructive migration) but nothing reads them.
+  (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS articles(
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        date TEXT NOT NULL,
+        tags TEXT NOT NULL DEFAULT '[]',
+        excerpt TEXT NOT NULL DEFAULT '',
+        cover TEXT,
+        rank REAL NOT NULL DEFAULT 0,
+        updated TEXT NOT NULL,
+        body TEXT,
+        body_text TEXT,
+        toc TEXT,
+        body_updated TEXT
+      );
+      CREATE INDEX IF NOT EXISTS articles_date ON articles(date DESC);
+
+      CREATE TABLE IF NOT EXISTS notion_media(
+        id TEXT PRIMARY KEY,
+        article_id TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('block', 'cover'))
+      );
+      CREATE INDEX IF NOT EXISTS notion_media_article ON notion_media(article_id);
+    `);
+  },
 ];
 
 let depth = 0;
 
 /**
  * Run `fn` atomically. Re-entrant: a service that already runs inside a
- * transaction (e.g. a bulk import) can call another transactional service
+ * transaction can call another transactional helper
  * without opening a nested one.
  */
 export function transaction<T>(fn: () => T): T {
@@ -124,14 +153,6 @@ export function transaction<T>(fn: () => T): T {
     }
   });
   return run();
-}
-
-/**
- * Write a consistent, compacted copy of the live database to `file`
- * (`VACUUM INTO`): safe while the site is serving, includes WAL contents.
- */
-export function snapshotTo(file: string) {
-  connection().prepare('VACUUM INTO ?').run(file);
 }
 
 export function migrate(db: DatabaseConnection) {

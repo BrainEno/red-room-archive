@@ -46,11 +46,10 @@
 .row > * { position: relative; z-index: 1; transition: color .35s; }
 .row::before { content: ""; position: absolute; inset: 0 0 auto; height: 1px; background: currentColor; transform: scaleX(var(--r, 1)); transform-origin: left; }
 .row::after { content: ""; position: absolute; inset: 0; background: var(--ink); transform: scaleX(0); transform-origin: left; transition: transform .55s var(--ease); }
-.row:hover::after, .row:focus-visible::after, .row.play::after { transform: scaleX(1); }
-.row:hover > *, .row:focus-visible > *, .row.play > * { color: var(--void); }
+.row:hover::after, .row:focus-visible::after { transform: scaleX(1); }
+.row:hover > *, .row:focus-visible > * { color: var(--void); }
 .row .t { font-stretch: 62%; font-weight: 800; text-transform: uppercase; font-size: clamp(1.5rem, 3.4vw, 3.2rem); line-height: 1; }
 .row .r { text-align: right; }
-.row.play .n::before { content: "■ "; }
 
 .panel { grid-column: 1 / 7; background: var(--red); padding: clamp(20px, 3vw, 44px); }
 .panel h2 { font-stretch: 62%; font-weight: 800; font-size: clamp(2.5rem, 6vw, 6rem); line-height: .9; margin-bottom: 1.5rem; }
@@ -74,7 +73,9 @@
 }
 @media (prefers-reduced-motion: reduce) { .grain { display: none; } }
 
-/* "All works →" link under each homepage list */
+/* "All articles →" link under each homepage list */
 .more { grid-column: 1 / 11; justify-self: start; margin-top: 18px; font-weight: 600; opacity: .75; transition: opacity .3s, color .3s; }
 .more:hover { opacity: 1; color: var(--red); }
 @media (max-width: 720px) { .more { grid-column: 1 / 13; } }
+.l .empty-note { grid-column: 1 / 11; max-width: 40ch; opacity: .7; font-size: 1.1rem; }
+@media (max-width: 720px) { .l .empty-note { grid-column: 1 / 13; } }

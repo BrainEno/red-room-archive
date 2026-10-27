@@ -1,25 +1,23 @@
 /**
- * Admin endpoints: login, settings, sync and Notion writes.
+ * Admin endpoints: login, settings, sync and the Notion schema check.
  * Every handler except `authStatus` requires `Authorization: Bearer <ADMIN_TOKEN>`.
+ * The site never writes to Notion — edit content there.
  */
-import type { APIContext } from 'astro';
 import { badRequest } from '../../../core/errors.ts';
 import type {
   AuthResponse,
   AuthStatusResponse,
   NotionSchemaResponse,
-  NotionWriteResponse,
   SettingsResponse,
   SyncResponse,
   SyncStatusResponse,
 } from '../../../shared/contracts.ts';
-import { forgetItem, invalidateBody, notionAccess, syncAll, syncKind } from '../../services/archive.ts';
+import { describeSchema } from '../../notion/mapper.ts';
+import { notion, syncArticles, warmBodies } from '../../services/articles.ts';
 import { adminToken, authenticate, requireAdmin } from '../../services/auth.ts';
 import { adminSettings, notionReady, updateSettings } from '../../services/settings.ts';
 import { syncStatus } from '../../services/status.ts';
-import { isPageId } from '../../notion/mapper.ts';
-import { NO_STORE, created, json, param, readJson, route } from '../respond.ts';
-import { requireKind } from './public.ts';
+import { NO_STORE, json, readJson, route, truthy } from '../respond.ts';
 
 /* ── Auth ───────────────────────────────────────────────────────────── */
 
@@ -61,69 +59,25 @@ export const readSync = route((context) => {
   return json<SyncStatusResponse>({ status: syncStatus() }, { headers: NO_STORE });
 });
 
-/** POST /api/sync?kind= — sync now (one kind, or every configured kind). */
+/**
+ * POST /api/sync — pull the Notion database now.
+ *   ?full=1    also drop every cached body and media file
+ *   ?bodies=1  then fetch every missing body (slower; makes search cover full text)
+ */
 export const runSync = route(async (context) => {
   requireAdmin(context.request);
-  const raw = context.url.searchParams.get('kind');
-  const kind = raw ? requireKind(raw) : undefined;
-  if (!notionReady(kind)) throw badRequest(kind ? `Notion is not configured for ${kind}` : 'Notion is not configured');
-  const synced = kind ? { [kind]: await syncKind(kind) } : await syncAll();
-  return json<SyncResponse>({ ok: true, synced, status: syncStatus() }, { headers: NO_STORE });
+  if (!notionReady()) throw badRequest('Notion is not configured (NOTION_TOKEN and NOTION_DATABASE_ID)');
+  const synced = await syncArticles({ full: truthy(context.url.searchParams.get('full')) });
+  const bodies = truthy(context.url.searchParams.get('bodies')) ? await warmBodies() : 0;
+  return json<SyncResponse>({ ok: true, synced, bodies, status: syncStatus() }, { headers: NO_STORE });
 });
 
-/* ── Notion entries ─────────────────────────────────────────────────── */
+/* ── Notion schema ──────────────────────────────────────────────────── */
 
-const notionKind = (context: APIContext) => {
-  requireAdmin(context.request);
-  const kind = requireKind(param(context, 'kind'));
-  if (!notionReady(kind)) throw badRequest(`Notion is not configured for ${kind}`, { kind });
-  return kind;
-};
-
-const pageId = (context: APIContext) => {
-  const id = param(context, 'id');
-  if (!isPageId(id)) throw badRequest('invalid Notion page id', { id });
-  return id;
-};
-
-/** GET /api/notion/:kind — database columns (drives the admin form). */
+/** GET /api/notion/schema — the database's columns and how they map to article fields. */
 export const notionSchema = route(async (context) => {
-  const kind = notionKind(context);
-  const fields = await notionAccess().writer.fields(kind);
-  return json<NotionSchemaResponse>({ kind, fields }, { headers: NO_STORE });
-});
-
-/** POST /api/notion/:kind — create a page, then refresh that kind's cache. */
-export const notionCreate = route(async (context) => {
-  const kind = notionKind(context);
-  const page = await notionAccess().writer.create(kind, await readJson(context.request));
-  await syncKind(kind);
-  return created<NotionWriteResponse>({ ok: true, id: page.id, url: page.url });
-});
-
-/**
- * PATCH /api/notion/:kind/:id — update properties; a `body` string replaces
- * the whole page content with that Markdown.
- */
-export const notionUpdate = route(async (context) => {
-  const kind = notionKind(context);
-  const id = pageId(context);
-  const fields = await readJson(context.request);
-  const page = await notionAccess().writer.update(kind, id, fields);
-  invalidateBody(id);
-  await syncKind(kind);
-  return json<NotionWriteResponse>({ ok: true, id: page.id, url: page.url, updated: true }, { headers: NO_STORE });
-});
-
-/**
- * DELETE /api/notion/:kind/:id — archive in Notion (recoverable from trash)
- * and drop the cached copy. `?purge=1` only drops the cache.
- */
-export const notionArchive = route(async (context) => {
-  notionKind(context);
-  const id = pageId(context);
-  const archive = context.url.searchParams.get('purge') !== '1';
-  if (archive) await notionAccess().writer.archive(id);
-  forgetItem(id);
-  return json<NotionWriteResponse>({ ok: true, id, archived: archive }, { headers: NO_STORE });
+  requireAdmin(context.request);
+  if (!notionReady()) throw badRequest('Notion is not configured (NOTION_TOKEN and NOTION_DATABASE_ID)');
+  const { client, databaseId } = notion();
+  return json<NotionSchemaResponse>(describeSchema(databaseId, await client.database(databaseId)), { headers: NO_STORE });
 });

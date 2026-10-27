@@ -3,6 +3,8 @@
 本文件记录重构前的审查结论：哪些设计不合理、哪些接口互相冲突，以及每一项最终如何处理。
 重构后的结构见 [ARCHITECTURE.md](./ARCHITECTURE.md)，确定下来的接口约定见 [API.md](./API.md)。
 
+> 历史记录：其中关于 items / posts / 写回 Notion 的条目已随 v2（Notion-only，见 [NOTION-ONLY.md](./NOTION-ONLY.md)）一并移除。
+
 ## 一、结构设计问题
 
 | # | 问题 | 影响 | 处理 |

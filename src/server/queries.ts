@@ -1,24 +1,27 @@
 /**
  * Read-only facade for server-rendered pages.
  *
- * This is the *only* server module that `src/ui/**` may import. It returns the
- * same DTOs as the JSON API (see `shared/contracts.ts`), which keeps the UI
- * decoupled from SQLite, Notion and every write path. A test
- * (`tests/architecture.test.mjs`) enforces the boundary.
+ * This is the *only* server module that `.astro` pages may import. It returns
+ * the same DTOs as the JSON API (see `shared/contracts.ts`), which keeps the UI
+ * decoupled from SQLite and Notion. `tests/architecture.test.mjs` enforces it.
  */
-import { renderMarkdown } from '../core/markdown.ts';
-import { readingMinutes } from '../core/text.ts';
 import { site as content } from '../content/site.ts';
-import type { ItemDetail, ItemSummary, PostDetail, PostSummary, SearchResponse } from '../shared/contracts.ts';
-import { COLLECTIONS, type Kind } from '../shared/kinds.ts';
+import type { ArticleDetail, ArticleSummary, SearchResponse, TagCount } from '../shared/contracts.ts';
 import { config } from './config.ts';
-import { presentItem, presentItemDetail, presentPost, presentPostDetail } from './presenters.ts';
-import { findItem, itemBody, listItems } from './services/archive.ts';
-import { getPost, listPosts, postNeighbours, postTags } from './services/posts.ts';
+import { presentArticle, presentArticleDetail } from './presenters.ts';
+import {
+  articleBody,
+  articlesByTag,
+  featuredArticles,
+  findArticle,
+  listArticles,
+  neighbours,
+  tagCounts,
+} from './services/articles.ts';
 import { search } from './services/search.ts';
 import { siteProfile } from './services/settings.ts';
 
-export type { ItemDetail, ItemSummary, PostDetail, PostSummary, SearchResponse };
+export type { ArticleDetail, ArticleSummary, SearchResponse, TagCount };
 
 export interface SiteView {
   name: string;
@@ -27,7 +30,9 @@ export interface SiteView {
   intro: string;
   tagline: string;
   facts: { key: string; value: string }[];
-  journal: { label: string; intro: string };
+  articles: { label: string; intro: string };
+  featured: { label: string };
+  topics: { label: string };
   contact: { heading: string; note: string };
   url: string;
 }
@@ -36,98 +41,74 @@ export function getSite(): SiteView {
   return { ...content, ...siteProfile(), url: config.siteUrl() };
 }
 
-/** All three collections, in navigation order. */
-export async function getCollections(): Promise<{ kind: Kind; items: ItemSummary[] }[]> {
-  return Promise.all(
-    COLLECTIONS.map(async (collection) => ({
-      kind: collection.kind,
-      items: (await listItems(collection.kind)).map(presentItem),
-    })),
-  );
+export interface HomeData {
+  latest: ArticleSummary[];
+  featured: ArticleSummary[];
+  topics: TagCount[];
+  total: number;
 }
 
-export async function getCollection(kind: Kind): Promise<ItemSummary[]> {
-  return (await listItems(kind)).map(presentItem);
-}
-
-export interface EntryView {
-  entry: ItemDetail;
-  previous?: ItemSummary;
-  next?: ItemSummary;
-}
-
-/** One entry with its rendered body and neighbours inside the same collection. */
-export async function getEntry(kind: Kind, slug: string): Promise<EntryView | undefined> {
-  const item = await findItem(kind, slug);
-  if (!item) return undefined;
-  const all = await listItems(kind);
-  const index = all.findIndex((candidate) => candidate.id === item.id);
-  let bodyHtml = '';
-  try {
-    bodyHtml = await itemBody(item);
-  } catch (error) {
-    // Notion being unreachable should degrade the body, not the whole page.
-    console.error('[entry] body unavailable', error);
-  }
+export async function getHome(limit = 12): Promise<HomeData> {
+  const all = await listArticles();
   return {
-    entry: presentItemDetail(item, bodyHtml),
-    previous: index > 0 ? presentItem(all[index - 1]!) : undefined,
-    next: index >= 0 && index < all.length - 1 ? presentItem(all[index + 1]!) : undefined,
+    latest: all.slice(0, limit).map(presentArticle),
+    featured: featuredArticles(all).map(presentArticle),
+    topics: tagCounts(all),
+    total: all.length,
   };
 }
 
-export interface JournalPage {
-  posts: PostSummary[];
+export const ARTICLES_PAGE_SIZE = 20;
+
+export interface ArticlesPage {
+  articles: ArticleSummary[];
   total: number;
   page: number;
   pages: number;
   tag?: string;
-  tags: { tag: string; count: number }[];
+  tags: TagCount[];
 }
 
-export const JOURNAL_PAGE_SIZE = 20;
-
-export function getJournal(options: { page?: number; tag?: string } = {}): JournalPage {
+export async function getArticles(options: { page?: number; tag?: string } = {}): Promise<ArticlesPage> {
   const page = Math.max(1, Math.floor(options.page ?? 1));
   const tag = options.tag?.trim() || undefined;
-  const { posts, total } = listPosts({
-    limit: JOURNAL_PAGE_SIZE,
-    offset: (page - 1) * JOURNAL_PAGE_SIZE,
-    tag,
-  });
+  const [all, filtered] = await Promise.all([listArticles(), articlesByTag(tag ?? null)]);
   return {
-    posts: posts.map(presentPost),
-    total,
+    articles: filtered.slice((page - 1) * ARTICLES_PAGE_SIZE, page * ARTICLES_PAGE_SIZE).map(presentArticle),
+    total: filtered.length,
     page,
-    pages: Math.max(1, Math.ceil(total / JOURNAL_PAGE_SIZE)),
+    pages: Math.max(1, Math.ceil(filtered.length / ARTICLES_PAGE_SIZE)),
     tag,
-    tags: postTags(),
+    tags: tagCounts(all),
   };
 }
 
-export interface JournalPostView {
-  post: PostDetail & { html: string };
-  minutes: number;
-  previous?: { slug: string; title: string };
-  next?: { slug: string; title: string };
+export interface ArticleView {
+  article: ArticleDetail;
+  /** True when Notion could not be reached and no cached body existed. */
+  bodyMissing: boolean;
 }
 
-export async function getJournalPost(slug: string): Promise<JournalPostView | undefined> {
-  const post = getPost(slug);
-  if (!post) return undefined;
-  const html = await renderMarkdown(post.body);
-  return {
-    post: presentPostDetail(post, html) as PostDetail & { html: string },
-    minutes: readingMinutes(post.body),
-    ...postNeighbours(slug),
-  };
+export async function getArticle(slug: string): Promise<ArticleView | undefined> {
+  const row = await findArticle(slug);
+  if (!row) return undefined;
+  const all = await listArticles();
+  try {
+    const body = await articleBody(row);
+    return { article: presentArticleDetail(row, body, neighbours(all, row)), bodyMissing: false };
+  } catch (error) {
+    // Notion being unreachable should degrade the body, not the whole page.
+    console.error('[article] body unavailable', error instanceof Error ? error.message : error);
+    const empty = { html: '', text: '', toc: [], updated: row.updated };
+    return { article: presentArticleDetail(row, empty, neighbours(all, row)), bodyMissing: true };
+  }
 }
 
-/** Recent published posts, for the homepage teaser and the RSS feed. */
-export function getRecentPosts(limit = 20): PostSummary[] {
-  return listPosts({ limit }).posts.map(presentPost);
+/** Newest articles, for RSS and the sitemap. */
+export async function getRecentArticles(limit = 50): Promise<ArticleSummary[]> {
+  return (await listArticles()).slice(0, limit).map(presentArticle);
 }
 
-export function searchArchive(query: string, limit = 30): SearchResponse {
+export function searchArticles(query: string, limit = 30): Promise<SearchResponse> {
   return search(query, limit);
 }
