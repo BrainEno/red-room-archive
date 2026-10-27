@@ -123,7 +123,8 @@ const css = (name) => readFileSync(path.join(root, 'src/ui/styles', name), 'utf8
 
 test('every condensed (font-stretch: 62%) element uses the display stack with the Chinese cut', () => {
   const base = css('base.css');
-  const listed = /\n([^{}\n]+)\{\s*font-family:\s*var\(--display\);\s*\}/.exec(base);
+  // The selector list may span several lines; it follows a comment, hence no `/` in the capture.
+  const listed = /([^{}/]+)\{\s*font-family:\s*var\(--display\);\s*\}/.exec(base);
   assert.ok(listed, 'base.css declares the display selector list');
   const display = new Set(listed[1].split(',').map((s) => s.trim()));
   assert.match(base, /--display:\s*'Archivo Variable',\s*'Red Room Display SC'/);
@@ -152,4 +153,21 @@ test('the generated display font: OFL licence, one face per slice, no emoji rang
   assert.match(sheet, /font-family: 'Red Room Display SC'/);
   assert.match(sheet, /size-adjust: 88%/);
   assert.match(sheet, /font-weight: 700 900/);
+});
+
+/* ── /more content ─────────────────────────────────────────────────────── */
+
+test('/more content: every translated text has both languages; the page resolves per locale', async () => {
+  const { more } = await import('../src/content/more.ts');
+  const texts = [];
+  const walk = (value, where) => {
+    if (value && typeof value === 'object' && !Array.isArray(value) && ('en' in value || 'zh-CN' in value)) texts.push([where, value]);
+    else if (value && typeof value === 'object') for (const [key, child] of Object.entries(value)) walk(child, `${where}.${key}`);
+  };
+  walk(more, 'more');
+  assert.ok(texts.length > 5);
+  for (const [where, value] of texts) {
+    assert.ok(value.en?.trim() && value['zh-CN']?.trim(), `${where} needs both en and zh-CN`);
+  }
+  for (const item of more.publications) assert.ok(item.title && item.year && Array.isArray(item.excerpt), 'title, year and excerpt are required');
 });

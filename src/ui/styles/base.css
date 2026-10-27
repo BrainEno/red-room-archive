@@ -27,7 +27,8 @@ ul { list-style: none; }
    uses the display stack, so Chinese in these elements gets the matching
    condensed heavy cut instead of a square regular-width Hei. Add new
    condensed elements here. */
-.count, .bar .brand, .sec, .row .t, .mail, .site-brand, .prose h1, .page-head h1, .admin h1, .admin-sec { font-family: var(--display); }
+.count, .bar .brand, .sec, .row .t, .go, .site-brand, .prose h1, .page-head h1, .admin h1, .admin-sec,
+.mp-head h1, .pub-title, .tc-no, .tc-title, .mail-big { font-family: var(--display); }
 
 /* EN / 中文: shared look on every page — the inactive language is dimmed, a slash between */
 .lang-switch a { opacity: .45; transition: opacity .3s; }

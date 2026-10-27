@@ -86,11 +86,34 @@ test('sync is admin-only; it paginates, retries 429 and keeps only visible pages
 
 test('tags: counts are case-insensitive and filter the list', async () => {
   const tags = await call(pub.tags);
-  assert.deepEqual(tags.data.tags, [{ name: 'Fiction', count: 2 }, { name: 'Poem', count: 1 }]);
+  // Labels follow what the archive uses (`Poem`, not the glossary's first name `Poetry`).
+  assert.deepEqual(tags.data.tags, [{ key: 'fiction', name: 'Fiction', count: 2 }, { key: 'poetry', name: 'Poem', count: 1 }]);
   const filtered = await call(pub.listArticlesEndpoint, { path: '/api/articles?tag=fiction&limit=1' });
   assert.equal(filtered.data.total, 2);
   assert.equal(filtered.data.articles.length, 1);
   assert.equal(filtered.data.tag, 'fiction');
+});
+
+test('tags in Chinese: built-in pairs translate, any alias filters, one name per topic', async () => {
+  const zh = await call(pub.tags, { path: '/api/tags?lang=zh-CN' });
+  assert.deepEqual(zh.data.tags, [{ key: 'fiction', name: '小说', count: 2 }, { key: 'poetry', name: '诗歌', count: 1 }]);
+  const byChinese = await call(pub.listArticlesEndpoint, { path: `/api/articles?tag=${encodeURIComponent('小说')}&lang=zh-CN` });
+  assert.equal(byChinese.data.total, 2, 'a Chinese name selects the English-tagged articles');
+  assert.ok(byChinese.data.articles.every((article) => article.tags.includes('小说') && !article.tags.includes('Fiction')));
+
+  // The admin's own pairs win over the built-in ones.
+  await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { tag_glossary: '# mine\nPoem = 诗' } });
+  const custom = await call(pub.tags, { path: '/api/tags?lang=zh-CN' });
+  assert.deepEqual(custom.data.tags.map((tag) => tag.name), ['小说', '诗']);
+  assert.equal((await call(admin.readSettings, { token: TOKEN })).data.values.tag_glossary, '# mine\nPoem = 诗');
+  const home = await queries.getHome('zh-CN');
+  assert.deepEqual(home.topics.map((topic) => topic.name), ['小说', '诗']);
+  assert.ok(home.latest.every((article) => article.tags.every((tag) => /\p{Script=Han}/u.test(tag))));
+  const page = await queries.getArticles({ tag: 'FICTION', locale: 'zh-CN' });
+  assert.deepEqual(page.tag, { key: 'fiction', name: '小说' });
+  const found = await call(pub.searchArticles, { path: `/api/search?q=${encodeURIComponent('小说')}` });
+  assert.ok(found.data.total >= 2, 'search matches a tag through its translation');
+  await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { tag_glossary: '' } });
 });
 
 test('article detail renders the block tree once and caches it', async () => {

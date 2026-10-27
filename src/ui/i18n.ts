@@ -9,7 +9,7 @@
 import type { Locale } from '../shared/i18n.ts';
 
 const en = {
-  nav: { intro: 'intro', latest: 'latest', topics: 'topics', contact: 'contact', articles: 'Articles', search: 'Search', home: 'Home' },
+  nav: { intro: 'intro', latest: 'latest', topics: 'topics', more: 'more', articles: 'Articles', search: 'Search', moreLink: 'More', home: 'Home' },
   home: {
     scroll: 'Scroll',
     latest: 'Latest',
@@ -19,8 +19,32 @@ const en = {
     allTopics: 'All topics →',
     readArchive: 'Read the archive →',
     nothingYet: 'Nothing published yet.',
+    more: 'More',
+    learnMore: 'Learn more',
+    moreTopics: 'Self-published books · Excerpts · Elsewhere',
+    email: 'Email',
   },
   page: { skip: 'Skip to content', language: 'Language' },
+  more: {
+    title: 'More',
+    publications: 'Self-published',
+    elsewhere: 'Elsewhere',
+    excerpt: 'Excerpt',
+    year: 'Year',
+    format: 'Format',
+    pages: 'Pages',
+    pageCount: (n: number) => `${n} pp.`,
+    edition: 'Edition',
+    size: 'Size',
+    order: 'Order a copy',
+    ask: 'Ask for a copy',
+    askSubject: (title: string) => `About “${title}”`,
+    email: 'Email',
+    write: 'Write to me',
+    scan: 'Scan',
+    qrPending: 'QR code',
+    open: 'Open',
+  },
   articles: {
     title: 'Articles',
     all: 'All',
@@ -57,7 +81,7 @@ const en = {
 export type Messages = typeof en;
 
 const zhCN: Messages = {
-  nav: { intro: '引言', latest: '最新', topics: '主题', contact: '联系', articles: '文章', search: '搜索', home: '首页' },
+  nav: { intro: '引言', latest: '最新', topics: '主题', more: '更多', articles: '文章', search: '搜索', moreLink: '更多', home: '首页' },
   home: {
     scroll: '向下滚动',
     latest: '最新',
@@ -67,8 +91,32 @@ const zhCN: Messages = {
     allTopics: '全部主题 →',
     readArchive: '浏览全部文章 →',
     nothingYet: '还没有发布任何文章。',
+    more: '更多',
+    learnMore: '了解更多',
+    moreTopics: '自印出版物 · 选读 · 联系方式',
+    email: '邮箱',
   },
   page: { skip: '跳到正文', language: '语言' },
+  more: {
+    title: '更多',
+    publications: '自印出版物',
+    elsewhere: '联系',
+    excerpt: '选读',
+    year: '年份',
+    format: '形式',
+    pages: '页数',
+    pageCount: (n) => `${n} 页`,
+    edition: '印量',
+    size: '尺寸',
+    order: '购买',
+    ask: '来信索取',
+    askSubject: (title) => `关于《${title}》`,
+    email: '邮箱',
+    write: '写信给我',
+    scan: '扫码',
+    qrPending: '二维码',
+    open: '打开',
+  },
   articles: {
     title: '文章',
     all: '全部',

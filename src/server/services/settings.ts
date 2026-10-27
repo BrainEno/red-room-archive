@@ -21,6 +21,7 @@ export const SETTING_KEYS: readonly SettingKey[] = [
   'site_intro',
   'site_about_zh',
   'site_intro_zh',
+  'tag_glossary',
   'NOTION_TOKEN',
   'NOTION_DATABASE_ID',
 ];
@@ -112,6 +113,7 @@ export function adminSettings(): { values: SettingValues & { hasToken: boolean }
     site_intro: profile.intro,
     site_about_zh: zh.about,
     site_intro_zh: zh.intro,
+    tag_glossary: resolveSetting('tag_glossary') ?? '',
     NOTION_TOKEN: mask(notion.token),
     NOTION_DATABASE_ID: notion.databaseId ?? '',
   };

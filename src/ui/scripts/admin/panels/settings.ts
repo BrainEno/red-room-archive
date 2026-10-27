@@ -10,6 +10,7 @@ const LABELS: Record<SettingKey, string> = {
   site_intro: 'Homepage intro — English (revealed word by word)',
   site_about_zh: 'Description — 简体中文',
   site_intro_zh: 'Homepage intro — 简体中文',
+  tag_glossary: 'Tag pairs — one per line, e.g. “Fiction = 小说” (adds to the built-in pairs)',
   NOTION_TOKEN: 'Notion integration token',
   NOTION_DATABASE_ID: 'Notion database — id or link',
 };
@@ -25,7 +26,7 @@ const FIELD_LABELS: Record<ArticleField, string> = {
   rank: 'Rank (featured)',
 };
 
-const MULTILINE: SettingKey[] = ['site_about', 'site_intro', 'site_about_zh', 'site_intro_zh'];
+const MULTILINE: SettingKey[] = ['site_about', 'site_intro', 'site_about_zh', 'site_intro_zh', 'tag_glossary'];
 
 export function schemaHtml(schema: NotionSchemaResponse): string {
   const rows = (Object.keys(FIELD_LABELS) as ArticleField[])
@@ -49,6 +50,7 @@ export function settingsPanel(root: HTMLElement, api: ApiClient, initial: Settin
 
   const field = (key: SettingKey) => {
     const value = esc(state.values[key]);
+    if (key === 'tag_glossary') return `<textarea name="${key}" rows="4" spellcheck="false" placeholder="Fiction = 小说&#10;Poetry, Poem = 诗歌">${value}</textarea>`;
     if (MULTILINE.includes(key)) return `<textarea name="${key}" rows="3">${value}</textarea>`;
     if (key === 'NOTION_TOKEN') {
       return `<input name="${key}" type="password" autocomplete="off" value="" placeholder="${

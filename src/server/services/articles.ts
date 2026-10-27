@@ -15,7 +15,7 @@ import { renderBlocks, type LinkedPage, type RenderResult } from '../../core/blo
 import { notFound, unavailable } from '../../core/errors.ts';
 import { newestFirst } from '../../core/order.ts';
 import { demoArticles } from '../../content/site.ts';
-import type { ArticleLink, TagCount } from '../../shared/contracts.ts';
+import type { ArticleLink } from '../../shared/contracts.ts';
 import { articlePath, notionMediaPath } from '../../shared/routes.ts';
 import { config } from '../config.ts';
 import { articlesRepository, type ArticleBody, type ArticleRow } from '../db/articles.repository.ts';
@@ -121,26 +121,6 @@ export async function requireArticle(slug: string): Promise<ArticleRow> {
   const article = await findArticle(slug);
   if (!article) throw notFound('article not found', { slug });
   return article;
-}
-
-export async function articlesByTag(tag: string | null): Promise<ArticleRow[]> {
-  const all = await listArticles();
-  if (!tag) return all;
-  const wanted = tag.toLowerCase();
-  return all.filter((article) => article.tags.some((t) => t.toLowerCase() === wanted));
-}
-
-export function tagCounts(articles: ArticleRow[]): TagCount[] {
-  const counts = new Map<string, TagCount>();
-  for (const article of articles) {
-    for (const tag of article.tags) {
-      const key = tag.toLowerCase();
-      const entry = counts.get(key) ?? { name: tag, count: 0 };
-      entry.count += 1;
-      counts.set(key, entry);
-    }
-  }
-  return [...counts.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
 /** Articles with a positive Rank, highest first (the old blog's "featured"). */

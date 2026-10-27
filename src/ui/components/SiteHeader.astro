@@ -2,7 +2,7 @@
 import LangSwitch from './LangSwitch.astro';
 import { messages } from '../i18n.ts';
 import type { Locale } from '../../shared/i18n.ts';
-import { ARTICLES_PATH } from '../../shared/routes.ts';
+import { ARTICLES_PATH, MORE_PATH } from '../../shared/routes.ts';
 
 export interface Props {
   siteName: string;
@@ -16,6 +16,7 @@ const t = messages(locale);
 const links = [
   { href: ARTICLES_PATH, label: t.nav.articles },
   { href: '/search', label: t.nav.search },
+  { href: MORE_PATH, label: t.nav.moreLink },
 ];
 ---
 <header class="site-header">

@@ -1,0 +1,157 @@
+---
+/**
+ * /more — self-published books with excerpts, then ways to get in touch.
+ * Same 12-column Swiss grid and condensed display type as the homepage;
+ * numbered section rules (01 / 02) like the homepage rows.
+ */
+import Page from '../layouts/Page.astro';
+import { messages } from '../i18n.ts';
+import '../styles/more.css';
+import { contentLang, type Locale } from '../../shared/i18n.ts';
+import { MORE_PATH } from '../../shared/routes.ts';
+
+interface Publication {
+  title: string;
+  subtitle?: string;
+  year: string;
+  format?: string;
+  pages?: number;
+  edition?: string;
+  size?: string;
+  cover?: string;
+  excerpt: string[];
+  excerptSource?: string;
+  link?: { href: string; label?: string };
+}
+
+export interface Props {
+  site: { locale: Locale; name: string; url: string; email: string };
+  more: {
+    intro: string;
+    publications: Publication[];
+    channels: { name: string; handle: string; href?: string; qr?: string; note?: string }[];
+  };
+}
+
+const { site, more } = Astro.props;
+const { locale } = site;
+const t = messages(locale).more;
+const pad = (i: number) => String(i + 1).padStart(2, '0');
+const specs = (p: Publication) =>
+  [
+    [t.format, p.format],
+    [t.pages, p.pages ? t.pageCount(p.pages) : undefined],
+    [t.edition, p.edition],
+    [t.size, p.size],
+  ].filter((pair): pair is [string, string] => Boolean(pair[1]));
+const cta = (p: Publication) =>
+  p.link
+    ? { href: p.link.href, label: p.link.label || t.order, external: /^https?:/i.test(p.link.href) }
+    : site.email
+      ? { href: `mailto:${site.email}?subject=${encodeURIComponent(t.askSubject(p.title))}`, label: t.ask, external: false }
+      : undefined;
+const sections = [
+  more.publications.length > 0 && { id: 'publications', label: t.publications, count: more.publications.length },
+  (site.email || more.channels.length > 0) && { id: 'elsewhere', label: t.elsewhere, count: undefined },
+].filter(Boolean) as { id: string; label: string; count?: number }[];
+const num = (id: string) => pad(sections.findIndex((s) => s.id === id));
+/** Break opportunity before the @ so a long address wraps as `name / @domain`, never mid-word. */
+const [mailUser, mailDomain] = site.email.includes('@') ? [site.email.slice(0, site.email.indexOf('@')), site.email.slice(site.email.indexOf('@'))] : [site.email, ''];
+---
+<Page title={`${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={more.intro} current={MORE_PATH}>
+  <div class="mp">
+    <header class="mp-head">
+      <p class="kicker">{site.name} / {t.title}</p>
+      <h1>{t.title}</h1>
+      {more.intro && <p class="mp-intro" lang={contentLang(more.intro)}>{more.intro}</p>}
+      {sections.length > 1 && (
+        <nav class="mp-index" aria-label={t.title}>
+          {sections.map((s, i) => (
+            <a href={`#${s.id}`}><span class="n">{pad(i)}</span><span>{s.label}</span>{s.count !== undefined && <sup>{s.count}</sup>}</a>
+          ))}
+        </nav>
+      )}
+    </header>
+
+    {more.publications.length > 0 && (
+      <section id="publications" class="mp-sec" aria-labelledby="mp-pub">
+        <h2 id="mp-pub" class="mp-rule"><span class="n">{num('publications')}</span><span>{t.publications}</span><span class="c">{more.publications.length}</span></h2>
+        <ol class="pubs">
+          {more.publications.map((p, i) => {
+            const action = cta(p);
+            const list = specs(p);
+            return (
+              <li class="pub">
+                <figure class="pub-cover">
+                  {p.cover
+                    ? <img src={p.cover} alt={p.title} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" />
+                    : (
+                      <div class={`type-cover v${i % 3}`} aria-hidden="true">
+                        <span class="tc-top"><span>{site.name}</span><span>{p.year}</span></span>
+                        <span class="tc-no">{pad(i)}</span>
+                        <span class="tc-title" lang={contentLang(p.title)}>{p.title}</span>
+                      </div>
+                    )}
+                </figure>
+                <div class="pub-body">
+                  <p class="pub-n"><span>{pad(i)}</span><span>{p.year}</span></p>
+                  <h3 class="pub-title" lang={contentLang(p.title)}>{p.title}</h3>
+                  {p.subtitle && <p class="pub-sub" lang={contentLang(p.subtitle)}>{p.subtitle}</p>}
+                  {list.length > 0 && (
+                    <dl class="pub-specs">{list.map(([k, v]) => <div><dt>{k}</dt><dd lang={contentLang(v)}>{v}</dd></div>)}</dl>
+                  )}
+                  {p.excerpt.length > 0 && (
+                    <figure class="pub-excerpt">
+                      <figcaption class="lbl">{t.excerpt}</figcaption>
+                      <blockquote lang={contentLang(p.excerpt.join(''))}>{p.excerpt.map((para) => <p>{para}</p>)}</blockquote>
+                      {p.excerptSource && <p class="src" lang={contentLang(p.excerptSource)}>— {p.excerptSource}</p>}
+                    </figure>
+                  )}
+                  {action && (
+                    <a class="btn" href={action.href} {...(action.external ? { target: '_blank', rel: 'noopener' } : {})}>
+                      <span>{action.label}</span><span class="btn-a" aria-hidden="true">{action.external ? '↗' : '→'}</span>
+                    </a>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+    )}
+
+    {(site.email || more.channels.length > 0) && (
+      <section id="elsewhere" class="mp-sec" aria-labelledby="mp-else">
+        <h2 id="mp-else" class="mp-rule"><span class="n">{num('elsewhere')}</span><span>{t.elsewhere}</span><span class="c"></span></h2>
+        <div class="reachout">
+          {site.email && (
+            <div class="mail-block">
+              <p class="lbl">{t.email}</p>
+              <a class="mail-big" href={`mailto:${site.email}`}>{mailUser}<wbr />{mailDomain}</a>
+              <a class="btn" href={`mailto:${site.email}`}><span>{t.write}</span><span class="btn-a" aria-hidden="true">→</span></a>
+            </div>
+          )}
+          {more.channels.length > 0 && (
+            <ul class="channels">
+              {more.channels.map((c) => (
+                <li class="channel">
+                  {c.qr !== undefined && (
+                    <figure class={`qr${c.qr ? '' : ' qr-empty'}`}>
+                      {c.qr
+                        ? <img src={c.qr} alt={`${c.name} — ${t.qrPending}`} loading="lazy" decoding="async" />
+                        : <span>{t.qrPending}</span>}
+                    </figure>
+                  )}
+                  <p class="lbl" lang={contentLang(c.name)}>{c.name}</p>
+                  <p class="handle">{c.handle}</p>
+                  {c.note && <p class="note" lang={contentLang(c.note)}>{c.note}</p>}
+                  {c.href && <a class="open" href={c.href} target="_blank" rel="noopener">{t.open} ↗</a>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+    )}
+  </div>
+</Page>

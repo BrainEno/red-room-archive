@@ -1,0 +1,115 @@
+/* /more — self-published books and contact.
+   Same vocabulary as the homepage: 12-column Swiss grid, condensed uppercase
+   display type, numbered hairline rules, the ink wipe of the list rows.
+   Chinese adjustments live in cjk.css; every condensed element is in the
+   display list in base.css (enforced by tests/i18n.test.mjs). */
+
+.mp { padding: 0 clamp(16px, 3vw, 40px) 24px; }
+.mp-head, .mp-rule, .pub, .reachout { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 16px; }
+.mp .lbl { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; opacity: .55; }
+
+/* ── Head: giant title, intro left, section index right ──────────────── */
+.mp-head { align-items: end; padding: clamp(40px, 7vw, 110px) 0 clamp(56px, 8vw, 120px); }
+.mp-head .kicker { grid-column: 1 / 13; }
+.mp-head h1 { grid-column: 1 / 13; font-stretch: 62%; font-weight: 800; text-transform: uppercase;
+  font-size: clamp(5rem, 22vw, 21rem); line-height: .78; letter-spacing: -.03em; }
+.mp-intro { grid-column: 1 / 7; max-width: 40ch; margin-top: clamp(20px, 3vw, 40px); font-size: clamp(1.1rem, 1.6vw, 1.4rem); line-height: 1.45; opacity: .8; }
+.mp-index { grid-column: 9 / 13; display: grid; border-top: 1px solid rgba(241,238,230,.3); }
+.mp-index a { display: grid; grid-template-columns: 2.6rem 1fr auto; padding: 10px 0; border-bottom: 1px solid rgba(241,238,230,.3); font-weight: 600;
+  transition: color .3s, padding-left .45s var(--ease); }
+.mp-index a:hover, .mp-index a:focus-visible { color: var(--red); padding-left: 8px; }
+.mp-index .n, .mp-rule .n { font-variant-numeric: tabular-nums; opacity: .55; }
+.mp-index sup { opacity: .55; font-variant-numeric: tabular-nums; }
+
+/* ── Section rule: 01 —— LABEL —— count ──────────────────────────────── */
+.mp-sec { scroll-margin-top: 72px; }
+.mp-rule { align-items: baseline; padding: 12px 0; border-top: 1px solid var(--ink); font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.mp-rule .n { grid-column: 1 / 2; }
+.mp-rule span:nth-child(2) { grid-column: 2 / 11; }
+.mp-rule .c { grid-column: 11 / 13; text-align: right; opacity: .55; font-variant-numeric: tabular-nums; }
+
+/* ── Publications: cover (sticky while the text scrolls) | text ──────── */
+.pubs { list-style: none; }
+.pub { row-gap: 32px; padding: clamp(40px, 6vw, 96px) 0; }
+.pub + .pub { border-top: 1px solid rgba(241,238,230,.18); }
+.pub-cover { grid-column: 1 / 6; align-self: start; position: sticky; top: 96px; margin: 0; container-type: inline-size; }
+.pub-cover img, .type-cover { display: block; width: 100%; box-shadow: 0 34px 60px -24px rgba(0,0,0,.9); transition: transform .7s var(--ease); }
+.pub-cover img { height: auto; }
+.pub:hover .pub-cover img, .pub:hover .type-cover { transform: translateY(-6px) rotate(-.6deg); }
+.pub-body { grid-column: 7 / 13; }
+.pub-n { display: flex; justify-content: space-between; padding-bottom: 10px; border-bottom: 1px solid rgba(241,238,230,.3);
+  font-size: 13px; font-weight: 600; opacity: .7; font-variant-numeric: tabular-nums; }
+.pub-title { margin-top: 18px; font-stretch: 62%; font-weight: 800; text-transform: uppercase; font-size: clamp(3rem, 7vw, 7rem); line-height: .84; letter-spacing: -.02em; }
+.pub-sub { margin-top: 14px; font-size: 1.15rem; opacity: .75; }
+.pub-specs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; margin-top: 28px; }
+.pub-specs > div { padding: 10px 0; border-top: 1px solid rgba(241,238,230,.2); }
+.pub-specs dt { font-size: 12px; font-weight: 600; opacity: .5; }
+.pub-specs dd { margin-top: 2px; }
+.pub-excerpt { margin: 44px 0 0; }
+.pub-excerpt .lbl { color: #ff4a3d; opacity: 1; } /* the neon red: readable at 12px on the void */
+.pub-excerpt blockquote { max-width: 36em; margin-top: 12px; padding-left: 1.2em; border-left: 2px solid var(--red); font-size: 1.12rem; line-height: 1.75; }
+.pub-excerpt blockquote p { white-space: pre-line; }
+.pub-excerpt blockquote p + p { margin-top: .9em; }
+.pub-excerpt .src { margin-top: 12px; padding-left: calc(1.2em + 2px); font-size: .9rem; opacity: .55; }
+
+/* Button: outlined, filled by the same left-to-right ink wipe as the homepage rows */
+.btn { position: relative; isolation: isolate; overflow: hidden; display: inline-flex; align-items: center; gap: 14px; margin-top: 36px; padding: 14px 20px;
+  border: 1px solid var(--ink); font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; transition: color .45s var(--ease); }
+.btn::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--ink); transform: scaleX(0); transform-origin: left; transition: transform .55s var(--ease); }
+.btn:hover, .btn:focus-visible { color: var(--void); }
+.btn:hover::before, .btn:focus-visible::before { transform: scaleX(1); }
+.btn-a { transition: transform .45s var(--ease); }
+.btn:hover .btn-a, .btn:focus-visible .btn-a { transform: translateX(4px); }
+
+/* Typographic cover, drawn until a real cover image is added (A5 proportion).
+   Sizes in cqi = % of the cover width, so it scales like a printed object. */
+.type-cover { position: relative; overflow: hidden; display: flex; flex-direction: column; aspect-ratio: 148 / 210; padding: 7cqi; }
+.tc-top { display: flex; justify-content: space-between; gap: 1em; font-size: 3.3cqi; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.tc-no { margin-top: auto; font-stretch: 62%; font-weight: 800; font-size: 64cqi; line-height: .74; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.tc-title { margin-top: 5cqi; font-stretch: 62%; font-weight: 800; text-transform: uppercase; font-size: 15cqi; line-height: .86; letter-spacing: -.01em; }
+.type-cover.v0 { background: var(--red); color: var(--ink); }
+.type-cover.v1 { background: var(--ink); color: var(--void); padding-bottom: 30cqi; }
+.type-cover.v1 .tc-no { color: var(--red); }
+.type-cover.v1::after { /* the Black Lodge floor */
+  content: ""; position: absolute; inset: auto 0 0; height: 24cqi;
+  background:
+    linear-gradient(135deg, var(--void) 25%, transparent 25%) -4cqi 0 / 8cqi 8cqi,
+    linear-gradient(225deg, var(--void) 25%, transparent 25%) -4cqi 0 / 8cqi 8cqi,
+    linear-gradient(315deg, var(--void) 25%, transparent 25%) 0 0 / 8cqi 8cqi,
+    linear-gradient(45deg, var(--void) 25%, transparent 25%) 0 0 / 8cqi 8cqi;
+  background-color: var(--ink); }
+.type-cover.v2 { background: #160b0d; color: var(--ink); outline: 1px solid rgba(241,238,230,.28); outline-offset: -1px; }
+.type-cover.v2 .tc-no { color: transparent; -webkit-text-stroke: max(1px, .35cqi) var(--ink); }
+
+/* ── Elsewhere: email | channels with QR codes ───────────────────────── */
+.reachout { row-gap: 56px; padding: clamp(40px, 6vw, 96px) 0 clamp(64px, 9vw, 140px); }
+.mail-block { grid-column: 1 / 7; }
+.mail-big { display: block; margin-top: 12px; font-stretch: 62%; font-weight: 800; font-size: clamp(2.1rem, 4.4vw, 4.6rem); line-height: .95; letter-spacing: -.01em;
+  overflow-wrap: break-word; transition: color .3s; }
+.mail-big:hover, .mail-big:focus-visible { color: var(--red); }
+.mail-block .btn { margin-top: 28px; }
+.channels { grid-column: 8 / 13; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 16px; align-content: start; }
+.channel { padding-top: 12px; border-top: 1px solid rgba(241,238,230,.3); }
+.qr { aspect-ratio: 1; margin: 0 0 14px; padding: 8%; background: var(--ink); }
+.qr img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.qr-empty { display: grid; place-items: center; background: transparent; border: 1px dashed rgba(241,238,230,.35);
+  font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; opacity: .55; }
+.channel .handle { margin-top: 4px; font-weight: 600; overflow-wrap: anywhere; }
+.channel .note { margin-top: 4px; font-size: .9rem; opacity: .6; }
+.channel .open { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: 600; opacity: .75; transition: opacity .3s, color .3s; }
+.channel .open:hover, .channel .open:focus-visible { opacity: 1; color: var(--red); }
+
+@media (max-width: 900px) {
+  .mp-intro, .mp-index, .pub-body, .mail-block, .channels { grid-column: 1 / 13; }
+  .mp-index { margin-top: 36px; }
+  .pub-cover { grid-column: 1 / 13; position: static; width: min(100%, 420px); }
+}
+@media (max-width: 560px) {
+  .channels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mp-rule .n { grid-column: 1 / 3; }
+  .mp-rule span:nth-child(2) { grid-column: 3 / 11; }
+  .pub-cover { width: 78%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pub:hover .pub-cover img, .pub:hover .type-cover { transform: none; }
+}

@@ -51,8 +51,25 @@
 .row .t { font-stretch: 62%; font-weight: 800; text-transform: uppercase; font-size: clamp(1.5rem, 3.4vw, 3.2rem); line-height: 1; }
 .row .r { text-align: right; }
 
-.mail { grid-column: 1 / 13; font-stretch: 62%; font-weight: 800; font-size: clamp(2.5rem, 9vw, 9rem); line-height: .9; }
-.mail:hover { color: var(--red); }
+/* 谢幕 More：巨大的“了解更多 ↗”通往 /more；邮箱以小字落在最后一行细线下，与首屏 .meta 首尾呼应。
+   帘子此时合上是红色，悬停不变红（对比不够），改用与导航相同的下划线擦入 + 箭头前移 */
+.finale { align-content: end; background: linear-gradient(0deg, rgba(10,5,6,.94) 0%, rgba(10,5,6,.72) 30%, rgba(10,5,6,0) 62%); } /* 压暗地板，大字落在黑白折线上也清楚 */
+.go { grid-column: 1 / 13; justify-self: start; display: inline-flex; align-items: flex-start; gap: .1em; font-stretch: 62%; font-weight: 800; text-transform: uppercase;
+  font-size: clamp(3.5rem, 11vw, 11rem); line-height: .82; letter-spacing: -.02em; }
+.go-t { position: relative; }
+.go-t::after { content: ""; position: absolute; left: 0; right: 0; bottom: -.06em; height: .045em; min-height: 2px; background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform .6s var(--ease); }
+.go-a { font-size: .42em; line-height: 1; margin-top: .06em; font-weight: 800; font-stretch: 100%; transition: transform .5s var(--ease); }
+.go:hover .go-t::after, .go:focus-visible .go-t::after { transform: scaleX(1); }
+.go:hover .go-a, .go:focus-visible .go-a { transform: translate(.14em, -.14em); }
+.reach { grid-column: 1 / 13; display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 16px; row-gap: 6px; align-items: baseline;
+  margin-top: clamp(28px, 5vw, 64px); padding-top: 12px; border-top: 1px solid currentColor; font-size: 13px; font-weight: 600; }
+.reach > :first-child { grid-column: 1 / 6; }
+.reach .k { opacity: .55; margin-right: .9em; }
+.reach a { transition: color .3s; }
+.reach a:hover { color: var(--red); }
+.reach .what { grid-column: 6 / 10; opacity: .55; }
+.reach .yr { grid-column: 10 / 13; text-align: right; opacity: .55; }
+#contact { position: absolute; }
 
 
 @media (max-width: 720px) {
@@ -67,6 +84,7 @@
   .facts { grid-column: 1 / 13; grid-template-columns: 1fr; gap: 10px; }
   .row { grid-template-columns: 2.2rem 1fr 3.2rem; }
   .row span:nth-child(3), .row .r { display: none; }
+  .reach > :first-child, .reach .what, .reach .yr { grid-column: 1 / 13; text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) { .grain { display: none; } }
 
