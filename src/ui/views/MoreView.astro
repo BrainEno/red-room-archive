@@ -9,28 +9,13 @@ import { messages } from '../i18n.ts';
 import '../styles/more.css';
 import { contentLang, type Locale } from '../../shared/i18n.ts';
 import { MORE_PATH } from '../../shared/routes.ts';
+import type { MorePublication, MoreResponse } from '../../shared/contracts.ts';
 
-interface Publication {
-  title: string;
-  subtitle?: string;
-  year: string;
-  format?: string;
-  pages?: number;
-  edition?: string;
-  size?: string;
-  cover?: string;
-  excerpt: string[];
-  excerptSource?: string;
-  link?: { href: string; label?: string };
-}
+type Publication = MorePublication;
 
 export interface Props {
   site: { locale: Locale; name: string; url: string; email: string };
-  more: {
-    intro: string;
-    publications: Publication[];
-    channels: { name: string; handle: string; href?: string; qr?: string; note?: string }[];
-  };
+  more: MoreResponse;
 }
 
 const { site, more } = Astro.props;

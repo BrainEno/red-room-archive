@@ -1,8 +1,8 @@
-/** Files panel — upload library files or the 3D statue model; rename / delete. */
+/** Files panel — upload library files or the 3D statue model; rename / delete. Files shown on /more are marked. */
 import type { ApiClient } from '../../lib/api-client.ts';
 import { $, bytes, esc, fail, pickFile, toast } from '../dom.ts';
 
-export function filesPanel(root: HTMLElement, api: ApiClient) {
+export function filesPanel(root: HTMLElement, api: ApiClient, hooks: { onRenamed?: () => void } = {}) {
   root.innerHTML = `
     <div class="row2">
       <select id="as" aria-label="Upload type">
@@ -22,8 +22,8 @@ export function filesPanel(root: HTMLElement, api: ApiClient) {
     listEl.innerHTML =
       files
         .map(
-          (file) => `<li data-name="${esc(file.name)}">
-            <span>${esc(file.name)}</span><span class="hint">${bytes(file.size)}</span>
+          (file) => `<li data-name="${esc(file.name)}"${file.usedBy?.length ? ` data-used="${esc(file.usedBy.join(','))}"` : ''}>
+            <span>${esc(file.name)}${file.usedBy?.includes('more') ? ' <span class="badge" title="Shown on the /more page (cover or QR code)">on /more</span>' : ''}</span><span class="hint">${bytes(file.size)}</span>
             <button data-action="copy">Copy URL</button><button data-action="rename">Rename</button><button data-action="delete">Delete</button></li>`,
         )
         .join('') || '<li class="hint">No files yet</li>';
@@ -56,9 +56,16 @@ export function filesPanel(root: HTMLElement, api: ApiClient) {
         const next = prompt('New file name (keep the extension):', name);
         if (!next || next === name) return;
         await api.uploads.rename(name, next);
-        toast('Renamed');
+        toast(row.dataset.used ? 'Renamed — the /more page now uses the new name' : 'Renamed');
+        if (row.dataset.used) hooks.onRenamed?.();
         await refresh();
-      } else if (confirm(`Delete ${name}?`)) {
+      } else if (
+        confirm(
+          row.dataset.used
+            ? `${name} is shown on the /more page. Deleting it leaves a broken image there until you replace it in the More tab.\n\nDelete anyway?`
+            : `Delete ${name}?`,
+        )
+      ) {
         await api.uploads.remove(name);
         toast('Deleted');
         await refresh();
@@ -69,4 +76,5 @@ export function filesPanel(root: HTMLElement, api: ApiClient) {
   };
 
   refresh().catch(fail);
+  return { refresh };
 }

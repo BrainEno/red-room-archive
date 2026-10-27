@@ -21,7 +21,7 @@ npm run dev            # http://localhost:4321   后台：/admin
 | `/articles` | 全部文章，按日期时间倒序（同一天内按具体时刻），分页；`?tag=` 按标签筛选 |
 | `/articles/:slug` | 正文（由 Notion 块渲染）、封面、日期、阅读时长、标签、目录、上一篇/下一篇 |
 | `/search?q=` | 搜索标题、标签、摘要和正文 |
-| `/more` | 自印出版物（封面、规格、选读）与联系方式（邮箱、社交账号二维码），内容在 `src/content/more.ts`，见下文 |
+| `/more` | 自印出版物（封面、规格、选读）与联系方式（邮箱、社交账号二维码），在后台 **More** 编辑，见下文 |
 | `/rss.xml` · `/sitemap.xml` · `/robots.txt` | 订阅与搜索引擎 |
 | `/media/notion/:id` | Notion 里上传的图片/文件的本地副本（见下文“图片”） |
 
@@ -87,14 +87,21 @@ Notion 只有一个标签列，中英文章混写时会出现 `Fiction` 和 `小
 
 ## “更多”页面 `/more`
 
-内容写在 `src/content/more.ts`（不经过 Notion），每段文字可以是一个字符串，或 `{ en, 'zh-CN' }` 两种语言：
+在后台 **`/admin` → More** 编辑（不经过 Notion），保存后立即生效：
 
-- **publications**：自印出版物——书名、副标题、年份、形式、页数、印量、尺寸、封面、选读段落、出处；
-  有 `link` 时按钮指向购买页，没有时按钮打开一封以书名为主题、写给站点邮箱的邮件。
-- **channels**：社交账号——平台、账号、链接、二维码图片。
-- 图片放进 `public/more/`，写成 `/more/文件名`；或在后台 Files 上传后写 `/uploads/文件名`。
-  没有封面时页面会画一个和网站同风格的文字封面；`qr: ''` 显示空的二维码框（占位），删掉 `qr` 就只显示文字。
-- 文件里现在是**示例条目**，用来预览版式，请替换成你的出版物和账号。
+- **Intro**：页面开头的一两句话。
+- **Publications**：自印出版物——书名、副标题、年份、印刷方式、页数、印量、尺寸、封面、选读、出处、购买链接与按钮文字。
+  选读里**空一行 = 新段落**。有购买链接时按钮指向它；没有时按钮打开一封以书名为主题、写给站点邮箱的邮件。
+  没有封面时页面会画一个和网站同风格的文字封面。
+- **Contact channels**：社交账号——平台、账号、链接、二维码图片（正方形 PNG/JPG）、备注。
+- 每个文字字段都是 **EN | 中文 左右并排**；只填一边时，另一种语言的页面会用这一边（中文书名在英文页面上照样显示）。
+- 封面、二维码点 **Upload image…** 直接上传（存到 `UPLOAD_DIR`，地址 `/uploads/文件名`），也可以填 `/more/文件名`（放在 `public/more/`）或 `https://` 图片地址。
+- 卡片右侧 **↑ ↓** 调整顺序（就是页面上的顺序），**×** 删除；**+ Add** 新增。所有改动在点 **Save**（或 ⌘/Ctrl + S）之前都不会发布，有未保存的改动时离开页面会提示。
+- 链接只接受 `https://`、`http://`、`mailto:`；图片只接受站内路径或 `https://`。不合规的字段会标红，保存失败时自动定位到出错的字段。
+- **Export JSON** 下载整页内容；**Import JSON…** 用导出的文件整体替换并发布；**Reset to samples** 删除保存的内容，回到 `src/content/more.ts` 里的示例。
+- Files 页里被“更多”页面用到的文件会标 **on /more**；删除它们前会额外提醒，改名会自动更新页面里的地址。
+
+还没保存过时，页面显示 `src/content/more.ts` 里的**示例条目**（二维码位置是空框占位），用来预览版式；第一次保存后就不再读这个文件。
 
 邮箱默认 `nodeman24@outlook.com`（`src/content/site.ts`），后台 Settings 里的 Contact email 优先。
 
@@ -104,7 +111,8 @@ Notion 只有一个标签列，中英文章混写时会出现 `Fiction` 和 `小
 
 - **Articles**：已发布文章一览；**Sync now** / **Sync + fetch bodies**（同时预取所有正文，让搜索覆盖全文）/ **Full resync**（清空正文和图片缓存后重新同步）；单篇 **Refresh** 重新拉取正文。
 - **Settings**：站点名称/邮箱；简介（meta description）与首页引言，英文、中文各一份（中文留空就用内置中文文案，不会回退到英文）；中英标签对照（Tag pairs）；Notion token 与数据库（优先于 `.env`）；**Check columns** 显示字段映射与警告。
-- **Files**：上传音频/视频/图片/PDF；上传 `.glb` 并选择 “Statue model” 可替换首页雕像。
+- **More**：编辑 `/more` 页面（出版物、联系方式、二维码，中英并排），见上文。
+- **Files**：上传音频/视频/图片/PDF；上传 `.glb` 并选择 “Statue model” 可替换首页雕像；“更多”页面用到的文件标 on /more。
 
 网站**从不写回 Notion**（`tests/architecture.test.mjs` 会检查客户端里没有写请求）。
 
@@ -119,7 +127,7 @@ src/content  站点文案、演示文章                    src/pages    路由�
 ```
 
 - 首页动画参数：`src/ui/scripts/site/home.ts`（镜头关键帧）、`neon.ts`（招牌）、`scene.ts`（窗帘、雕像、灯光）。
-- 首页文案（引言、facts、标语，中英两份）：`src/content/site.ts`；“更多”页面：`src/content/more.ts`；标签对照：`src/content/tags.ts`；界面文字（导航、区块标题、分页…）：`src/ui/i18n.ts`；名称/邮箱/简介/引言也可以在后台改。
+- 首页文案（引言、facts、标语，中英两份）：`src/content/site.ts`；“更多”页面：后台 More（默认示例在 `src/content/more.ts`）；标签对照：`src/content/tags.ts`；界面文字（导航、区块标题、分页…）：`src/ui/i18n.ts`；名称/邮箱/简介/引言也可以在后台改。
 - 中文显示字体：`public/fonts/display-sc/`，由 `scripts/fonts/build-display-sc.py` 生成，见 [docs/I18N.md](docs/I18N.md)。
 - 接口约定见 **[docs/API.md](docs/API.md)**；为什么选择在本仓库实现、而不是回到旧仓库，见 [docs/NOTION-ONLY.md](docs/NOTION-ONLY.md)。
 
@@ -148,7 +156,10 @@ src/content  站点文案、演示文章                    src/pages    路由�
 `npm run build && npm start`。需要可写磁盘的 Node 环境（VPS / Fly.io / Railway 卷）：SQLite 缓存、图片副本和上传文件都在磁盘上。
 部署探针：`GET /api/health`。
 
-文章内容在 Notion 里，SQLite 只是**可以随时丢弃的缓存**（删掉后下一次访问会重新同步）；需要备份的只有 `UPLOAD_DIR`（如果用过上传）。
+文章内容在 Notion 里，SQLite 里的文章只是缓存（删掉后下一次访问会重新同步）。
+但**“更多”页面的内容只保存在 SQLite（`more_page` 表）里**，封面和二维码在 `UPLOAD_DIR`：请把 `data/archive.db`（`DB_PATH`）和 `UPLOAD_DIR` **一起备份**，
+或者在后台 More 里点 **Export JSON** 留一份（JSON 里只有图片地址，图片文件仍需备份 `UPLOAD_DIR`）。
+Notion 全量重新同步、修改 Notion token/数据库都**不会**清除“更多”页面。
 从旧版本升级：数据库会自动迁移；旧的 `items` / `posts` / `post_revisions` 表原样保留但不再使用，确认不需要后可以手动删除。
 
 ## 开发与验证

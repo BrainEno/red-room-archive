@@ -1,18 +1,22 @@
 /**
- * The “More / 更多” page (/more): self-published books with excerpts, and
- * ways to reach you. Edit this file to change the page — no Notion or admin
- * involved. Every text can be one string (shown in both interface languages)
- * or `{ en, 'zh-CN' }`.
+ * Built-in content for the “More / 更多” page (/more).
+ *
+ * Edit the page in /admin → More: publications (cover, specs, excerpt, order
+ * link) and contact channels (QR codes), English and Chinese side by side,
+ * with uploads and reordering. Once saved there, the admin version is shown
+ * and this file is ignored; “Reset to samples” in the admin brings it back.
+ *
+ * This file stays as the default for a fresh install. Every text can be one
+ * string (shown in both interface languages) or `{ en, 'zh-CN' }`.
  *
  * Images: put files in `public/more/` and reference them as `/more/<file>`
- * (or upload in /admin → Files and use `/uploads/<file>`).
+ * (or upload them and use `/uploads/<file>`).
  *   - cover: any ratio works; about 1200 px on the long side is plenty.
  *     Leave it out and the page draws a typographic cover in the site style.
- *   - qr: a square PNG/SVG of the QR code (WeChat, Xiaohongshu, …). Leave it
- *     out to show the account as text only; `qr: ''` shows an empty frame
- *     (useful while you are still collecting the codes).
+ *   - qr: a square PNG/JPG of the QR code. In these samples `qr: ''` shows an
+ *     empty frame so the layout can be previewed.
  *
- * ⚠ The entries below are SAMPLES so the layout can be previewed — replace them.
+ * ⚠ The entries below are SAMPLES — replace them in /admin → More.
  */
 import type { Locale } from '../shared/i18n.ts';
 

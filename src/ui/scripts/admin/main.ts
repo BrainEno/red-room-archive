@@ -6,6 +6,7 @@ import { ApiError, createApiClient } from '../lib/api-client.ts';
 import { $, esc } from './dom.ts';
 import { articlesPanel } from './panels/articles.ts';
 import { filesPanel } from './panels/files.ts';
+import { morePanel } from './panels/more.ts';
 import { settingsPanel } from './panels/settings.ts';
 
 const STORAGE_KEY = 'rra.admin.token';
@@ -46,7 +47,7 @@ function renderLogin(message = '') {
   };
 }
 
-const TABS = ['Articles', 'Settings', 'Files'] as const;
+const TABS = ['Articles', 'More', 'Settings', 'Files'] as const;
 
 async function boot() {
   if (!token) return renderLogin();
@@ -83,7 +84,8 @@ async function boot() {
     articles.show(next.status);
     void articles.reload();
   });
-  filesPanel($('[data-panel=Files]'), api);
+  const files = filesPanel($('[data-panel=Files]'), api, { onRenamed: () => more.reload() });
+  const more = morePanel($('[data-panel=More]'), api, { onFilesChanged: () => void files.refresh().catch(() => undefined) });
 
   const fromHash = TABS.find((tab) => tab.toLowerCase() === location.hash.slice(1));
   if (fromHash) app.querySelector<HTMLButtonElement>(`[data-tab=${fromHash}]`)?.click();

@@ -5,18 +5,26 @@
  * the same DTOs as the JSON API (see `shared/contracts.ts`), which keeps the UI
  * decoupled from SQLite and Notion. `tests/architecture.test.mjs` enforces it.
  */
-import { more, type Text } from '../content/more.ts';
 import { copy } from '../content/site.ts';
 import { DEFAULT_LOCALE, type Locale } from '../shared/i18n.ts';
-import type { ArticleDetail, ArticleSummary, SearchResponse, TagCount } from '../shared/contracts.ts';
+import type {
+  ArticleDetail,
+  ArticleSummary,
+  MoreChannel,
+  MorePublication,
+  MoreResponse,
+  SearchResponse,
+  TagCount,
+} from '../shared/contracts.ts';
 import { config } from './config.ts';
 import { presentArticle, presentArticleDetail } from './presenters.ts';
 import { articleBody, featuredArticles, findArticle, listArticles, neighbours } from './services/articles.ts';
+import { moreFor } from './services/more.ts';
 import { search } from './services/search.ts';
 import { filterByTag, tagIndex, tagLangOf, tagNamer, topicCounts } from './services/tags.ts';
 import { siteProfile } from './services/settings.ts';
 
-export type { ArticleDetail, ArticleSummary, SearchResponse, TagCount };
+export type { ArticleDetail, ArticleSummary, MoreChannel, MorePublication, MoreResponse, SearchResponse, TagCount };
 
 export type { Locale };
 
@@ -127,63 +135,9 @@ export function searchArticles(query: string, limit = 30, locale: Locale = DEFAU
   return search(query, limit, locale);
 }
 
-/* ── More page (content/more.ts) ─────────────────────────────────────── */
+/* ── More page (/admin → More, else content/more.ts) ─────────────────── */
 
-export interface MorePublication {
-  title: string;
-  subtitle?: string;
-  year: string;
-  format?: string;
-  pages?: number;
-  edition?: string;
-  size?: string;
-  cover?: string;
-  excerpt: string[];
-  excerptSource?: string;
-  link?: { href: string; label?: string };
-}
-
-export interface MoreChannel {
-  name: string;
-  handle: string;
-  href?: string;
-  /** Image URL; `''` = frame without a code yet; undefined = no QR at all. */
-  qr?: string;
-  note?: string;
-}
-
-export interface MoreData {
-  intro: string;
-  publications: MorePublication[];
-  channels: MoreChannel[];
-}
-
-const pick = (text: Text | undefined, locale: Locale): string | undefined =>
-  text === undefined ? undefined : typeof text === 'string' ? text : text[locale] ?? text[DEFAULT_LOCALE];
-
-/** The /more page in one language: every `{ en, 'zh-CN' }` text resolved. */
-export function getMore(locale: Locale = DEFAULT_LOCALE): MoreData {
-  return {
-    intro: pick(more.intro, locale) ?? '',
-    publications: more.publications.map((item) => ({
-      title: pick(item.title, locale) ?? '',
-      subtitle: pick(item.subtitle, locale),
-      year: item.year,
-      format: pick(item.format, locale),
-      pages: item.pages,
-      edition: pick(item.edition, locale),
-      size: pick(item.size, locale),
-      cover: item.cover,
-      excerpt: item.excerpt.map((paragraph) => pick(paragraph, locale) ?? '').filter(Boolean),
-      excerptSource: pick(item.excerptSource, locale),
-      link: item.link ? { href: item.link.href, label: pick(item.link.label, locale) } : undefined,
-    })),
-    channels: more.channels.map((channel) => ({
-      name: pick(channel.name, locale) ?? '',
-      handle: channel.handle,
-      href: channel.href,
-      qr: channel.qr,
-      note: pick(channel.note, locale),
-    })),
-  };
+/** The /more page in one language (empty fields fall back to the other language). */
+export function getMore(locale: Locale = DEFAULT_LOCALE): MoreResponse {
+  return moreFor(locale);
 }

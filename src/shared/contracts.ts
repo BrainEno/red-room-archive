@@ -108,6 +108,99 @@ export interface SearchResponse {
   articles: ArticleSummary[];
 }
 
+/* ── More page (/more) ──────────────────────────────────────────────── */
+
+/** Text in both interface languages; an empty side falls back to the other one on the page. */
+export interface LocalizedText {
+  en: string;
+  'zh-CN': string;
+}
+
+/** One self-published book, as edited in /admin → More. */
+export interface MorePublicationDoc {
+  /** Stable id (for reordering in the editor); generated when missing. */
+  id: string;
+  title: LocalizedText;
+  subtitle: LocalizedText;
+  year: string;
+  /** Printing / binding, e.g. “Risograph, two colours”. */
+  format: LocalizedText;
+  pages: number | null;
+  /** Print run, e.g. “Edition of 100”. */
+  edition: LocalizedText;
+  size: LocalizedText;
+  /** Image URL: `/uploads/…`, another site path, or https. '' = draw a typographic cover. */
+  cover: string;
+  /** Selected passage; a blank line starts a new paragraph. */
+  excerpt: LocalizedText;
+  excerptSource: LocalizedText;
+  /** Shop / order page (http, https or mailto). '' = the button emails you instead. */
+  link: string;
+  linkLabel: LocalizedText;
+}
+
+/** A social account or other way to reach you. */
+export interface MoreChannelDoc {
+  id: string;
+  /** Platform, e.g. 微信公众号 / WeChat Official Account. */
+  name: LocalizedText;
+  handle: string;
+  href: string;
+  /** QR code image URL ('' = none). */
+  qr: string;
+  note: LocalizedText;
+}
+
+/** The whole /more page, both languages. */
+export interface MoreDocument {
+  intro: LocalizedText;
+  publications: MorePublicationDoc[];
+  channels: MoreChannelDoc[];
+}
+
+/** GET /api/more/document (admin). */
+export interface MoreDocumentResponse {
+  document: MoreDocument;
+  /** False while the built-in sample content (content/more.ts) is shown. */
+  custom: boolean;
+  /** ISO time of the last save, null for the built-in content. */
+  updated: string | null;
+}
+
+/** A publication in one language (public). */
+export interface MorePublication {
+  id: string;
+  title: string;
+  subtitle?: string;
+  year: string;
+  format?: string;
+  pages?: number;
+  edition?: string;
+  size?: string;
+  cover?: string;
+  excerpt: string[];
+  excerptSource?: string;
+  link?: { href: string; label?: string };
+}
+
+export interface MoreChannel {
+  id: string;
+  name: string;
+  handle: string;
+  href?: string;
+  /** Image URL; `''` = an empty frame (built-in samples only); undefined = no QR. */
+  qr?: string;
+  note?: string;
+}
+
+/** GET /api/more?lang= — the page in one language. */
+export interface MoreResponse {
+  locale: 'en' | 'zh-CN';
+  intro: string;
+  publications: MorePublication[];
+  channels: MoreChannel[];
+}
+
 /* ── Site / status ──────────────────────────────────────────────────── */
 
 export interface SiteResponse {
@@ -217,6 +310,8 @@ export interface UploadFile {
   size: number;
   mtime: number;
   url: string;
+  /** Pages that show this file (list endpoint only), e.g. `['more']`. */
+  usedBy?: string[];
 }
 
 export interface UploadUsage {

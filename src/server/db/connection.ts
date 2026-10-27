@@ -139,6 +139,17 @@ const MIGRATIONS: ((db: DatabaseConnection) => void)[] = [
     const columns = new Set((db.prepare('PRAGMA table_info(articles)').all() as { name: string }[]).map((c) => c.name));
     if (!columns.has('created')) db.exec("ALTER TABLE articles ADD COLUMN created TEXT NOT NULL DEFAULT ''");
   },
+  // 7 — the /more page edited in /admin (one JSON document). Not touched by
+  //     Notion syncs or credential changes; absent row = built-in samples.
+  (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS more_page(
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        doc TEXT NOT NULL,
+        updated TEXT NOT NULL
+      );
+    `);
+  },
 ];
 
 let depth = 0;

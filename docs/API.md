@@ -35,6 +35,7 @@ v2 起网站只读 Notion：没有任何创建/修改文章的接口，内容请
 | GET | `/api/articles/:slug?lang=` | 单篇（含渲染后的 `html`、`toc`、`readingMinutes`、`previous`/`next`）。`?refresh=1` 重新从 Notion 取正文，**仅管理员** | `ArticleDetail` |
 | GET | `/api/tags?lang=` | 所有主题（中英同义标签已合并）及文章数，按数量倒序；`{ key, name, count }` | `TagListResponse` |
 | GET | `/api/search?q=&limit=&lang=` | 标题、标签（含另一种语言的对照名）、摘要、已缓存正文；多个词必须都命中 | `SearchResponse` |
+| GET | `/api/more?lang=` | “更多”页面（该语言；空字段用另一种语言补上；选读已按空行分段）。与 `/more` 页面数据相同 | `MoreResponse` |
 
 ```ts
 interface ArticleSummary {
@@ -70,7 +71,40 @@ interface ArticleSummary {
 | POST | `/api/sync` | 立即同步。`?full=1` 先清空正文与图片缓存；`?bodies=1` 同步后预取所有缺失正文 | `SyncResponse` |
 | GET | `/api/notion/schema` | 数据库的列、每个文章字段对应到哪一列、警告 | `NotionSchemaResponse` |
 | GET/POST | `/api/uploads` | 列表 / 上传（`?name=` 流式或 multipart；`as=model` 替换首页雕像） | `UploadListResponse` / `UploadResponse` |
-| GET/PATCH/DELETE | `/api/uploads/:name` | 信息 / 改名 / 删除 | `UploadFile` / 204 |
+| GET/PATCH/DELETE | `/api/uploads/:name` | 信息 / 改名 / 删除。改名时“更多”页面里引用它的封面/二维码地址同步更新 | `UploadFile` / 204 |
+| GET | `/api/more/document` | “更多”页面的双语文档；`custom: false` 表示还没保存过（显示 `src/content/more.ts` 示例） | `MoreDocumentResponse` |
+| PUT | `/api/more/document` | 整体替换（不是局部更新），校验后保存；请求体上限 `max(MAX_JSON_KB, 8 MB)` | `MoreDocumentResponse` |
+| DELETE | `/api/more/document` | 删除保存的文档，回到内置示例 | `MoreDocumentResponse` |
+
+列表接口里的 `UploadFile.usedBy` 为 `['more']` 时，表示该文件是“更多”页面的封面或二维码。
+
+### “更多”页面文档
+
+```ts
+interface LocalizedText { en: string; 'zh-CN': string }   // 空的一边在页面上用另一边
+interface MoreDocument {
+  intro: LocalizedText;
+  publications: {            // 最多 60 本；数组顺序 = 页面顺序
+    id: string;              // [\w-]{1,40}，缺失或重复时自动生成
+    title, subtitle, format, edition, size, excerptSource, linkLabel: LocalizedText;
+    excerpt: LocalizedText;  // 空一行 = 新段落；每种语言最多 20 000 字
+    year: string;
+    pages: number | null;    // 0–100000 的整数
+    cover: string;           // '' | 站内路径（/uploads/…、/more/…）| https://…
+    link: string;            // '' | http(s):// | mailto: | 站内路径
+  }[];
+  channels: {                // 最多 30 个
+    id: string;
+    name, note: LocalizedText;
+    handle: string;
+    href: string;            // 同 link
+    qr: string;              // 同 cover
+  }[];
+}
+```
+
+校验失败返回 `400 bad_request`，`details.field` 是出错字段的路径（如 `publications.0.link`、`channels.1.qr`），后台据此定位输入框。
+`PUT` 也接受宽松写法：字符串表示两种语言相同；`excerpt` 可以是段落数组；`link` 可以是 `{ href, label }`（与 `src/content/more.ts` 的写法一致）。
 
 `SettingKey`：`site_name` `site_email` `site_about` `site_intro` `site_about_zh` `site_intro_zh` `tag_glossary` `NOTION_TOKEN` `NOTION_DATABASE_ID`。
 `tag_glossary` 是多行文本，一行一组同义标签（`Fiction = 小说`），叠加在内置对照表 `src/content/tags.ts` 之上。
