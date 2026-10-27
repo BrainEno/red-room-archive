@@ -9,6 +9,10 @@ import type {
   ApiErrorBody,
   ApiErrorCode,
   AuthResponse,
+  BackupFile,
+  BackupListResponse,
+  ImportConflict,
+  ImportReport,
   ItemDetail,
   ItemListResponse,
   MarkdownPreviewResponse,
@@ -17,11 +21,14 @@ import type {
   NotionWriteResponse,
   PostDetail,
   PostListResponse,
+  RevisionDetail,
+  RevisionListResponse,
   SearchResponse,
   SettingsResponse,
   SettingValues,
   SyncResponse,
   SyncStatusResponse,
+  TrashResponse,
   UploadFile,
   UploadListResponse,
   UploadResponse,
@@ -50,10 +57,16 @@ export interface ApiClientOptions {
   onUnauthorized?: (error: ApiError) => void;
 }
 
+/** A downloaded file (authenticated downloads cannot use a plain link). */
+export interface Download {
+  blob: Blob;
+  filename: string;
+}
+
 export function createApiClient(options: ApiClientOptions = {}) {
   const token = options.token ?? (() => '');
 
-  async function request<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
+  async function send(path: string, init: RequestInit & { json?: unknown } = {}): Promise<Response> {
     const headers = new Headers(init.headers);
     const auth = token();
     if (auth) headers.set('Authorization', `Bearer ${auth}`);
@@ -63,14 +76,26 @@ export function createApiClient(options: ApiClientOptions = {}) {
       body = JSON.stringify(init.json);
     }
     const response = await fetch(path, { ...init, headers, body });
-    if (response.status === 204) return undefined as T;
-    const data = (await response.json().catch(() => ({}))) as unknown;
     if (!response.ok) {
-      const error = new ApiError(response.status, data as Partial<ApiErrorBody>);
+      const data = (await response.json().catch(() => ({}))) as Partial<ApiErrorBody>;
+      const error = new ApiError(response.status, data);
       if (response.status === 401) options.onUnauthorized?.(error);
       throw error;
     }
-    return data as T;
+    return response;
+  }
+
+  async function request<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
+    const response = await send(path, init);
+    if (response.status === 204) return undefined as T;
+    return (await response.json().catch(() => ({}))) as T;
+  }
+
+  async function download(path: string, fallbackName: string): Promise<Download> {
+    const response = await send(path);
+    const disposition = response.headers.get('content-disposition') ?? '';
+    const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? fallbackName;
+    return { blob: await response.blob(), filename };
   }
 
   const q = (params: Record<string, string | number | boolean | undefined>) => {
@@ -116,6 +141,36 @@ export function createApiClient(options: ApiClientOptions = {}) {
       remove: (slug: string) => request<void>(`/api/posts/${seg(slug)}`, { method: 'DELETE' }),
       preview: (markdown: string) =>
         request<MarkdownPreviewResponse>('/api/markdown', { method: 'POST', json: { markdown } }),
+      revisions: (slug: string) => request<RevisionListResponse>(`/api/posts/${seg(slug)}/revisions`),
+      revision: (slug: string, id: number) => request<RevisionDetail>(`/api/posts/${seg(slug)}/revisions/${id}`),
+      restore: (slug: string, id: number) =>
+        request<PostDetail>(`/api/posts/${seg(slug)}/revisions/${id}/restore`, { method: 'POST' }),
+    },
+
+    trash: {
+      list: () => request<TrashResponse>('/api/trash'),
+      purge: (slug: string) => request<void>(`/api/trash/${seg(slug)}`, { method: 'DELETE' }),
+    },
+
+    backups: {
+      list: () => request<BackupListResponse>('/api/backups'),
+      create: () => request<BackupFile>('/api/backups', { method: 'POST' }),
+      download: (name: string) => download(`/api/backups/${seg(name)}`, name),
+      remove: (name: string) => request<void>(`/api/backups/${seg(name)}`, { method: 'DELETE' }),
+    },
+
+    data: {
+      export: () => download('/api/export', 'red-room-archive.zip'),
+      import: (file: File, opts: { onConflict?: ImportConflict; dryRun?: boolean; settings?: boolean } = {}) =>
+        request<ImportReport>(
+          `/api/import${q({
+            name: file.name,
+            onConflict: opts.onConflict,
+            dryRun: opts.dryRun ? 1 : undefined,
+            settings: opts.settings ? 1 : undefined,
+          })}`,
+          { method: 'POST', body: file, headers: { 'Content-Type': file.type || 'application/octet-stream' } },
+        ),
     },
 
     uploads: {

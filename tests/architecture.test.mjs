@@ -73,3 +73,12 @@ test('only server/db/connection.ts touches better-sqlite3', () => {
     .map(rel);
   assert.deepEqual(offenders, ['server/db/connection.ts']);
 });
+
+test('src/middleware.ts only delegates to server/http/middleware.ts', () => {
+  const bad = violations(
+    (from, to) => from === 'middleware.ts' && to !== 'server/http/middleware.ts',
+    'middleware is an adapter',
+  );
+  assert.deepEqual(bad, []);
+  assert.ok(files.some((file) => rel(file) === 'middleware.ts'));
+});
