@@ -11,6 +11,9 @@ import type {
   ArticleDetail,
   ArticleListResponse,
   AuthResponse,
+  MoreDocument,
+  MoreDocumentResponse,
+  MoreResponse,
   NotionSchemaResponse,
   SearchResponse,
   SettingsResponse,
@@ -114,6 +117,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
       rename: (name: string, next: string) =>
         request<UploadFile>(`/api/uploads/${seg(name)}`, { method: 'PATCH', json: { name: next } }),
       remove: (name: string) => request<void>(`/api/uploads/${seg(name)}`, { method: 'DELETE' }),
+    },
+
+    more: {
+      /** Public, one language. */
+      get: (lang?: string) => request<MoreResponse>(`/api/more${q({ lang })}`),
+      document: () => request<MoreDocumentResponse>('/api/more/document'),
+      save: (document: MoreDocument) => request<MoreDocumentResponse>('/api/more/document', { method: 'PUT', json: document }),
+      reset: () => request<MoreDocumentResponse>('/api/more/document', { method: 'DELETE' }),
     },
 
     settings: {

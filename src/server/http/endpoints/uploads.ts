@@ -16,6 +16,7 @@ import { badRequest, payloadTooLarge } from '../../../core/errors.ts';
 import type { UploadFile, UploadListResponse, UploadResponse } from '../../../shared/contracts.ts';
 import { config } from '../../config.ts';
 import { requireAdmin } from '../../services/auth.ts';
+import { renameUploadOnMore, uploadsUsedOnMore } from '../../services/more.ts';
 import {
   listUploads,
   readRange,
@@ -31,7 +32,8 @@ import { NO_STORE, created, json, param, readJson, route } from '../respond.ts';
 
 export const list = route((context) => {
   requireAdmin(context.request);
-  const files = listUploads();
+  const used = uploadsUsedOnMore();
+  const files = listUploads().map((file) => (used.has(file.name) ? { ...file, usedBy: ['more'] } : file));
   return json<UploadListResponse>({ files, usage: usage(files) }, { headers: NO_STORE });
 });
 
@@ -78,8 +80,11 @@ export const rename = route(async (context) => {
   requireAdmin(context.request);
   const { name: to } = await readJson(context.request);
   if (!to || typeof to !== 'string') throw badRequest('new name is required');
-  const next = renameUpload(param(context, 'name'), to);
-  return json<UploadFile>(statUpload(next), { headers: NO_STORE });
+  const from = param(context, 'name');
+  const next = renameUpload(from, to);
+  const file = statUpload(next);
+  if (next !== from) renameUploadOnMore(from, file.url);
+  return json<UploadFile>(file, { headers: NO_STORE });
 });
 
 export const remove = route((context) => {
