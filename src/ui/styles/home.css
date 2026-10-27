@@ -18,9 +18,9 @@
 .bar .brand { grid-column: 1 / 4; align-self: center; font-stretch: 62%; font-weight: 800; font-size: 1.15rem; line-height: 1; white-space: nowrap; opacity: 0; transition: opacity .6s var(--ease); }
 .bar .brand.on { opacity: 1; }
 .bar nav { grid-column: 4 / 13; display: flex; justify-content: flex-end; gap: clamp(14px, 2.4vw, 32px); }
-.bar nav a { position: relative; text-transform: capitalize; }
-.bar nav a::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 1px; background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform .5s var(--ease); }
-.bar nav a:hover::after, .bar nav a.on::after { transform: scaleX(1); }
+.bar nav > a { position: relative; text-transform: capitalize; }
+.bar nav > a::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 1px; background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform .5s var(--ease); }
+.bar nav > a:hover::after, .bar nav > a.on::after { transform: scaleX(1); }
 .s { min-height: 100svh; padding-block: 120px 40px; align-content: end; }
 .meta { grid-column: 1 / 13; display: flex; justify-content: space-between; font-weight: 600; position: relative; z-index: 6; }
 
@@ -51,9 +51,6 @@
 .row .t { font-stretch: 62%; font-weight: 800; text-transform: uppercase; font-size: clamp(1.5rem, 3.4vw, 3.2rem); line-height: 1; }
 .row .r { text-align: right; }
 
-.panel { grid-column: 1 / 7; background: var(--red); padding: clamp(20px, 3vw, 44px); }
-.panel h2 { font-stretch: 62%; font-weight: 800; font-size: clamp(2.5rem, 6vw, 6rem); line-height: .9; margin-bottom: 1.5rem; }
-.panel p { max-width: 36ch; font-size: 1.2rem; }
 .mail { grid-column: 1 / 13; font-stretch: 62%; font-weight: 800; font-size: clamp(2.5rem, 9vw, 9rem); line-height: .9; }
 .mail:hover { color: var(--red); }
 
@@ -63,7 +60,7 @@
   .bar nav { grid-column: 1 / 13; justify-content: space-between; font-size: 12px; gap: 10px; }
   .bar .brand { display: none; }
   .s { padding-bottom: 72px; }
-  .list, .panel { grid-column: 1 / 13; }
+  .list { grid-column: 1 / 13; }
   .sign { width: min(96vw, 118svh); }
   .intro .stage { padding-bottom: 72px; background: rgba(10,5,6,.55); }
   .lede { grid-column: 1 / 13; font-size: clamp(1.6rem, 7vw, 2.4rem); }
@@ -79,3 +76,7 @@
 @media (max-width: 720px) { .more { grid-column: 1 / 13; } }
 .l .empty-note { grid-column: 1 / 11; max-width: 40ch; opacity: .7; font-size: 1.1rem; }
 @media (max-width: 720px) { .l .empty-note { grid-column: 1 / 13; } }
+
+/* Language switch (EN / 中文) at the end of the nav */
+.bar .lang-switch { display: inline-flex; gap: .45em; margin-left: clamp(6px, 1.2vw, 16px); }
+@media (max-width: 720px) { .bar .lang-switch { margin-left: 0; } }

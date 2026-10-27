@@ -4,6 +4,7 @@
  */
 import { demoArticles } from '../../content/site.ts';
 import type { SiteResponse, SyncStatus } from '../../shared/contracts.ts';
+import { DEFAULT_LOCALE, type Locale } from '../../shared/i18n.ts';
 import { articlesRepository } from '../db/articles.repository.ts';
 import { isDemo, syncState } from './articles.ts';
 import { notionReady, siteProfile } from './settings.ts';
@@ -19,10 +20,11 @@ export function syncStatus(): SyncStatus {
   };
 }
 
-export function siteResponse(): SiteResponse {
+export function siteResponse(locale: Locale = DEFAULT_LOCALE): SiteResponse {
   const demo = isDemo();
   return {
-    ...siteProfile(),
+    ...siteProfile(locale),
+    locale,
     notionConfigured: notionReady(),
     demo,
     articles: demo ? demoArticles.length : articlesRepository.count(),

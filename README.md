@@ -17,14 +17,19 @@ npm run dev            # http://localhost:4321   后台：/admin
 
 | 路径 | 内容 |
 | --- | --- |
-| `/` | 开场动画 → 引言（逐词点亮）→ **Articles**（最新文章）→ **Featured**（Rank 精选）→ **Topics**（标签）→ About → Contact |
-| `/articles` | 全部文章，按日期倒序，分页；`?tag=` 按标签筛选 |
+| `/` | 开场动画 → 引言（逐词点亮）→ **Latest / 最新**（按 Notion 日期时间倒序）→ **Featured / 精选**（Rank）→ **Topics / 主题**（标签）→ Contact / 联系 |
+| `/articles` | 全部文章，按日期时间倒序（同一天内按具体时刻），分页；`?tag=` 按标签筛选 |
 | `/articles/:slug` | 正文（由 Notion 块渲染）、封面、日期、阅读时长、标签、目录、上一篇/下一篇 |
 | `/search?q=` | 搜索标题、标签、摘要和正文 |
 | `/rss.xml` · `/sitemap.xml` · `/robots.txt` | 订阅与搜索引擎 |
 | `/media/notion/:id` | Notion 里上传的图片/文件的本地副本（见下文“图片”） |
 
-旧地址都会 301 跳转：`/works/*`、`/writing/*`、`/journal/*` → `/articles/*`；
+**语言**：英文 / 简体中文，导航栏右侧 `EN / 中文` 切换（在首页切换会停在原来的位置，不重播开场）。
+每个页面都可以加 `?lang=zh-CN` 或 `?lang=en`；选择会记在 `lang` cookie 里（一年），第一次访问按浏览器的 `Accept-Language`。
+界面文字在 `src/ui/i18n.ts`，首页文案在 `src/content/site.ts`；文章本身不翻译，按标题自动标注 `lang`。
+中文字体的做法见 **[docs/I18N.md](docs/I18N.md)**。
+
+旧地址都会 301 跳转：`/works/*`、`/writing/*`、`/journal/*` → `/articles/*`（跳转不带 `?lang`，语言由 cookie 保持）；
 旧博客 astro-notion 的 `/posts/:slug` → `/articles/:slug`，`/posts/tag/:tag` → `/articles?tag=`。
 
 ## 连接 Notion
@@ -73,7 +78,7 @@ Notion 里上传的图片和文件是带签名的临时地址（约 1 小时失�
 输入 `ADMIN_TOKEN` 登录（只存在当前标签页的 sessionStorage；请用 HTTPS 部署）。
 
 - **Articles**：已发布文章一览；**Sync now** / **Sync + fetch bodies**（同时预取所有正文，让搜索覆盖全文）/ **Full resync**（清空正文和图片缓存后重新同步）；单篇 **Refresh** 重新拉取正文。
-- **Settings**：站点名称/邮箱/简介/首页引言；Notion token 与数据库（优先于 `.env`）；**Check columns** 显示字段映射与警告。
+- **Settings**：站点名称/邮箱；简介（meta description）与首页引言，英文、中文各一份（中文留空就用内置中文文案，不会回退到英文）；Notion token 与数据库（优先于 `.env`）；**Check columns** 显示字段映射与警告。
 - **Files**：上传音频/视频/图片/PDF；上传 `.glb` 并选择 “Statue model” 可替换首页雕像。
 
 网站**从不写回 Notion**（`tests/architecture.test.mjs` 会检查客户端里没有写请求）。
@@ -89,7 +94,8 @@ src/content  站点文案、演示文章                    src/pages    路由�
 ```
 
 - 首页动画参数：`src/ui/scripts/site/home.ts`（镜头关键帧）、`neon.ts`（招牌）、`scene.ts`（窗帘、雕像、灯光）。
-- 首页文案（引言、facts、标语、各区块标题）：`src/content/site.ts`；名称/邮箱/简介/引言也可以在后台改。
+- 首页文案（引言、facts、标语，中英两份）：`src/content/site.ts`；界面文字（导航、区块标题、分页…）：`src/ui/i18n.ts`；名称/邮箱/简介/引言也可以在后台改。
+- 中文显示字体：`public/fonts/display-sc/`，由 `scripts/fonts/build-display-sc.py` 生成，见 [docs/I18N.md](docs/I18N.md)。
 - 接口约定见 **[docs/API.md](docs/API.md)**；为什么选择在本仓库实现、而不是回到旧仓库，见 [docs/NOTION-ONLY.md](docs/NOTION-ONLY.md)。
 
 ## 环境变量
@@ -127,7 +133,7 @@ npm test            # 渲染器、Notion 映射、接口契约（用假的 Notio
 npm run typecheck   # tsc --noEmit
 npm run build       # 生产构建
 npm run check       # 以上三步
-node tests/fixtures/notion-mock.mjs 4999   # 本地假 Notion：NOTION_API_BASE=http://127.0.0.1:4999/v1
+node tests/fixtures/notion-mock.mjs 4999 [--showcase]   # 本地假 Notion：NOTION_API_BASE=http://127.0.0.1:4999/v1；--showcase 加几篇中英文章预览排版
 ```
 
 CI（`.github/workflows/validate.yml`）依次执行类型检查、测试与构建。

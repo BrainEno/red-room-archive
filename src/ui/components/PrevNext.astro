@@ -1,17 +1,22 @@
 ---
+import { messages } from '../i18n.ts';
+import { contentLang, type Locale } from '../../shared/i18n.ts';
+
 export interface Props {
+  locale: Locale;
   previous?: { title: string; href: string };
   next?: { title: string; href: string };
 }
-const { previous, next } = Astro.props;
+const { locale, previous, next } = Astro.props;
+const t = messages(locale).article;
 ---
 {(previous || next) && (
-  <nav class="prevnext" aria-label="More from the archive">
+  <nav class="prevnext" aria-label={t.more}>
     {previous ? (
-      <a rel="prev" href={previous.href}><small>Previous</small><span>{previous.title}</span></a>
+      <a rel="prev" href={previous.href}><small>{t.previous}</small><span lang={contentLang(previous.title)}>{previous.title}</span></a>
     ) : <span />}
     {next ? (
-      <a rel="next" href={next.href}><small>Next</small><span>{next.title}</span></a>
+      <a rel="next" href={next.href}><small>{t.next}</small><span lang={contentLang(next.title)}>{next.title}</span></a>
     ) : <span />}
   </nav>
 )}

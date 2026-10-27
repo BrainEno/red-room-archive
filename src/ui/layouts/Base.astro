@@ -1,9 +1,12 @@
 ---
 /**
- * Document shell for every page: metadata, fonts, base styles.
+ * Document shell for every page: metadata, language alternates, fonts, base styles.
  * Pure presentation — receives everything through props.
  */
+import '@fontsource-variable/archivo/wdth.css';
 import '../styles/base.css';
+import '../styles/cjk.css';
+import { DEFAULT_LOCALE, LOCALES, localizedPath, type Locale } from '../../shared/i18n.ts';
 
 export interface Props {
   title: string;
@@ -15,14 +18,21 @@ export interface Props {
   noindex?: boolean;
   image?: string | null;
   type?: 'website' | 'article';
+  locale?: Locale;
 }
 
-const { title, description = '', siteUrl = '', siteName = '', bodyClass = '', noindex = false, image = null, type = 'website' } = Astro.props;
-const canonical = siteUrl ? new URL(Astro.url.pathname, siteUrl).toString() : undefined;
+const { title, description = '', siteUrl = '', siteName = '', bodyClass = '', noindex = false, image = null, type = 'website', locale = DEFAULT_LOCALE } = Astro.props;
+
+/** This page in a given language: the default language has the clean URL, others `?lang=`. */
+const localized = (code: Locale) => {
+  if (!siteUrl) return undefined;
+  return new URL(localizedPath(Astro.url.pathname, code), siteUrl).toString();
+};
+const canonical = localized(locale);
 const ogImage = image && siteUrl ? new URL(image, siteUrl).toString() : image;
 ---
 <!doctype html>
-<html lang="en">
+<html lang={locale}>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -39,9 +49,13 @@ const ogImage = image && siteUrl ? new URL(image, siteUrl).toString() : image;
   {ogImage && <meta property="og:image" content={ogImage} />}
   <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
   <link rel="alternate" type="application/rss+xml" title={`${siteName || 'Articles'} — RSS`} href="/rss.xml" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet" />
+  {/* Chinese display cut (scripts/fonts/build-display-sc.py): ~30 KB of @font-face rules, loaded without
+       blocking render; the browser fetches only the unicode-range slices a page's display text needs. */}
+  <link rel="stylesheet" href="/fonts/display-sc/display-sc.css" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="/fonts/display-sc/display-sc.css" /></noscript>
+  {canonical && !noindex && LOCALES.map((code) => <link rel="alternate" hreflang={code} href={localized(code)} />)}
+  {canonical && !noindex && <link rel="alternate" hreflang="x-default" href={localized(DEFAULT_LOCALE)} />}
+  <meta property="og:locale" content={locale.replace('-', '_')} />
 </head>
 <body class={bodyClass}><slot /></body>
 </html>

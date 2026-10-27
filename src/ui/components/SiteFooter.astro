@@ -1,9 +1,14 @@
 ---
+import { messages } from '../i18n.ts';
+import type { Locale } from '../../shared/i18n.ts';
+
 export interface Props {
   siteName: string;
+  locale: Locale;
   email?: string;
 }
-const { siteName, email = '' } = Astro.props;
+const { siteName, locale, email = '' } = Astro.props;
+const t = messages(locale);
 const year = new Date().getFullYear();
 ---
 <footer class="site-footer">
@@ -11,6 +16,6 @@ const year = new Date().getFullYear();
   <nav aria-label="Footer">
     {email && <a href={`mailto:${email}`}>{email}</a>}
     <a href="/rss.xml">RSS</a>
-    <a href="/">Home</a>
+    <a href="/">{t.nav.home}</a>
   </nav>
 </footer>

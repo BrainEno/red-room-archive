@@ -4,9 +4,10 @@
 
 ```
 src/
-├── shared/      线上契约：API 类型（contracts.ts）、公开 URL 规则（routes.ts）；零运行时依赖
-├── core/        纯函数：Notion 块 → HTML（blocks.ts）、富文本类型、URL 安全、slug、文本、媒体识别、错误类型、.env
-├── content/     站点文案与默认值、演示文章（Notion 块格式）
+├── shared/      线上契约：API 类型（contracts.ts）、公开 URL 规则（routes.ts）、语言协商（i18n.ts）；零运行时依赖
+├── core/        纯函数：Notion 块 → HTML（blocks.ts）、富文本类型、URL 安全、slug、文本与日期格式、排序（order.ts）、媒体识别、错误类型、.env
+├── content/     站点文案（en / zh-CN 两份）与默认值、演示文章（Notion 块格式）
+├── middleware.ts 决定每个请求的语言（?lang → cookie → Accept-Language），写 cookie、Content-Language、Vary
 ├── server/      后端（只在 Node 里运行）
 │   ├── config.ts            环境变量 → 运行配置
 │   ├── db/                  SQLite 连接 + 版本化迁移 + repository（只有 SQL）
@@ -22,11 +23,12 @@ src/
 │       └── endpoints/       public · admin · uploads · media · legacy（旧地址 301）
 ├── ui/          前端（只做展示）
 │   ├── layouts/ components/ views/   Astro 组件，只通过 props 接收数据
-│   ├── feeds.ts             RSS / sitemap / robots（纯函数）
+│   ├── i18n.ts              界面文字字典 messages(locale)
+│   ├── feeds.ts             RSS / sitemap（含 hreflang 两种语言）/ robots（纯函数）
 │   ├── scripts/site/        首页动画（Three.js / GSAP / Lenis / Canvas 招牌）
 │   ├── scripts/admin/       后台单页应用（Articles / Settings / Files）
 │   ├── scripts/lib/api-client.ts  带类型的浏览器 API 客户端
-│   └── styles/              base / home / pages（含 Notion 块与颜色）/ admin
+│   └── styles/              base / home / pages（含 Notion 块与颜色）/ cjk（全部中文排版规则）/ admin
 └── pages/       路由（组合根）
     ├── api/**               一行 re-export 到 server/http/endpoints
     ├── media/ uploads/      文件服务 → endpoints/media.ts、endpoints/uploads.ts
@@ -51,6 +53,7 @@ notion/client.ts 没有 PATCH/PUT/DELETE，唯一的 POST 是 databases/:id/quer
 
 ```
 GET /articles/first-light
+  middleware.ts                             Astro.locals.locale = en | zh-CN
   pages/articles/[slug].astro
   → server/queries.ts getArticle
     → services/articles.ts findArticle      ensureFresh：从未同步 → 等一次同步；过期 → 后台刷新，先返回缓存
@@ -71,6 +74,8 @@ GET /media/notion/<id>
 
 - 同步 = 查询整个数据库 → `mapper.toArticles` 在本地过滤（Published、日期 ≤ 现在、有标题、未归档）→ 整体替换 `articles` 表。
   在本地过滤，所以任何列结构都能用，没有对 Notion filter 语法的依赖。
+- 排序（`core/order.ts newestFirst`）：按 Date 列的**时刻**倒序；只有日期的视为当天 00:00 UTC；同一时刻再按 Notion 创建时间、标题。
+  显示时保留作者写下的时间（不做时区换算）。
 - Slug 按页面**创建时间**从旧到新分配：新页面和旧页面重名时，旧文章的地址不会变。
 - 同一时刻只有一个同步任务（并发请求共享同一个 Promise）；失败时保留旧缓存，错误写入 `meta.sync_error`，后台可见。
 - 正文首次阅读时渲染并缓存；`last_edited_time` 变化后，正文作废、该文章的图片副本删除。
@@ -79,5 +84,5 @@ GET /media/notion/<id>
 
 ## 数据库迁移
 
-`PRAGMA user_version` 记录版本。第 5 步新增 `articles` 与 `notion_media`；之前版本留下的 `items`、`posts`、`post_revisions`
+`PRAGMA user_version` 记录版本。第 6 步给 `articles` 加 `created` 列（旧缓存为空，下一次同步填上）。第 5 步新增 `articles` 与 `notion_media`；之前版本留下的 `items`、`posts`、`post_revisions`
 **不删除**（没有破坏性迁移），只是不再被读取。

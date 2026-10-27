@@ -1,33 +1,35 @@
 ---
 import Page from '../layouts/Page.astro';
 import ArticleList from '../components/ArticleList.astro';
+import { messages } from '../i18n.ts';
 import type { SearchResponse } from '../../shared/contracts.ts';
+import type { Locale } from '../../shared/i18n.ts';
 
 export interface Props {
-  site: { name: string; url: string; email: string };
+  site: { locale: Locale; name: string; url: string; email: string };
   result: SearchResponse;
 }
 const { site, result } = Astro.props;
+const { locale } = site;
+const t = messages(locale).search;
 const hasQuery = Boolean(result.query);
 ---
-<Page title={`${hasQuery ? `“${result.query}” — ` : ''}Search — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} current="/search" noindex>
+<Page title={`${hasQuery ? `“${result.query}” — ` : ''}${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} current="/search" noindex>
   <section class="prose listing">
-    <p class="article-label">{site.name} / Search</p>
-    <h1>Search</h1>
+    <p class="article-label">{site.name} / {t.title}</p>
+    <h1>{t.title}</h1>
     <form class="search" role="search" action="/search" method="get">
-      <label class="sr" for="q">Search articles</label>
-      <input id="q" name="q" type="search" value={result.query} placeholder="Titles, tags, text…" autofocus={!hasQuery} maxlength="120" />
-      <button>Search</button>
+      <label class="sr" for="q">{t.label}</label>
+      <input id="q" name="q" type="search" value={result.query} placeholder={t.placeholder} autofocus={!hasQuery} maxlength="120" />
+      <button>{t.button}</button>
     </form>
 
-    {hasQuery && (
-      <p class="article-intro" role="status">{result.total} {result.total === 1 ? 'result' : 'results'} for “{result.query}”.</p>
-    )}
+    {hasQuery && <p class="article-intro" role="status">{t.results(result.total, result.query)}</p>}
     {result.articles.length > 0 && (
       <section class="results">
-        <ArticleList articles={result.articles} showExcerpt />
+        <ArticleList articles={result.articles} locale={locale} empty="" showExcerpt />
       </section>
     )}
-    {hasQuery && result.total === 0 && <p class="empty">Nothing matched. Try a shorter word or a tag.</p>}
+    {hasQuery && result.total === 0 && <p class="empty">{t.none}</p>}
   </section>
 </Page>

@@ -12,6 +12,21 @@ const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySele
 history.scrollRestoration = 'manual';
 if (!location.hash) scrollTo(0, 0);
 
+// 切换语言 = 带 ?lang= 重新加载页面。点击时记下滚动位置，新页面跳过开场、回到原处，
+// 读者不会因为换语言而被送回招牌、重看一遍开场动画
+const RESUME_KEY = 'rra:resume';
+const resumeY = (() => {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(RESUME_KEY) ?? 'null') as { y: number; at: number } | null;
+    sessionStorage.removeItem(RESUME_KEY);
+    return saved && Date.now() - saved.at < 15_000 ? saved.y : null;
+  } catch { return null; }
+})();
+document.querySelectorAll<HTMLAnchorElement>('[data-lang-switch]').forEach((a) =>
+  a.addEventListener('click', () => {
+    try { sessionStorage.setItem(RESUME_KEY, JSON.stringify({ y: scrollY, at: Date.now() })); } catch { /* private mode */ }
+  }));
+
 initScene($<HTMLCanvasElement>('#gl'));
 const neon = initNeon($<HTMLCanvasElement>('#neon canvas'));
 const fx = neon.fx;
@@ -37,10 +52,9 @@ const K = {
   home:     { px: 0,    py: 2,   pz: 10,  lx: 0.3,  ly: 1.6, lz: 0, open: 0,    ry: -0.3,  lum: 0,   st: 0 },
   intro:    { px: 0,    py: 1.9, pz: 8.2, lx: 0.4,  ly: 1.7, lz: 0, open: 0.1,  ry: -0.2,  lum: 0.9, st: 0 },
   introEnd: { px: 0.6,  py: 1.8, pz: 6.6, lx: 1.0,  ly: 1.8, lz: 0, open: 0.22, ry: 0.15,  lum: 1,   st: 1 },
-  articles: { px: -0.3, py: 1.6, pz: 6.5, lx: -0.1, ly: 1.7, lz: 0, open: 0.35, ry: 0.3,   lum: 1,   st: 1 },
+  latest:   { px: -0.3, py: 1.6, pz: 6.5, lx: -0.1, ly: 1.7, lz: 0, open: 0.35, ry: 0.3,   lum: 1,   st: 1 },
   featured: { px: 0.5,  py: 0.9, pz: 5,   lx: 0.6,  ly: 2.0, lz: 0, open: 0.15, ry: -0.45, lum: 1,   st: 1 },   // 低机位仰拍
   topics:   { px: -1.5, py: 3,   pz: 9,   lx: -1.4, ly: 1.6, lz: 0, open: 1,    ry: 0.5,   lum: 1,   st: 1 },   // 窗帘全开的大全景
-  about:    { px: 0.5,  py: 11,  pz: 1.5, lx: 0.5,  ly: 0,   lz: 0, open: 1,    ry: 0,     lum: 1,   st: 1 },   // 俯拍
   contact:  { px: 0,    py: 1.4, pz: 13,  lx: 0,    ly: 2.2, lz: 0, open: 0,    ry: 0,     lum: 1,   st: 1 },
 };
 type Key = typeof K.home;
@@ -54,13 +68,12 @@ const seg = (a: Key, b: Key, trigger: string, start: string, end: string, lumEas
 };
 seg(K.home, K.intro, '#intro', 'top bottom', 'top top', 'power3.in');   // 招牌飞过镜头的同一段滚动里，房间从黑暗中浮现
 seg(K.intro, K.introEnd, '#intro', 'top top', 'bottom bottom');          // 引言停留期间，雕像从地面升起
-seg(K.introEnd, K.articles, '#articles', 'top bottom', 'top top');
-seg(K.articles, K.featured, '#featured', 'top bottom', 'top top');
+seg(K.introEnd, K.latest, '#latest', 'top bottom', 'top top');
+seg(K.latest, K.featured, '#featured', 'top bottom', 'top top');
 seg(K.featured, K.topics, '#topics', 'top bottom', 'top top');
-seg(K.topics, K.about, '#about', 'top bottom', 'top top');
-seg(K.about, K.contact, '#contact', 'top bottom', 'top top');
+seg(K.topics, K.contact, '#contact', 'top bottom', 'top top');   // 全景 → 正面收束（原 about 俯拍段随 about 一起移除）
 
-['intro', 'articles', 'featured', 'topics', 'about', 'contact'].forEach((id) =>
+['intro', 'latest', 'featured', 'topics', 'contact'].forEach((id) =>
   ScrollTrigger.create({ trigger: `#${id}`, start: 'top 50%', end: 'bottom 50%', toggleClass: { targets: `.bar a[href="#${id}"]`, className: 'on' } }));
 
 // 3) 招牌：三层 —— .sign（滚动飞行）→ .cam（开场镜头姿态/对焦）→ canvas（指针视差）
@@ -117,17 +130,32 @@ gsap.ticker.add((t) => {
 
 // 4) 引言：逐词“点亮”。每个词先是霓虹红 + 辉光，再冷却成正文色，像灯管通电后稳定下来；
 //    起点卡在招牌飞行的后半程，所以文字是在招牌熄灭的同时被点亮的
+//    中文没有空格：按 Intl.Segmenter 的词切分（标点并入前一个词），不支持时退回逐字
+const tokens = (text: string, lang: string): { word: string; space: boolean }[] => {
+  if (!/[\u3400-\u9fff\uf900-\ufaff]/.test(text)) return text.split(/(\s+)/).filter(Boolean).map((w) => ({ word: w, space: /^\s+$/.test(w) }));
+  const out: { word: string; space: boolean }[] = [];
+  const Segmenter = (Intl as any).Segmenter;
+  const parts: { segment: string; isWordLike?: boolean }[] = Segmenter
+    ? [...new Segmenter(lang || 'zh-CN', { granularity: 'word' }).segment(text)]
+    : Array.from(text, (c) => ({ segment: c, isWordLike: !/[\s\p{P}]/u.test(c) }));
+  for (const { segment, isWordLike } of parts) {
+    const space = /^\s+$/.test(segment), prev = out[out.length - 1];
+    if (!space && !isWordLike && prev && !prev.space) prev.word += segment;   // “，。——”贴着前一个词，不单独亮起
+    else out.push({ word: segment, space });
+  }
+  return out;
+};
 const lede = $('.lede');
 if (!reduce) {
   const text = lede.textContent!.trim(), words: HTMLElement[] = [];
   lede.setAttribute('aria-label', text);
   lede.textContent = '';
-  text.split(/\s+/).forEach((w, i, a) => {
+  for (const { word, space } of tokens(text, lede.lang || document.documentElement.lang)) {
+    if (space) { lede.append(' '); continue; }
     const s = document.createElement('span');
-    s.className = 'w'; s.setAttribute('aria-hidden', 'true'); s.textContent = w;
-    lede.append(s); if (i < a.length - 1) lede.append(' ');
-    words.push(s);
-  });
+    s.className = 'w'; s.setAttribute('aria-hidden', 'true'); s.textContent = word;
+    lede.append(s); words.push(s);
+  }
   const per = 0.22, gap = (1 - per) / Math.max(words.length - 1, 1);   // 总时长归一化为 1，对应一段滚动
   gsap.fromTo(words,
     { opacity: 0.08, color: '#ff3a26', textShadow: '0 0 22px rgba(255,40,20,.95)' },
@@ -150,7 +178,12 @@ intro.to(n, { v: 100, duration: 2.2, ease: 'power2.inOut', onUpdate: () => (coun
   .from('.bar', { autoAlpha: 0, yPercent: -100, duration: 1, ease: 'expo.out' }, '<1.8')
   .from('.meta span', { autoAlpha: 0, y: 16, stagger: 0.1, duration: 1, ease: 'expo.out' }, '<0.2');
 document.fonts.ready.then(() => {
-  if (reduce) { intro.progress(1); neon.ignite(); } else intro.play();
+  if (reduce || resumeY !== null) { intro.progress(1); neon.ignite(); } else intro.play();
+  if (resumeY !== null) requestAnimationFrame(() => {
+    lenis?.start();
+    if (lenis) lenis.scrollTo(resumeY, { immediate: true, force: true }); else scrollTo(0, resumeY);
+    ScrollTrigger.update();
+  });
 });
 
 // 6) 列表行：分隔线逐行画出；悬停时地板亮起

@@ -4,6 +4,7 @@
  */
 import { escapeHtml } from '../core/text.ts';
 import type { ArticleSummary, TagCount } from '../shared/contracts.ts';
+import { DEFAULT_LOCALE, LOCALES, localizedPath } from '../shared/i18n.ts';
 import { ARTICLES_PATH, tagPath } from '../shared/routes.ts';
 
 const xml = escapeHtml;
@@ -57,11 +58,21 @@ export function sitemap(input: { origin: string; articles: ArticleSummary[]; tag
   const body = urls
     .map(({ loc, lastmod }) => {
       const date = lastmod ? String(lastmod).slice(0, 10) : '';
-      return `  <url><loc>${xml(origin + loc)}</loc>${/^\d{4}-\d{2}-\d{2}$/.test(date) ? `<lastmod>${date}</lastmod>` : ''}</url>`;
+      // Every page exists in each interface language (`?lang=`); list the
+      // alternates so search engines index the Chinese pages too.
+      const alternates = [
+        ...LOCALES.map((locale) => [locale, localizedPath(loc, locale)]),
+        ['x-default', localizedPath(loc, DEFAULT_LOCALE)],
+      ]
+        .map(([hreflang, href]) => `<xhtml:link rel="alternate" hreflang="${hreflang}" href="${xml(origin + href)}"/>`)
+        .join('');
+      const entry = (href: string) =>
+        `  <url><loc>${xml(origin + href)}</loc>${/^\d{4}-\d{2}-\d{2}$/.test(date) ? `<lastmod>${date}</lastmod>` : ''}${alternates}</url>`;
+      return LOCALES.map((locale) => entry(localizedPath(loc, locale))).join('\n');
     })
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
 ${body}
 </urlset>
 `;

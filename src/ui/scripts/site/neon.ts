@@ -7,7 +7,7 @@ const BW = Math.round((W + 2 * P) * S), BH = Math.round((H + 2 * P) * S);
 type Ctx = CanvasRenderingContext2D;
 const buf = () => Object.assign(document.createElement('canvas'), { width: BW, height: BH });
 const poly = (c: Ctx, p: number[][], close = false) => { c.beginPath(); p.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); if (close) c.closePath(); c.stroke(); };
-const F = (w: number, px: number) => `${w} ${px}px Archivo, "Arial Black", Helvetica, sans-serif`;
+const F = (w: number, px: number) => `${w} ${px}px "Archivo Variable", Archivo, "Arial Black", Helvetica, sans-serif`;
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 // 每组灯管独立闪烁；rate 越大越“不稳定”。delay 拉长：灯管一根一根从黑暗里亮起来。

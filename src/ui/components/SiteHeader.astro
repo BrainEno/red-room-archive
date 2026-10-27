@@ -1,16 +1,21 @@
 ---
+import LangSwitch from './LangSwitch.astro';
+import { messages } from '../i18n.ts';
+import type { Locale } from '../../shared/i18n.ts';
 import { ARTICLES_PATH } from '../../shared/routes.ts';
 
 export interface Props {
   siteName: string;
+  locale: Locale;
   /** Path prefix of the active section, e.g. `/articles` or `/search`. */
   current?: string;
 }
 
-const { siteName, current = '' } = Astro.props;
+const { siteName, locale, current = '' } = Astro.props;
+const t = messages(locale);
 const links = [
-  { href: ARTICLES_PATH, label: 'Articles' },
-  { href: '/search', label: 'Search' },
+  { href: ARTICLES_PATH, label: t.nav.articles },
+  { href: '/search', label: t.nav.search },
 ];
 ---
 <header class="site-header">
@@ -19,5 +24,6 @@ const links = [
     {links.map((link) => (
       <a href={link.href} aria-current={current === link.href ? 'page' : undefined}>{link.label}</a>
     ))}
+    <LangSwitch locale={locale} />
   </nav>
 </header>

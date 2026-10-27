@@ -57,9 +57,10 @@
   padding: 18px clamp(16px, 3vw, 40px); background: linear-gradient(var(--void) 60%, rgba(10,5,6,0)); font-weight: 600; }
 .site-brand { font-stretch: 62%; font-weight: 800; font-size: 1.15rem; white-space: nowrap; }
 .site-header nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: clamp(12px, 2.2vw, 28px); }
-.site-header nav a { position: relative; opacity: .7; transition: opacity .3s; }
-.site-header nav a:hover, .site-header nav a[aria-current="page"] { opacity: 1; }
-.site-header nav a[aria-current="page"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 1px; background: currentColor; }
+.site-header nav { align-items: baseline; }
+.site-header nav > a { position: relative; opacity: .7; transition: opacity .3s; }
+.site-header nav > a:hover, .site-header nav > a[aria-current="page"] { opacity: 1; }
+.site-header nav > a[aria-current="page"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 1px; background: currentColor; }
 .page { min-height: 70vh; }
 .page .prose { padding-top: 64px; }
 .site-footer { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 32px clamp(16px, 3vw, 40px) 40px;
@@ -199,3 +200,12 @@
   .article-list .article-cover { display: none; }
   .article-entry.has-cover { grid-template-columns: minmax(0, 1fr) 1.5rem; }
 }
+
+/* Language switch in the inner-page header */
+.site-header .lang-switch { display: inline-flex; gap: .45em; padding-left: clamp(10px, 1.6vw, 20px); border-left: 1px solid rgba(241,238,230,.24); }
+
+/* The index and search pages are also `.prose` (for the column width): keep the
+   article list a plain, un-numbered list of non-underlined entries. */
+.prose .article-list { list-style: none; padding-left: 0; margin: 0; }
+.prose .article-list li + li { margin-top: 0; }
+.prose .article-entry, .prose .filters a, .prose .pager a { text-decoration: none; }

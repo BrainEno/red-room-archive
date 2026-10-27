@@ -3,6 +3,6 @@
 import NotFoundView from '../ui/views/NotFoundView.astro';
 import { getSite } from '../server/queries.ts';
 
-const site = getSite();
+const site = getSite(Astro.locals.locale);
 ---
 <NotFoundView site={site} />

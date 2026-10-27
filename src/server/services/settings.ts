@@ -7,7 +7,8 @@
  */
 import { readEnv } from '../../core/env.ts';
 import { badRequest } from '../../core/errors.ts';
-import { site as defaults } from '../../content/site.ts';
+import { copy, site as identity } from '../../content/site.ts';
+import { DEFAULT_LOCALE, type Locale } from '../../shared/i18n.ts';
 import type { SettingKey, SettingValues } from '../../shared/contracts.ts';
 import { settingsRepository } from '../db/settings.repository.ts';
 import { metaRepository } from '../db/meta.repository.ts';
@@ -18,6 +19,8 @@ export const SETTING_KEYS: readonly SettingKey[] = [
   'site_email',
   'site_about',
   'site_intro',
+  'site_about_zh',
+  'site_intro_zh',
   'NOTION_TOKEN',
   'NOTION_DATABASE_ID',
 ];
@@ -65,33 +68,50 @@ export interface SiteProfile {
   intro: string;
 }
 
-export function siteProfile(): SiteProfile {
+/**
+ * Admin-editable copy per interface language: `site_about` / `site_intro`
+ * for English, `site_about_zh` / `site_intro_zh` for Chinese. A language
+ * without an override shows its built-in copy (content/site.ts) — never the
+ * other language's text, so what /admin shows is exactly what visitors read.
+ */
+const COPY_KEYS: Record<Locale, { about: SettingKey; intro: SettingKey }> = {
+  en: { about: 'site_about', intro: 'site_intro' },
+  'zh-CN': { about: 'site_about_zh', intro: 'site_intro_zh' },
+};
+
+export function siteProfile(locale: Locale = DEFAULT_LOCALE): SiteProfile {
+  const keys = COPY_KEYS[locale];
   return {
-    name: resolveSetting('site_name') || defaults.name,
-    email: resolveSetting('site_email') || defaults.email,
-    about: resolveSetting('site_about') || defaults.about,
-    intro: resolveSetting('site_intro') || defaults.intro,
+    name: resolveSetting('site_name') || identity.name,
+    email: resolveSetting('site_email') || identity.email,
+    about: resolveSetting(keys.about) || copy[locale].about,
+    intro: resolveSetting(keys.intro) || copy[locale].intro,
   };
 }
 
 const SITE_DEFAULTS: Partial<Record<SettingKey, string>> = {
-  site_name: defaults.name,
-  site_email: defaults.email,
-  site_about: defaults.about,
-  site_intro: defaults.intro,
+  site_name: identity.name,
+  site_email: identity.email,
+  site_about: copy.en.about,
+  site_intro: copy.en.intro,
+  site_about_zh: copy['zh-CN'].about,
+  site_intro_zh: copy['zh-CN'].intro,
 };
 
 const mask = (value: string | undefined) => (value ? `••••${value.slice(-4)}` : '');
 
 /** What /admin sees: real values, token masked, plus a "is a token stored" flag. */
 export function adminSettings(): { values: SettingValues & { hasToken: boolean } } {
-  const profile = siteProfile();
+  const profile = siteProfile('en');
+  const zh = siteProfile('zh-CN');
   const notion = notionConfig();
   const values: SettingValues = {
     site_name: profile.name,
     site_email: profile.email,
     site_about: profile.about,
     site_intro: profile.intro,
+    site_about_zh: zh.about,
+    site_intro_zh: zh.intro,
     NOTION_TOKEN: mask(notion.token),
     NOTION_DATABASE_ID: notion.databaseId ?? '',
   };

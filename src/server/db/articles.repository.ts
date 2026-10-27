@@ -5,13 +5,17 @@
  * separately and kept only while the page's `last_edited_time` is unchanged.
  */
 import { connection, transaction } from './connection.ts';
+import { newestFirst } from '../../core/order.ts';
 import type { TocEntry } from '../../shared/contracts.ts';
 
 export interface ArticleRow {
   id: string;
   slug: string;
   title: string;
+  /** Notion Date property (calendar day or date-time with offset). */
   date: string;
+  /** Notion page `created_time` — orders posts that share a date. */
+  created: string;
   tags: string[];
   excerpt: string;
   /** Public URL (proxy path or external URL). */
@@ -32,6 +36,7 @@ interface RawRow {
   slug: string;
   title: string;
   date: string;
+  created: string;
   tags: string;
   excerpt: string;
   cover: string | null;
@@ -39,7 +44,7 @@ interface RawRow {
   updated: string;
 }
 
-const COLUMNS = 'id, slug, title, date, tags, excerpt, cover, rank, updated';
+const COLUMNS = 'id, slug, title, date, created, tags, excerpt, cover, rank, updated';
 
 const parseTags = (value: string): string[] => {
   try {
@@ -55,9 +60,12 @@ const decode = (row: RawRow): ArticleRow => ({ ...row, rank: Number(row.rank) ||
 export type MediaKind = 'block' | 'cover';
 
 export const articlesRepository = {
-  /** Newest first; ties broken by title for a stable order. */
+  /**
+   * Newest first by Notion date-time (see core/order.ts). Sorted in JS, not SQL:
+   * the dates mix calendar days and offsets, which only compare correctly as instants.
+   */
   all(): ArticleRow[] {
-    return (connection().prepare(`SELECT ${COLUMNS} FROM articles ORDER BY date DESC, title COLLATE NOCASE`).all() as RawRow[]).map(decode);
+    return (connection().prepare(`SELECT ${COLUMNS} FROM articles`).all() as RawRow[]).map(decode).sort(newestFirst);
   },
 
   bySlug(slug: string): ArticleRow | undefined {
@@ -136,13 +144,13 @@ export const articlesRepository = {
       db.prepare("UPDATE articles SET slug = '~' || id").run();
 
       const upsert = db.prepare(`
-        INSERT INTO articles(${COLUMNS}) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET slug = excluded.slug, title = excluded.title, date = excluded.date,
+        INSERT INTO articles(${COLUMNS}) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET slug = excluded.slug, title = excluded.title, date = excluded.date, created = excluded.created,
           tags = excluded.tags, excerpt = excluded.excerpt, cover = excluded.cover, rank = excluded.rank,
           updated = excluded.updated
       `);
       for (const row of rows) {
-        upsert.run(row.id, row.slug, row.title, row.date, JSON.stringify(row.tags), row.excerpt, row.cover, row.rank, row.updated);
+        upsert.run(row.id, row.slug, row.title, row.date, row.created, JSON.stringify(row.tags), row.excerpt, row.cover, row.rank, row.updated);
       }
       if (options.dropBodies) db.prepare('UPDATE articles SET body = NULL, body_text = NULL, toc = NULL, body_updated = NULL').run();
 

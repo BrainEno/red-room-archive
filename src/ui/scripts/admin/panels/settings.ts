@@ -6,8 +6,10 @@ import { $, busy, esc, fail, toast } from '../dom.ts';
 const LABELS: Record<SettingKey, string> = {
   site_name: 'Site name',
   site_email: 'Contact email',
-  site_about: 'About text',
-  site_intro: 'Homepage intro (revealed word by word)',
+  site_about: 'Description — English (meta description, RSS)',
+  site_intro: 'Homepage intro — English (revealed word by word)',
+  site_about_zh: 'Description — 简体中文',
+  site_intro_zh: 'Homepage intro — 简体中文',
   NOTION_TOKEN: 'Notion integration token',
   NOTION_DATABASE_ID: 'Notion database — id or link',
 };
@@ -23,7 +25,7 @@ const FIELD_LABELS: Record<ArticleField, string> = {
   rank: 'Rank (featured)',
 };
 
-const MULTILINE: SettingKey[] = ['site_about', 'site_intro'];
+const MULTILINE: SettingKey[] = ['site_about', 'site_intro', 'site_about_zh', 'site_intro_zh'];
 
 export function schemaHtml(schema: NotionSchemaResponse): string {
   const rows = (Object.keys(FIELD_LABELS) as ArticleField[])

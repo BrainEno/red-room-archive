@@ -133,6 +133,12 @@ const MIGRATIONS: ((db: DatabaseConnection) => void)[] = [
       CREATE INDEX IF NOT EXISTS notion_media_article ON notion_media(article_id);
     `);
   },
+  // 6 — Notion page creation time, the tie-breaker for posts sharing a date.
+  //     Filled by the next sync (rows are rewritten on every sync).
+  (db) => {
+    const columns = new Set((db.prepare('PRAGMA table_info(articles)').all() as { name: string }[]).map((c) => c.name));
+    if (!columns.has('created')) db.exec("ALTER TABLE articles ADD COLUMN created TEXT NOT NULL DEFAULT ''");
+  },
 ];
 
 let depth = 0;

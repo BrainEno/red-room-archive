@@ -1,16 +1,20 @@
 ---
 /**
- * Homepage: neon sign → intro → Articles / Featured / Topics → About → Contact.
+ * Homepage: neon sign → intro → Latest / Featured / Topics → Contact.
  * The markup ids/classes are the contract with ui/scripts/site/home.ts (each
- * section id drives one camera move; the choreography is unchanged).
+ * section id drives one camera move).
  */
 import Base from '../layouts/Base.astro';
+import LangSwitch from '../components/LangSwitch.astro';
+import { messages } from '../i18n.ts';
 import '../styles/home.css';
 import type { ArticleSummary, TagCount } from '../../shared/contracts.ts';
+import { contentLang, type Locale } from '../../shared/i18n.ts';
 import { ARTICLES_PATH, tagPath } from '../../shared/routes.ts';
 
 export interface Props {
   site: {
+    locale: Locale;
     name: string;
     email: string;
     about: string;
@@ -18,20 +22,19 @@ export interface Props {
     tagline: string;
     url: string;
     facts: { key: string; value: string }[];
-    articles: { label: string };
-    featured: { label: string };
-    topics: { label: string };
   };
   home: { latest: ArticleSummary[]; featured: ArticleSummary[]; topics: TagCount[]; total: number };
 }
 
 const { site, home } = Astro.props;
+const { locale } = site;
+const t = messages(locale);
 const TOPIC_LIMIT = 12;
 const pad = (i: number) => String(i + 1).padStart(2, '0');
 const year = (date: string) => String(date).slice(0, 4);
-const nav = ['intro', 'articles', 'topics', 'about', 'contact'];
+const nav = ['intro', 'latest', 'topics', 'contact'] as const;
 ---
-<Base title={site.name} siteName={site.name} siteUrl={site.url} description={site.about}>
+<Base title={site.name} siteName={site.name} siteUrl={site.url} description={site.about} locale={locale}>
   <canvas id="gl" aria-hidden="true"></canvas>
   <div id="neon" class="neon"><div class="sign" aria-hidden="true"><div class="cam"><canvas></canvas></div></div></div>
   <div class="grain" aria-hidden="true"></div>
@@ -39,54 +42,53 @@ const nav = ['intro', 'articles', 'topics', 'about', 'contact'];
 
   <header class="bar">
     <a class="brand" href="#home">{site.name}</a>
-    <nav>{nav.map((n) => <a href={`#${n}`}>{n}</a>)}</nav>
+    <nav>
+      {nav.map((id) => <a href={`#${id}`}>{t.nav[id]}</a>)}
+      <LangSwitch locale={locale} />
+    </nav>
   </header>
 
   <main>
     <section id="home" class="s">
       <h1 class="sr">{site.name}</h1>
-      <div class="meta"><span>{site.name}</span><span>{site.tagline}</span><span>Scroll</span></div>
+      <div class="meta"><span>{site.name}</span><span>{site.tagline}</span><span>{t.home.scroll}</span></div>
     </section>
 
     <section id="intro" class="intro">
       <div class="stage">
-        <p class="lede">{site.intro}</p>
+        <p class="lede" lang={contentLang(site.intro)}>{site.intro}</p>
         <dl class="facts">{site.facts.map((f) => <div><dt>{f.key}</dt><dd>{f.value}</dd></div>)}</dl>
       </div>
     </section>
 
-    <section id="articles" class="s l">
-      <h2 class="sec">{site.articles.label}<sup>{home.total}</sup></h2>
+    <section id="latest" class="s l">
+      <h2 class="sec">{t.home.latest}<sup>{home.total}</sup></h2>
       <ul class="list">{home.latest.map((a, i) => (
-        <li><a class="row" href={a.href}><span class="n">{pad(i)}</span><span class="t">{a.title}</span><span>{a.tags[0] ?? ''}</span><span>{year(a.date)}</span><span class="r"></span></a></li>
+        <li><a class="row" href={a.href}><span class="n">{pad(i)}</span><span class="t" lang={contentLang(a.title)}>{a.title}</span><span>{a.tags[0] ?? ''}</span><span>{year(a.date)}</span><span class="r"></span></a></li>
       ))}</ul>
       {home.total > 0
-        ? <a class="more" href={ARTICLES_PATH}>All articles →</a>
-        : <p class="empty-note">Nothing published yet.</p>}
+        ? <a class="more" href={ARTICLES_PATH}>{t.home.allArticles}</a>
+        : <p class="empty-note">{t.home.nothingYet}</p>}
     </section>
 
     <section id="featured" class="s l">
-      <h2 class="sec">{site.featured.label}<sup>{home.featured.length}</sup></h2>
+      <h2 class="sec">{t.home.featured}<sup>{home.featured.length}</sup></h2>
       <ul class="list">{home.featured.map((a, i) => (
-        <li><a class="row" href={a.href}><span class="n">{pad(i)}</span><span class="t">{a.title}</span><span>{a.tags[0] ?? ''}</span><span>{year(a.date)}</span><span class="r"></span></a></li>
+        <li><a class="row" href={a.href}><span class="n">{pad(i)}</span><span class="t" lang={contentLang(a.title)}>{a.title}</span><span>{a.tags[0] ?? ''}</span><span>{year(a.date)}</span><span class="r"></span></a></li>
       ))}</ul>
-      {home.featured.length === 0 && home.total > 0 && <a class="more" href={ARTICLES_PATH}>Read the archive →</a>}
+      {home.featured.length === 0 && home.total > 0 && <a class="more" href={ARTICLES_PATH}>{t.home.readArchive}</a>}
     </section>
 
     <section id="topics" class="s l">
-      <h2 class="sec">{site.topics.label}<sup>{home.topics.length}</sup></h2>
-      <ul class="list">{home.topics.slice(0, TOPIC_LIMIT).map((t, i) => (
-        <li><a class="row" href={tagPath(t.name)}><span class="n">{pad(i)}</span><span class="t">{t.name}</span><span></span><span>{t.count}</span><span class="r"></span></a></li>
+      <h2 class="sec">{t.home.topics}<sup>{home.topics.length}</sup></h2>
+      <ul class="list">{home.topics.slice(0, TOPIC_LIMIT).map((topic, i) => (
+        <li><a class="row" href={tagPath(topic.name)}><span class="n">{pad(i)}</span><span class="t" lang={contentLang(topic.name)}>{topic.name}</span><span></span><span>{topic.count}</span><span class="r"></span></a></li>
       ))}</ul>
-      {home.topics.length > TOPIC_LIMIT && <a class="more" href={ARTICLES_PATH}>All topics →</a>}
-    </section>
-
-    <section id="about" class="s">
-      <div class="panel"><h2>About</h2><p>{site.about}</p></div>
+      {home.topics.length > TOPIC_LIMIT && <a class="more" href={ARTICLES_PATH}>{t.home.allTopics}</a>}
     </section>
 
     <section id="contact" class="s">
-      {site.email ? <a class="mail" href={`mailto:${site.email}`}>{site.email}</a> : <a class="mail" href={ARTICLES_PATH}>Articles →</a>}
+      {site.email ? <a class="mail" href={`mailto:${site.email}`}>{site.email}</a> : <a class="mail" href={ARTICLES_PATH}>{t.home.allArticles}</a>}
     </section>
   </main>
 

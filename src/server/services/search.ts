@@ -3,6 +3,7 @@
  * so matching happens in memory over title, tags, excerpt and — for bodies
  * already rendered — the article text. No search engine required.
  */
+import { newestFirst } from '../../core/order.ts';
 import type { SearchResponse } from '../../shared/contracts.ts';
 import { articlesRepository } from '../db/articles.repository.ts';
 import { presentArticle } from '../presenters.ts';
@@ -37,7 +38,7 @@ export async function search(query: string, limit = 20): Promise<SearchResponse>
       return { article, score };
     })
     .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score || Date.parse(b.article.date) - Date.parse(a.article.date));
+    .sort((a, b) => b.score - a.score || newestFirst(a.article, b.article));
 
   return { query: clean, total: scored.length, articles: scored.slice(0, limit).map((entry) => presentArticle(entry.article)) };
 }

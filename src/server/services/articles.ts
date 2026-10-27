@@ -13,6 +13,7 @@
  */
 import { renderBlocks, type LinkedPage, type RenderResult } from '../../core/blocks.ts';
 import { notFound, unavailable } from '../../core/errors.ts';
+import { newestFirst } from '../../core/order.ts';
 import { demoArticles } from '../../content/site.ts';
 import type { ArticleLink, TagCount } from '../../shared/contracts.ts';
 import { articlePath, notionMediaPath } from '../../shared/routes.ts';
@@ -97,7 +98,9 @@ onNotionChange(() => {
 /* ── Reading ────────────────────────────────────────────────────────── */
 
 const demoRows = (): ArticleRow[] =>
-  demoArticles.map(({ blocks: _blocks, ...article }) => ({ ...article, cover: null, updated: `${article.date}T00:00:00.000Z` }));
+  demoArticles
+    .map(({ blocks: _blocks, ...article }) => ({ ...article, created: article.date, cover: null, updated: `${article.date}T00:00:00.000Z` }))
+    .sort(newestFirst);
 
 export const isDemo = () => !notionReady();
 
@@ -142,7 +145,7 @@ export function tagCounts(articles: ArticleRow[]): TagCount[] {
 
 /** Articles with a positive Rank, highest first (the old blog's "featured"). */
 export const featuredArticles = (articles: ArticleRow[], limit = 5) =>
-  articles.filter((article) => article.rank > 0).sort((a, b) => b.rank - a.rank).slice(0, limit);
+  articles.filter((article) => article.rank > 0).sort((a, b) => b.rank - a.rank || newestFirst(a, b)).slice(0, limit);
 
 const link = (article: ArticleRow | undefined): ArticleLink | null =>
   article ? { slug: article.slug, title: article.title, href: articlePath(article.slug) } : null;
