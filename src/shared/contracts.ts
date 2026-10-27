@@ -107,6 +107,8 @@ export interface SiteResponse {
   email: string;
   about: string;
   intro: string;
+  /** Language of `about` / `intro` (`?lang=en|zh-CN`, default `en`). */
+  locale: 'en' | 'zh-CN';
   notionConfigured: boolean;
   /** True while the built-in demo articles are shown (Notion not configured). */
   demo: boolean;
@@ -152,6 +154,8 @@ export type SettingKey =
   | 'site_email'
   | 'site_about'
   | 'site_intro'
+  | 'site_about_zh'
+  | 'site_intro_zh'
   | 'NOTION_TOKEN'
   | 'NOTION_DATABASE_ID';
 

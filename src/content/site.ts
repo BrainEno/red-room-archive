@@ -9,43 +9,59 @@
  * (name, email, about, intro) can be overridden at runtime from /admin.
  */
 import type { NotionBlock } from '../core/blocks.ts';
+import type { Locale } from '../shared/i18n.ts';
 
-export interface SiteContent {
+/** Locale-neutral identity. */
+export interface SiteIdentity {
   name: string;
   email: string;
+}
+
+/**
+ * Editorial copy, one set per interface language. Interface chrome (nav,
+ * buttons, section titles) lives in ui/i18n.ts; this is the text that is
+ * *about you* and that /admin can override (`about`, `intro`).
+ */
+export interface SiteCopy {
+  /** One line: meta description, RSS description. */
   about: string;
   /** Two or three sentences shown in the intro section, revealed word by word. */
   intro: string;
-  /** Short kicker above the article sections. */
+  /** Short line in the homepage's bottom meta row. */
   tagline: string;
   facts: { key: string; value: string }[];
-  articles: { label: string; intro: string };
-  featured: { label: string };
-  topics: { label: string };
-  contact: { heading: string; note: string };
+  /** Lead paragraph of the /articles index. */
+  articlesIntro: string;
 }
 
-export const site: SiteContent = {
+export const site: SiteIdentity = {
   name: 'Red Room Archive',
   email: '',
-  about: 'Writing, published from Notion.',
-  intro:
-    'Placeholder — replace this with two or three sentences about yourself. Say who you are, what you write about, and what a visitor will find once they step through the curtain.',
-  tagline: 'Essays, notes and fiction',
-  facts: [
-    { key: 'Based in', value: 'Your city' },
-    { key: 'Writing', value: 'Essays, notes and fiction' },
-    { key: 'Currently', value: 'A short line about what you are working on' },
-  ],
-  articles: {
-    label: 'Articles',
-    intro: 'Everything published from the notebook, newest first.',
+};
+
+export const copy: Record<Locale, SiteCopy> = {
+  en: {
+    about: 'Writing, published from Notion.',
+    intro:
+      'Placeholder — replace this with two or three sentences about yourself. Say who you are, what you write about, and what a visitor will find once they step through the curtain.',
+    tagline: 'Essays, notes and fiction',
+    facts: [
+      { key: 'Based in', value: 'Your city' },
+      { key: 'Writing', value: 'Essays, notes and fiction' },
+      { key: 'Currently', value: 'A short line about what you are working on' },
+    ],
+    articlesIntro: 'Everything published from the notebook, newest first.',
   },
-  featured: { label: 'Featured' },
-  topics: { label: 'Topics' },
-  contact: {
-    heading: 'Contact',
-    note: 'For letters, commissions and collaborations.',
+  'zh-CN': {
+    about: '写作，发布自 Notion。',
+    intro: '占位文字——请在后台换成两三句关于你自己的话：你是谁，写些什么，访客掀开帷幕之后会看到什么。',
+    tagline: '随笔、札记与小说',
+    facts: [
+      { key: '所在', value: '你的城市' },
+      { key: '写作', value: '随笔、札记与小说' },
+      { key: '近况', value: '一句话说说你正在写的东西' },
+    ],
+    articlesIntro: '笔记本里发布的全部文章，按时间由新到旧排列。',
   },
 };
 

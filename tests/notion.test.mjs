@@ -27,6 +27,26 @@ test('toArticles keeps published, dated, titled pages and gives twins distinct s
   assert.equal(first.cover, `/media/notion/${compact(ID.first)}`);
 });
 
+test('toArticles orders by the Notion date-time (offsets compared as instants), then creation time', () => {
+  const at = (source, date, created) => ({ ...structuredClone(source), id: crypto.randomUUID(), created_time: created,
+    properties: { ...structuredClone(source.properties), Date: { id: 'd', type: 'date', date: { start: date, end: null } },
+      Page: { id: 'title', type: 'title', title: [{ type: 'text', plain_text: date + created, text: { content: date + created } }] } } });
+  const base = mock.state.pages[0];
+  const pages = [
+    at(base, '2026-10-28', '2026-10-20T00:00:00.000Z'),
+    at(base, '2026-10-28T07:00:00.000+08:00', '2026-10-01T00:00:00.000Z'),
+    at(base, '2026-10-28T09:00:00.000+08:00', '2026-10-01T00:00:00.000Z'),
+    at(base, '2026-10-28', '2026-10-25T00:00:00.000Z'),
+  ];
+  const { rows } = toArticles(pages, Date.parse('2026-11-01T00:00:00Z'));
+  assert.deepEqual(rows.map((r) => [r.date, r.created]), [
+    ['2026-10-28T09:00:00.000+08:00', '2026-10-01T00:00:00.000Z'],
+    ['2026-10-28', '2026-10-25T00:00:00.000Z'],
+    ['2026-10-28', '2026-10-20T00:00:00.000Z'],
+    ['2026-10-28T07:00:00.000+08:00', '2026-10-01T00:00:00.000Z'],
+  ]);
+});
+
 test('the older page keeps the bare slug even when listed after its twin', () => {
   const reversed = [...mock.state.pages].reverse();
   const { rows } = toArticles(reversed, NOW);

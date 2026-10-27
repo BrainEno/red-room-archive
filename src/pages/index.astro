@@ -3,7 +3,7 @@
 import HomeView from '../ui/views/HomeView.astro';
 import { getHome, getSite } from '../server/queries.ts';
 
-const site = getSite();
+const site = getSite(Astro.locals.locale);
 const home = await getHome();
 ---
 <HomeView site={site} home={home} />

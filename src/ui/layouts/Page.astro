@@ -6,11 +6,14 @@
 import Base from './Base.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
+import { messages } from '../i18n.ts';
+import type { Locale } from '../../shared/i18n.ts';
 import '../styles/pages.css';
 
 export interface Props {
   title: string;
   siteName: string;
+  locale: Locale;
   siteUrl?: string;
   email?: string;
   description?: string;
@@ -20,13 +23,14 @@ export interface Props {
   noindex?: boolean;
 }
 
-const { title, siteName, siteUrl, email = '', description, current, image, type, noindex } = Astro.props;
+const { title, siteName, locale, siteUrl, email = '', description, current, image, type, noindex } = Astro.props;
+const t = messages(locale);
 ---
-<Base title={title} siteName={siteName} siteUrl={siteUrl} description={description} image={image} type={type} noindex={noindex} bodyClass="plain">
-  <a class="skip" href="#content">Skip to content</a>
-  <SiteHeader siteName={siteName} current={current} />
+<Base title={title} siteName={siteName} siteUrl={siteUrl} description={description} image={image} type={type} noindex={noindex} locale={locale} bodyClass="plain">
+  <a class="skip" href="#content">{t.page.skip}</a>
+  <SiteHeader siteName={siteName} current={current} locale={locale} />
   <main id="content" class="page">
     <slot />
   </main>
-  <SiteFooter siteName={siteName} email={email} />
+  <SiteFooter siteName={siteName} email={email} locale={locale} />
 </Base>

@@ -221,6 +221,34 @@ test('page facade: home sections, paginated index, article view', async () => {
   assert.equal(await queries.getArticle('missing'), undefined);
 });
 
+test('site copy per language: Chinese overrides are separate from English, /api/site?lang=', async () => {
+  const en = queries.getSite('en');
+  const zh = queries.getSite('zh-CN');
+  assert.equal(en.locale, 'en');
+  assert.equal(zh.locale, 'zh-CN');
+  assert.equal(zh.tagline, '随笔、札记与小说');
+  assert.notEqual(zh.intro, en.intro);
+  assert.equal(queries.getSite().locale, 'en', 'English by default');
+
+  const saved = await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_intro_zh: '你好，帷幕之后。', site_intro: 'Hello behind the curtain.' } });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.data.values.site_intro_zh, '你好，帷幕之后。');
+  assert.equal(queries.getSite('zh-CN').intro, '你好，帷幕之后。');
+  assert.equal(queries.getSite('en').intro, 'Hello behind the curtain.');
+  assert.equal((await call(pub.site, { path: '/api/site?lang=zh-CN' })).data.intro, '你好，帷幕之后。');
+  assert.equal((await call(pub.site, { path: '/api/site?lang=zh-CN' })).data.locale, 'zh-CN');
+  assert.equal((await call(pub.site, { path: '/api/site' })).data.intro, 'Hello behind the curtain.');
+
+  // Clearing an override falls back to that language's built-in copy, never the other language.
+  await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_intro_zh: '' } });
+  assert.equal(queries.getSite('zh-CN').intro, zh.intro);
+  // Saving the untouched default does not freeze it as an override.
+  await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_intro_zh: zh.intro, site_intro: '' } });
+  const after = await call(admin.readSettings, { token: TOKEN });
+  assert.equal(after.data.values.site_intro_zh, zh.intro);
+  assert.equal(queries.getSite('en').intro, en.intro);
+});
+
 test('schema check maps the astro-notion columns without warnings', async () => {
   assert.equal((await call(admin.notionSchema)).status, 401);
   const schema = await call(admin.notionSchema, { token: TOKEN });

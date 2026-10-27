@@ -4,6 +4,8 @@
 // `createNotionMock()` returns a `fetch` replacement for unit tests;
 // `node tests/fixtures/notion-mock.mjs [port]` serves the same data over HTTP
 // so a built server can be smoke-tested with NOTION_API_BASE=http://…/v1.
+// `--showcase` adds a few bilingual articles for previewing the typography
+// (tests never use it).
 
 import zlib from 'node:zlib';
 
@@ -227,11 +229,41 @@ export function createNotionMock() {
 }
 
 // `node tests/fixtures/notion-mock.mjs 4999` — serve the mock over HTTP.
+/** Extra bilingual pages for the live preview (`--showcase`); unit tests use the default data only. */
+function addShowcase(state) {
+  const id = (n) => `5c5c5c5c-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const entries = [
+    ['红幕之后：关于一间房间的记忆', 'red-curtain', '2026-10-27T21:30:00.000+08:00', ['小说'], '帷幕拉开的时候，房间里只剩下一把椅子和一盏灯。', 3],
+    ['夜行列车上的十四个片段', 'night-train', '2026-10-27', ['随笔'], '从台北到花莲，窗外一直是黑的。', 1],
+    ['A Letter in the Wrong Language', 'wrong-language', '2026-10-20', ['Essay'], 'On writing between two scripts.', 0],
+    ['诗：霓虹', 'neon-poem', '2026-10-12', ['诗歌'], '', 0],
+    ['Notion 写作工作流 2026', 'notion-workflow', '2026-10-05T09:00:00.000+08:00', ['笔记', 'Notion'], '我如何用一个数据库管理全部草稿与发布。', 0],
+  ];
+  entries.forEach(([title, slug, date, tags, excerpt, rank], index) => {
+    const created = `2026-0${index + 1}-15T00:00:00.000Z`;
+    state.pages.push(page(id(index + 1), { title, slug, date, tags, excerpt, rank: rank || null, created }));
+  });
+  const para = (n, ...parts) => ({ object: 'block', id: `sc-p${n}`, type: 'paragraph', has_children: false, paragraph: { color: 'default', rich_text: parts } });
+  const heading = (n, content) => ({ object: 'block', id: `sc-h${n}`, type: 'heading_2', has_children: false, heading_2: { rich_text: rt(content), is_toggleable: false, color: 'default' } });
+  state.blocks[compact(id(1))] = [
+    para(1, text('帷幕拉开的时候，房间里只剩下一把椅子和一盏灯。灯是红色的，像很多年前那家小酒吧门口的霓虹招牌——'), text('它总在午夜之前熄灭', { annotations: { italic: true } }), text('。')),
+    heading(1, '一、椅子'),
+    para(2, text('我在 2019 年第一次走进这间房间。墙上挂着 Twin Peaks 的海报，地板是黑白相间的折线，像一段没有结尾的乐谱。没有人说话，只有唱片机在角落里转。')),
+    para(3, text('后来我才明白，所谓“记忆”，不过是我们一遍又一遍重新布置的同一间屋子：家具挪来挪去，灯光换了颜色，而门始终开在同一个地方。')),
+    heading(2, '二、灯'),
+    { object: 'block', id: 'sc-q1', type: 'quote', has_children: false, quote: { rich_text: rt('“我们活在梦里，还是梦活在我们里面？”'), color: 'default' } },
+    para(4, text('写下这些字的时候是深夜十一点半。窗外下着雨，Notion 的光标在屏幕上一闪一闪，像一盏很小的、不肯熄灭的灯。')),
+    heading(3, '三、门'),
+    para(5, text('门外是什么，我至今不知道。也许只是另一间房间。')),
+  ];
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { createServer } = await import('node:http');
   const port = Number(process.argv[2] ?? 4999);
   const base = `http://127.0.0.1:${port}`;
   const mock = createNotionMock();
+  if (process.argv.includes('--showcase')) addShowcase(mock.state);
   // Point file URLs at this server too.
   const rewrite = (value) => JSON.parse(JSON.stringify(value).replaceAll(FILES, `${base}/files`));
   createServer(async (req, res) => {

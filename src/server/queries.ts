@@ -5,7 +5,8 @@
  * the same DTOs as the JSON API (see `shared/contracts.ts`), which keeps the UI
  * decoupled from SQLite and Notion. `tests/architecture.test.mjs` enforces it.
  */
-import { site as content } from '../content/site.ts';
+import { copy } from '../content/site.ts';
+import { DEFAULT_LOCALE, type Locale } from '../shared/i18n.ts';
 import type { ArticleDetail, ArticleSummary, SearchResponse, TagCount } from '../shared/contracts.ts';
 import { config } from './config.ts';
 import { presentArticle, presentArticleDetail } from './presenters.ts';
@@ -23,22 +24,25 @@ import { siteProfile } from './services/settings.ts';
 
 export type { ArticleDetail, ArticleSummary, SearchResponse, TagCount };
 
+export type { Locale };
+
+/** Site identity + editorial copy in one interface language. */
 export interface SiteView {
+  locale: Locale;
   name: string;
   email: string;
+  /** One-line description (meta, RSS). */
   about: string;
   intro: string;
   tagline: string;
   facts: { key: string; value: string }[];
-  articles: { label: string; intro: string };
-  featured: { label: string };
-  topics: { label: string };
-  contact: { heading: string; note: string };
+  articlesIntro: string;
   url: string;
 }
 
-export function getSite(): SiteView {
-  return { ...content, ...siteProfile(), url: config.siteUrl() };
+export function getSite(locale: Locale = DEFAULT_LOCALE): SiteView {
+  const { tagline, facts, articlesIntro } = copy[locale];
+  return { locale, ...siteProfile(locale), tagline, facts, articlesIntro, url: config.siteUrl() };
 }
 
 export interface HomeData {

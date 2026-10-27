@@ -10,6 +10,7 @@
  */
 import { cleanSlug, slugify } from '../../core/slug.ts';
 import { safeUrl } from '../../core/safety.ts';
+import { instant, newestFirst } from '../../core/order.ts';
 import { truncate } from '../../core/text.ts';
 import type { ArticleField, FieldMapping, NotionField, NotionSchemaResponse } from '../../shared/contracts.ts';
 import { notionMediaPath } from '../../shared/routes.ts';
@@ -174,11 +175,6 @@ export interface MappedArticles {
   skipped: { id: string; reason: 'untitled' | 'unpublished' | 'scheduled' | 'archived' }[];
 }
 
-const timestamp = (value: string) => {
-  const ms = Date.parse(value);
-  return Number.isNaN(ms) ? 0 : ms;
-};
-
 /**
  * Keep only what a visitor may see — published, not archived, publish date
  * reached — and give every article a unique slug. Slugs are assigned oldest
@@ -187,7 +183,7 @@ const timestamp = (value: string) => {
 export function toArticles(pages: NotionPage[], now = Date.now()): MappedArticles {
   const result: MappedArticles = { rows: [], covers: [], skipped: [] };
   const used = new Set<string>();
-  const ordered = [...pages].sort((a, b) => timestamp(a.created_time) - timestamp(b.created_time) || a.id.localeCompare(b.id));
+  const ordered = [...pages].sort((a, b) => instant(a.created_time) - instant(b.created_time) || a.id.localeCompare(b.id));
 
   for (const page of ordered) {
     if (page.archived || page.in_trash) {
@@ -208,7 +204,7 @@ export function toArticles(pages: NotionPage[], now = Date.now()): MappedArticle
       continue;
     }
     const date = dateOf(field('date')) ?? page.created_time;
-    if (timestamp(date) > now) {
+    if (instant(date) > now) {
       result.skipped.push({ id: page.id, reason: 'scheduled' });
       continue;
     }
@@ -226,6 +222,7 @@ export function toArticles(pages: NotionPage[], now = Date.now()): MappedArticle
       slug,
       title,
       date,
+      created: page.created_time,
       tags: tagsOf(field('tags')),
       excerpt: truncate(textOf(field('excerpt')), 500),
       cover: cover ? (cover.kind === 'file' ? notionMediaPath(page.id) : cover.url) : null,
@@ -234,7 +231,7 @@ export function toArticles(pages: NotionPage[], now = Date.now()): MappedArticle
     });
   }
 
-  result.rows.sort((a, b) => timestamp(b.date) - timestamp(a.date) || a.title.localeCompare(b.title));
+  result.rows.sort(newestFirst);
   return result;
 }
 

@@ -17,6 +17,7 @@ import { isAdmin, requireAdmin } from '../../services/auth.ts';
 import { MAX_QUERY_LENGTH, search } from '../../services/search.ts';
 import { notionReady } from '../../services/settings.ts';
 import { siteResponse } from '../../services/status.ts';
+import { DEFAULT_LOCALE, parseLocale } from '../../../shared/i18n.ts';
 import { NO_STORE, json, paging, param, publicCache, route, truthy } from '../respond.ts';
 
 /** GET /api/health — liveness + dependency probe for deploy platforms. */
@@ -39,7 +40,10 @@ export const health = route(() => {
 });
 
 /** GET /api/site — public profile and article count. */
-export const site = route(() => json<SiteResponse>(siteResponse(), { headers: publicCache(60) }));
+/** `?lang=` only — never the cookie — so the public cache key stays the URL. */
+export const site = route((context) =>
+  json<SiteResponse>(siteResponse(parseLocale(context.url.searchParams.get('lang')) ?? DEFAULT_LOCALE), { headers: publicCache(60) }),
+);
 
 /** GET /api/articles?tag=&limit=&offset= — newest first, summaries only. */
 export const listArticlesEndpoint = route(async (context) => {

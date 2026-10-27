@@ -1,0 +1,57 @@
+/* Chinese typography — every adjustment for Chinese text lives here.
+ *
+ * Selectors use :lang(zh), which matches both the Chinese interface
+ * (<html lang="zh-CN">) and Chinese *content* on the English interface: the
+ * views tag article titles, excerpts, tags and the intro with their detected
+ * language (shared/i18n.ts → contentLang), so a Chinese title on the English
+ * homepage is typeset as Chinese and an English title on the Chinese
+ * homepage keeps the English settings.
+ *
+ * The goal is the same voice in both scripts, not a literal copy:
+ *  - Display (Archivo 62% / 800, uppercase): "Red Room Display SC", a
+ *    condensed Black cut of Noto Sans SC (see scripts/fonts/). Its @font-face
+ *    has size-adjust so ideographs stand about as tall as Archivo's capitals,
+ *    which lets mixed lines like "Notion 写作指南 2026" share one baseline
+ *    without per-element font sizes.
+ *  - Text (Archivo 400–650): the system Hei (PingFang / YaHei / Noto Sans
+ *    CJK, see --cjk in base.css) — the same grotesque skeleton, no download.
+ *  - Ideographs fill the whole em box while capitals use ~70% of it, so the
+ *    tight leading of the Latin display lines (.82–1) would make wrapped
+ *    Chinese lines touch: multi-line elements get more leading, single-line
+ *    headlines keep theirs.
+ *  - Wide tracking on small caps labels reads as gaps between characters in
+ *    Chinese, so it is reduced; long text gets looser leading for reading.
+ */
+
+/* ── Display ─────────────────────────────────────────────────────────── */
+.sec:lang(zh) { letter-spacing: 0; }
+.row .t:lang(zh) { line-height: 1.12; letter-spacing: .01em; }
+.prose h1:lang(zh), .page-head h1:lang(zh) { line-height: 1.1; letter-spacing: .01em; }
+.mail:lang(zh) { line-height: 1.05; }
+.bar .brand:lang(zh), .site-brand:lang(zh) { letter-spacing: .02em; }
+
+/* ── Homepage intro (Archivo 600 at up to 4.4rem, 1.06 leading) ───────── */
+.lede:lang(zh) { font-size: clamp(1.7rem, 3.7vw, 3.7rem); line-height: 1.32; letter-spacing: .02em; }
+@media (max-width: 720px) { .lede:lang(zh) { font-size: clamp(1.45rem, 6vw, 2.1rem); } }
+
+/* ── Small interface text ────────────────────────────────────────────── */
+html:lang(zh) body { line-height: 1.6; }
+.bar nav:lang(zh), .meta:lang(zh), .site-header nav:lang(zh) { letter-spacing: .04em; }
+:is(.kicker, .article-label, .prevnext small, .article-aside h2, .results h2):lang(zh) { letter-spacing: .08em; }
+.facts:lang(zh) dd { line-height: 1.5; }
+
+/* ── Lists ───────────────────────────────────────────────────────────── */
+.article-title:lang(zh) { line-height: 1.35; }
+.article-excerpt:lang(zh) { line-height: 1.75; }
+.prevnext span:lang(zh) { line-height: 1.45; }
+.listing .article-intro:lang(zh) { line-height: 1.75; }
+
+/* ── Article body ────────────────────────────────────────────────────── */
+.prose:lang(zh) { line-height: 1.9; letter-spacing: .02em; line-break: strict; text-autospace: normal; }
+.prose:lang(zh) p { text-align: justify; }
+.prose:lang(zh) :is(h2, h3, h4) { line-height: 1.35; letter-spacing: .02em; }
+.prose:lang(zh) h1 { letter-spacing: .01em; }
+/* Chinese has no italics: a synthesised oblique Hei looks broken. Emphasis
+   uses the native convention instead — 着重号, dots under the characters. */
+.prose:lang(zh) em { font-style: normal; text-emphasis: filled dot; -webkit-text-emphasis: filled dot; text-emphasis-position: under right; -webkit-text-emphasis-position: under; }
+.prose:lang(zh) :is(code, pre) { letter-spacing: 0; }
