@@ -65,6 +65,39 @@ export async function readJson(request: Request, maxBytes = config.maxJsonBytes(
   return parsed as Record<string, unknown>;
 }
 
+/**
+ * Read a raw request body into memory, failing fast with 413 once `maxBytes`
+ * is exceeded (whether or not the client declared a Content-Length).
+ */
+export async function readBytes(request: Request, maxBytes: number): Promise<Buffer> {
+  const declared = Number(request.headers.get('content-length') ?? 0);
+  if (declared && declared > maxBytes) throw payloadTooLarge();
+  if (!request.body) return Buffer.alloc(0);
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const reader = request.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw payloadTooLarge();
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+
+/** A file download that browsers save instead of display. */
+export const attachment = (filename: string, contentType: string, extra: Record<string, string> = {}) => ({
+  ...NO_STORE,
+  'Content-Type': contentType,
+  'Content-Disposition': `attachment; filename="${filename.replace(/[^\w.-]/g, '_')}"`,
+  'X-Content-Type-Options': 'nosniff',
+  ...extra,
+});
+
 /** `?limit=&offset=` with bounds. */
 export function paging(url: URL, defaultLimit = 50, maxLimit = 200) {
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || defaultLimit, 1), maxLimit);

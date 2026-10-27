@@ -49,8 +49,8 @@
 | --- | --- | --- | --- |
 | POST | `/api/auth` | `{ token }` | `{ ok: true }`；错误 401 / 429（无需 Bearer 头） |
 | POST | `/api/posts` | `{ title, body, slug?, tags?, excerpt?, published?, created? }` | `201 PostDetail` |
-| PATCH | `/api/posts/:slug` | 上述字段的任意子集；`slug` 可改名 | `PostDetail`（冲突 409） |
-| DELETE | `/api/posts/:slug` | — | `204` |
+| PATCH | `/api/posts/:slug` | 上述字段的任意子集；`slug` 可改名 | `PostDetail`（冲突 409）；修改前的版本进历史；`created` 统一存为 `YYYY-MM-DD HH:MM:SS`（UTC），无法解析时 400 |
+| DELETE | `/api/posts/:slug` | — | `204`；删除前的版本留在历史里，可从回收站恢复 |
 | POST | `/api/markdown` | `{ markdown }` | `{ html }` —— 与公开文章同一渲染管线，用于预览 |
 | GET | `/api/settings` | — | `SettingsResponse`（token 以 `••••1234` 掩码返回） |
 | PATCH | `/api/settings` | `Partial<SettingValues>` | `SettingsResponse`；空字符串 = 清除覆盖；空/掩码 token = 保持不变 |
@@ -67,6 +67,39 @@
 | GET | `/api/uploads/:name` | — | `UploadFile` |
 | PATCH | `/api/uploads/:name` | `{ name }` | `UploadFile`（扩展名必须不变；冲突 409） |
 | DELETE | `/api/uploads/:name` | — | `204` |
+
+## 历史版本与回收站（需要 token）
+
+每次编辑、删除、恢复、导入覆盖之前，文章的**旧状态**会存为一个版本（`reason` 说明是在哪种操作之前保存的）。
+内容没有变化的保存不产生版本；每篇最多保留 `POST_REVISIONS_KEEP` 个；改 slug 时历史跟着走。
+
+| 方法 | 路径 | 响应 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/posts/:slug/revisions` | `RevisionListResponse` | 新的在前；`exists: false` 表示文章已删除（在回收站） |
+| GET | `/api/posts/:slug/revisions/:id` | `RevisionDetail` | 含该版本的 `markdown` |
+| POST | `/api/posts/:slug/revisions/:id/restore` | `PostDetail` | 文章存在 → `200`，当前内容先存为 `restore` 版本（可撤销）；文章已删除 → `201` + `Location`，原地址重建 |
+| GET | `/api/trash` | `TrashResponse` | 已删除但仍有历史的文章；`revisionId` 即删除前的版本 |
+| DELETE | `/api/trash/:slug` | `204` | 永久删除该 slug 的全部历史；文章仍存在时 `409` |
+
+> 为什么是 `/api/trash` 而不是 `/api/posts/deleted`：后者会遮住 slug 恰好为 `deleted` 的文章。
+
+## 备份、导出、导入（需要 token）
+
+| 方法 | 路径 | 请求 | 响应 |
+| --- | --- | --- | --- |
+| GET | `/api/backups` | — | `BackupListResponse`：快照列表 + 计划（间隔、保留数、上次/下次时间） |
+| POST | `/api/backups` | — | `201 BackupFile`（手动快照，不会被自动清理） |
+| GET | `/api/backups/:name` | — | SQLite 文件下载（`Content-Disposition: attachment`）；文件名必须是本服务生成的格式 |
+| DELETE | `/api/backups/:name` | — | `204` |
+| GET | `/api/export` | — | `application/zip`：`manifest.json`、`journal/<slug>.md`（front matter：`title slug date updated tags published excerpt`）、`site.json`（不含 Notion token）、`entries/<kind>.json` |
+| POST | `/api/import` | 原始 body（ZIP 或 Markdown，`?name=` 给文件名）或 multipart `file=`（可多个） | `ImportReport` |
+| | …`?onConflict=` | `skip`（默认）· `overwrite`（旧文本进历史）· `rename`（另存为 `slug-2`） | |
+| | …`?dryRun=1` | 只报告将要发生什么，不写入 | |
+| | …`?settings=1` | 同时应用 `site.json` 的站点设置（永远不导入 token） | |
+
+导入能识别的 front matter：`title`（缺省用第一个 `# 标题`，再缺省用文件名）、`slug`（缺省用文件名）、`date` / `created`、
+`tags`（列表或逗号分隔）、`published` 或 `draft`、`excerpt` / `description` / `summary`。ZIP 中的隐藏文件与 `__MACOSX` 会被忽略；
+单个文件出错只记在 `errors` 里，其余照常导入；同一次导入要么整体写入、要么整体回滚。
 
 ## 相对旧版本的变更（迁移说明）
 

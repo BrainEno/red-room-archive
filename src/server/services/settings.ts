@@ -137,6 +137,17 @@ export function updateSettings(patch: Record<string, unknown>): void {
   }
 }
 
+/** Settings that are safe to put in an export: everything except secrets. */
+export const PORTABLE_SETTING_KEYS = SETTING_KEYS.filter((key) => key !== 'NOTION_TOKEN');
+
+/** Stored overrides (not `.env` values, not defaults) minus the Notion token. */
+export function portableSettings(): Partial<SettingValues> {
+  const stored = settingsRepository.all();
+  return Object.fromEntries(
+    PORTABLE_SETTING_KEYS.filter((key) => stored[key]).map((key) => [key, stored[key]]),
+  ) as Partial<SettingValues>;
+}
+
 export function siteResponse(): SiteResponse {
   return {
     ...siteProfile(),

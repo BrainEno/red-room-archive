@@ -30,8 +30,9 @@ npm run dev            # http://localhost:4321   后台：/admin
 输入 `ADMIN_TOKEN` 登录（只存在当前标签页的 sessionStorage；请用 HTTPS 部署）。
 
 - **Entries**：选择分类，表单根据你的 Notion 数据库列自动生成；新建 / 编辑（可整页替换正文）/ 归档。URL 列旁可“上传文件并填入地址”。
-- **Posts**：写随笔（Markdown），草稿、标签、摘要、改 slug；**预览**与公开页面使用同一渲染器。
+- **Posts**：写随笔（Markdown），草稿、标签、摘要、改 slug；**预览**与公开页面使用同一渲染器。每篇都有 **History**：每次保存前的版本都会留下，可逐行对比当前文本并一键恢复（恢复本身也会留档，可以撤销）。
 - **Files**：上传音频/视频/图片/PDF（大文件自动走流式上传）；上传 `.glb` 并选择 “Statue model” 可替换首页雕像。
+- **Data**：数据库备份（自动 + 手动，可下载）；导出全部随笔为 Markdown ZIP；从 ZIP / `.md` 导入（先预览再执行）；**回收站**——删除的随笔可原地址恢复。
 - **Settings**：站点名称/邮箱/简介/首页引言；Notion token 与三个数据库 ID（优先于 `.env`）；同步状态与手动同步。
 
 ## 代码结构
@@ -80,6 +81,11 @@ Video：Title · Director · Year · Rating · URL（`.mp4/.webm` 原生播放�
 | `UPLOAD_DIR` | `data/uploads` | 上传目录 |
 | `MAX_UPLOAD_MB` | 300 | 单个上传文件上限 |
 | `MAX_JSON_KB` | 2048 | JSON 请求体上限 |
+| `POST_REVISIONS_KEEP` | 50 | 每篇随笔保留的历史版本数 |
+| `BACKUP_DIR` | `<DB 所在目录>/backups` | 数据库快照目录（放在持久卷上，最好与数据库不同盘） |
+| `BACKUP_INTERVAL_HOURS` | 24 | 自动快照间隔；`0` 关闭自动备份 |
+| `BACKUP_KEEP` | 14 | 保留的自动快照数（手动快照不会被自动清理） |
+| `MAX_IMPORT_MB` | 50 | 导入文件上限 |
 
 读取顺序：`process.env` → 构建时注入的 `import.meta.env` → 运行目录的 `.env` / `.env.local`。改完 `.env` 需重启进程。
 
@@ -87,6 +93,18 @@ Video：Title · Director · Year · Rating · URL（`.mp4/.webm` 原生播放�
 
 `npm run build && npm start`。SQLite 与上传文件都在磁盘上，需要带持久卷的 Node 环境（VPS / Fly.io / Railway 卷）。
 部署探针：`GET /api/health`。
+
+### 数据安全
+
+随笔只存在于 SQLite 里（不在 Notion），所以内置了三层保护：
+
+1. **历史版本**：每次编辑、删除、恢复、导入覆盖之前，先把旧版本写入 `post_revisions`。删除的随笔进回收站，可恢复。
+2. **数据库快照**：`VACUUM INTO` 生成一致的完整副本（运行中也安全）。不需要定时器——请求中间件每分钟最多检查一次“最新快照是否超过 `BACKUP_INTERVAL_HOURS`”，进程重启也不会丢失计划。快照包含 Notion token，下载文件请妥善保管。
+3. **开放格式导出**：ZIP 内是带 front matter 的 Markdown（`journal/<slug>.md`）、`site.json`（不含密钥）和 Notion 条目快照，脱离本站也能读，也能再导入。
+
+上传的媒体是 `UPLOAD_DIR` 里的普通文件，不在快照与导出里，请用 rsync / 卷快照单独备份。
+
+从快照恢复整个数据库：停止进程 → 用快照文件替换 `DB_PATH`（并删除同目录的 `-wal`、`-shm` 文件）→ 启动。
 
 ## 开发与验证
 
@@ -101,4 +119,4 @@ CI（`.github/workflows/validate.yml`）依次执行类型检查、测试与构�
 
 ## 还没做
 
-对象存储（R2/S3）直传、Notion webhook 增量刷新、多用户/多令牌、页面转场。
+对象存储（R2/S3）直传、Notion webhook 增量刷新、多用户/多令牌、页面转场、在后台一键从快照恢复整个数据库。

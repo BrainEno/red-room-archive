@@ -4,6 +4,7 @@
  */
 import { ApiError, createApiClient } from '../lib/api-client.ts';
 import { $, esc } from './dom.ts';
+import { dataPanel } from './panels/data.ts';
 import { entriesPanel } from './panels/entries.ts';
 import { filesPanel } from './panels/files.ts';
 import { postsPanel } from './panels/posts.ts';
@@ -47,7 +48,7 @@ function renderLogin(message = '') {
   };
 }
 
-const TABS = ['Entries', 'Posts', 'Files', 'Settings'] as const;
+const TABS = ['Entries', 'Posts', 'Files', 'Data', 'Settings'] as const;
 
 async function boot() {
   if (!token) return renderLogin();
@@ -82,6 +83,7 @@ async function boot() {
   entriesPanel($('[data-panel=Entries]'), api);
   postsPanel($('[data-panel=Posts]'), api);
   filesPanel($('[data-panel=Files]'), api);
+  dataPanel($('[data-panel=Data]'), api);
   settingsPanel($('[data-panel=Settings]'), api, settings);
 
   const fromHash = TABS.find((tab) => tab.toLowerCase() === location.hash.slice(1));

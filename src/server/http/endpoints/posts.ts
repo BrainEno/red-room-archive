@@ -5,7 +5,7 @@
  *   POST   /api/posts            create → 201 + PostDetail
  *   GET    /api/posts/:slug      public read (?format=html adds rendered HTML)
  *   PATCH  /api/posts/:slug      partial update → PostDetail   (PUT = alias)
- *   DELETE /api/posts/:slug      delete → 204
+ *   DELETE /api/posts/:slug      delete → 204 (recoverable: see endpoints/revisions.ts)
  */
 import { renderMarkdown } from '../../../core/markdown.ts';
 import { unauthorized } from '../../../core/errors.ts';

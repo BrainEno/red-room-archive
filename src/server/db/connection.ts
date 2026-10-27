@@ -86,7 +86,53 @@ const MIGRATIONS: ((db: DatabaseConnection) => void)[] = [
   (db) => {
     db.exec('CREATE INDEX IF NOT EXISTS items_kind_slug ON items(kind, slug)');
   },
+  // 4 — post history: the state *before* every edit, delete, restore or import
+  (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS post_revisions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        tags TEXT,
+        excerpt TEXT,
+        published INTEGER NOT NULL DEFAULT 1,
+        created TEXT,
+        reason TEXT NOT NULL,
+        saved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS post_revisions_slug ON post_revisions(slug, id DESC);
+    `);
+  },
 ];
+
+let depth = 0;
+
+/**
+ * Run `fn` atomically. Re-entrant: a service that already runs inside a
+ * transaction (e.g. a bulk import) can call another transactional service
+ * without opening a nested one.
+ */
+export function transaction<T>(fn: () => T): T {
+  if (depth > 0) return fn();
+  const run = connection().transaction(() => {
+    depth += 1;
+    try {
+      return fn();
+    } finally {
+      depth -= 1;
+    }
+  });
+  return run();
+}
+
+/**
+ * Write a consistent, compacted copy of the live database to `file`
+ * (`VACUUM INTO`): safe while the site is serving, includes WAL contents.
+ */
+export function snapshotTo(file: string) {
+  connection().prepare('VACUUM INTO ?').run(file);
+}
 
 export function migrate(db: DatabaseConnection) {
   const current = Number((db.prepare('PRAGMA user_version').get() as { user_version?: number })?.user_version ?? 0);

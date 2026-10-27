@@ -222,3 +222,91 @@ export interface UploadResponse {
 export interface MarkdownPreviewResponse {
   html: string;
 }
+
+/* ── Post history + trash ───────────────────────────────────────────── */
+
+/** Why a version was saved: it is the state *before* this action. */
+export type RevisionReason = 'edit' | 'delete' | 'restore' | 'import';
+
+export interface RevisionSummary {
+  id: number;
+  slug: string;
+  title: string;
+  reason: RevisionReason;
+  savedAt: string;
+  published: boolean;
+  tags: string[];
+  /** Characters of Markdown in this version. */
+  size: number;
+}
+
+export interface RevisionDetail extends RevisionSummary {
+  markdown: string;
+  excerpt: string | null;
+  created: string | null;
+}
+
+export interface RevisionListResponse {
+  slug: string;
+  /** False when the post is deleted (its history is the trash entry). */
+  exists: boolean;
+  revisions: RevisionSummary[];
+}
+
+export interface TrashEntry {
+  slug: string;
+  title: string;
+  deletedAt: string;
+  /** Id of the version saved at deletion — restore it to undo the delete. */
+  revisionId: number;
+  revisions: number;
+}
+
+export interface TrashResponse {
+  posts: TrashEntry[];
+}
+
+/* ── Backups, export, import ────────────────────────────────────────── */
+
+export interface BackupFile {
+  name: string;
+  size: number;
+  createdAt: string;
+  /** Automatic snapshots are pruned to `BACKUP_KEEP`; manual ones are kept. */
+  auto: boolean;
+  /** Authenticated download URL. */
+  url: string;
+}
+
+export interface BackupSchedule {
+  /** 0 = automatic backups disabled. */
+  intervalHours: number;
+  keep: number;
+  lastBackupAt: string | null;
+  nextBackupAt: string | null;
+  dir: string;
+}
+
+export interface BackupListResponse {
+  backups: BackupFile[];
+  schedule: BackupSchedule;
+}
+
+export type ImportConflict = 'skip' | 'overwrite' | 'rename';
+
+export interface ImportedPost {
+  file: string;
+  slug: string;
+  title: string;
+}
+
+export interface ImportReport {
+  dryRun: boolean;
+  onConflict: ImportConflict;
+  created: ImportedPost[];
+  updated: ImportedPost[];
+  skipped: ImportedPost[];
+  errors: { file: string; error: string }[];
+  /** Site setting keys applied from `site.json` (only with `?settings=1`). */
+  settings: string[];
+}

@@ -9,13 +9,15 @@ src/
 │   ├── config.ts            环境变量 → 运行配置
 │   ├── db/                  SQLite 连接 + 版本化迁移 + repository（只有 SQL）
 │   ├── notion/              Notion REST 客户端、属性映射、写回
-│   ├── storage/uploads.ts   本地文件存储（流式写盘、路径安全）
-│   ├── services/            业务规则：archive（缓存/同步）、posts、search、settings、auth、status
+│   ├── storage/             本地文件：uploads（流式写盘、路径安全）、backups（快照文件）、zip（无依赖读写）
+│   ├── services/            业务规则：archive（缓存/同步）、posts、revisions（历史/回收站）、backups、
+│   │                        portability（导出/导入）、search、settings、auth、status
 │   ├── presenters.ts        领域数据 → shared/contracts 里的 DTO
 │   ├── queries.ts           **页面唯一可用的服务端入口**（只读，返回 DTO）
 │   └── http/
 │       ├── respond.ts       JSON 响应、错误转换、请求体解析、分页、缓存头
-│       └── endpoints/       每个资源一个模块：public / posts / admin / uploads
+│       ├── middleware.ts    请求中间件：节流的后台维护（自动备份）
+│       └── endpoints/       每个资源一个模块：public / posts / revisions / admin / uploads / data
 ├── ui/          前端（只做展示）
 │   ├── layouts/ components/ views/   Astro 组件，只通过 props 接收数据
 │   ├── feeds.ts             RSS / sitemap / robots 生成（纯函数）
@@ -23,6 +25,7 @@ src/
 │   ├── scripts/admin/       后台单页应用（按面板拆分）
 │   ├── scripts/lib/api-client.ts  带类型的浏览器 API 客户端
 │   └── styles/              base / home / pages / admin
+├── middleware.ts  一行 re-export → server/http/middleware.ts
 └── pages/       路由（组合根）：只做“取数 + 渲染视图”或“转发到 endpoint”
     ├── api/**               一行 re-export，例如 export { list as GET } from '…/endpoints/posts.ts'
     └── *.astro              调用 server/queries.ts，把结果交给 ui/views/*
@@ -32,6 +35,7 @@ src/
 
 ```
 pages/api/*  ──▶ server/http/endpoints/*
+middleware.ts ──▶ server/http/middleware.ts
 pages/*.astro ──▶ server/queries.ts  +  ui/views/*
 ui/*          ──▶ shared/ core/ content/          （永远不 import server/）
 server/*      ──▶ shared/ core/ content/          （永远不 import ui/）
@@ -61,6 +65,24 @@ GET /journal/dawn
   → server/queries.ts                 getJournalPost：同一个 service + presenter，再渲染 Markdown
   → ui/views/JournalPostView.astro    纯展示
 ```
+
+## 数据安全
+
+```
+PATCH /api/posts/dawn
+  services/posts.ts updatePost
+    transaction {
+      revisions.snapshot(旧行, 'edit')        ← 先存旧版本
+      revisions.rename(旧 slug, 新 slug)       ← 改名时历史跟着走
+      posts.update(...)
+      revisions.prune(slug, POST_REVISIONS_KEEP)
+    }
+```
+
+- `transaction()`（`db/connection.ts`）可重入：导入在一个事务里调用多个本身带事务的服务，不会嵌套。
+- 自动备份没有定时器：`middleware.ts` → `scheduledBackupTick()` 每分钟最多检查一次磁盘上最新快照的时间，
+  到期则在响应发出后用 `VACUUM INTO` 写快照（先写临时名再原子改名）。计划由文件推导，重启不丢。
+- 行间 diff（`core/diff.ts`）是纯函数，在浏览器里对比历史版本与当前文本。
 
 ## Notion 缓存策略
 
