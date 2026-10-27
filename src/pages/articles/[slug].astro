@@ -1,0 +1,11 @@
+---
+// Route: /articles/:slug
+import ArticleView from '../../ui/views/ArticleView.astro';
+import NotFoundView from '../../ui/views/NotFoundView.astro';
+import { getArticle, getSite } from '../../server/queries.ts';
+
+const site = getSite();
+const view = await getArticle(Astro.params.slug ?? '');
+if (!view) Astro.response.status = 404;
+---
+{view ? <ArticleView site={site} {...view} /> : <NotFoundView site={site} />}

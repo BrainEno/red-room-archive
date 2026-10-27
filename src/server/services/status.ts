@@ -1,26 +1,30 @@
 /**
- * Aggregate status used by the admin dashboard, /api/sync, /api/settings and
- * /api/health. Composed here so every surface reports the same numbers.
+ * Aggregate status used by the admin dashboard, /api/sync and /api/settings.
+ * Composed here so every surface reports the same numbers.
  */
-import type { SyncStatus } from '../../shared/contracts.ts';
-import { KINDS } from '../../shared/kinds.ts';
-import { itemsRepository } from '../db/items.repository.ts';
-import { postsRepository } from '../db/posts.repository.ts';
-import { notionReady } from './settings.ts';
-import { syncState } from './archive.ts';
+import { demoArticles } from '../../content/site.ts';
+import type { SiteResponse, SyncStatus } from '../../shared/contracts.ts';
+import { articlesRepository } from '../db/articles.repository.ts';
+import { isDemo, syncState } from './articles.ts';
+import { notionReady, siteProfile } from './settings.ts';
 
 export function syncStatus(): SyncStatus {
-  const counts = itemsRepository.counts();
-  const published = postsRepository.count(false);
-  const all = postsRepository.count(true);
+  const demo = isDemo();
   return {
     notion: notionReady(),
-    databases: Object.fromEntries(KINDS.map((kind) => [kind, notionReady(kind)])) as SyncStatus['databases'],
-    syncedAt: syncState().syncedAt,
-    syncing: syncState().syncing,
-    syncError: syncState().syncError,
-    counts,
-    posts: published,
-    drafts: all - published,
+    demo,
+    ...syncState(),
+    articles: demo ? demoArticles.length : articlesRepository.count(),
+    bodiesCached: demo ? demoArticles.length : articlesRepository.countBodies(),
+  };
+}
+
+export function siteResponse(): SiteResponse {
+  const demo = isDemo();
+  return {
+    ...siteProfile(),
+    notionConfigured: notionReady(),
+    demo,
+    articles: demo ? demoArticles.length : articlesRepository.count(),
   };
 }

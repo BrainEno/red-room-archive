@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { classifyMedia, isAudioUrl } from '../src/core/media.ts';
-import { formatBytes, formatDate, markdownToText, readingMinutes } from '../src/core/text.ts';
+import { formatBytes, formatDate, readingMinutes, truncate } from '../src/core/text.ts';
 import { rssFeed, robots, sitemap } from '../src/ui/feeds.ts';
-import { collectionBySlug, collectionOf, itemPath } from '../src/shared/kinds.ts';
+import { articlePath, notionMediaPath, tagPath } from '../src/shared/routes.ts';
 
 test('classifyMedia picks native players, embeds or links', () => {
   assert.deepEqual(classifyMedia('/uploads/a.mp3'), { kind: 'audio', src: '/uploads/a.mp3' });
@@ -19,29 +19,35 @@ test('classifyMedia picks native players, embeds or links', () => {
 });
 
 test('text helpers', () => {
-  assert.equal(markdownToText('# Title\n\n**bold** [link](https://x) `code`'), 'Title bold link code');
-  assert.equal(readingMinutes('word '.repeat(450)), 2);
+  assert.equal(readingMinutes('word '.repeat(440)), 2);
+  assert.equal(readingMinutes('字'.repeat(1200)), 3, 'CJK text is counted per character');
   assert.equal(readingMinutes(''), 1);
-  assert.equal(formatDate('2026-03-04 12:00:00'), '04 Mar 2026');
+  assert.equal(truncate('one two three four', 9), 'one two…');
+  assert.equal(truncate('short', 9), 'short');
+  assert.equal(formatDate('2026-03-04'), '04 Mar 2026');
+  assert.equal(formatDate('2026-03-04T23:00:00.000Z'), '04 Mar 2026');
   assert.equal(formatBytes(1536), '1.5 KB');
 });
 
-test('collections map API kinds to public paths', () => {
-  assert.equal(collectionOf('writing').path, '/works');
-  assert.equal(collectionOf('films').path, '/video');
-  assert.equal(collectionBySlug('video').kind, 'films');
-  assert.equal(collectionBySlug('writing'), undefined);
-  assert.equal(itemPath('music', 'a b'), '/music/a%20b');
+test('public URL helpers', () => {
+  assert.equal(articlePath('a b'), '/articles/a%20b');
+  assert.equal(tagPath('小说'), `/articles?tag=${encodeURIComponent('小说')}`);
+  assert.equal(notionMediaPath('01234567-89ab-cdef-0123-456789abcdef'), '/media/notion/0123456789abcdef0123456789abcdef');
 });
 
 test('rss and sitemap escape content and use absolute URLs', () => {
-  const post = { slug: 'a', title: 'Fish & <Chips>', tags: ['x'], created: '2026-01-02 03:04:05', updated: '2026-01-03', published: true, excerpt: '"quoted"', href: '/journal/a' };
-  const rss = rssFeed({ origin: 'https://site.test', title: 'T', description: 'D', posts: [post] });
+  const article = {
+    id: 'x', slug: 'a', title: 'Fish & <Chips>', tags: ['x'], date: '2026-01-02', updated: '2026-01-03T10:00:00.000Z',
+    excerpt: '"quoted"', href: '/articles/a', cover: '/media/notion/abc', rank: 0,
+  };
+  const rss = rssFeed({ origin: 'https://site.test', title: 'T', description: 'D', articles: [article] });
   assert.match(rss, /<title>Fish &amp; &lt;Chips&gt;<\/title>/);
-  assert.match(rss, /<link>https:\/\/site\.test\/journal\/a<\/link>/);
-  assert.match(rss, /<pubDate>Fri, 02 Jan 2026 03:04:05 GMT<\/pubDate>/);
-  const map = sitemap({ origin: 'https://site.test', posts: [post], items: [] });
-  assert.match(map, /<loc>https:\/\/site\.test\/works<\/loc>/);
+  assert.match(rss, /<link>https:\/\/site\.test\/articles\/a<\/link>/);
+  assert.match(rss, /<pubDate>Fri, 02 Jan 2026 00:00:00 GMT<\/pubDate>/);
+  assert.match(rss, /<enclosure url="https:\/\/site\.test\/media\/notion\/abc"/);
+  const map = sitemap({ origin: 'https://site.test', articles: [article], tags: [{ name: 'x', count: 1 }] });
+  assert.match(map, /<loc>https:\/\/site\.test\/articles<\/loc>/);
+  assert.match(map, /<loc>https:\/\/site\.test\/articles\?tag=x<\/loc>/);
   assert.match(map, /<lastmod>2026-01-03<\/lastmod>/);
   assert.match(robots('https://site.test'), /Disallow: \/api\//);
 });

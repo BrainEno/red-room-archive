@@ -1,9 +1,7 @@
 ---
 import Page from '../layouts/Page.astro';
-import EntryList from '../components/EntryList.astro';
-import PostList from '../components/PostList.astro';
+import ArticleList from '../components/ArticleList.astro';
 import type { SearchResponse } from '../../shared/contracts.ts';
-import { collectionOf } from '../../shared/kinds.ts';
 
 export interface Props {
   site: { name: string; url: string; email: string };
@@ -13,29 +11,21 @@ const { site, result } = Astro.props;
 const hasQuery = Boolean(result.query);
 ---
 <Page title={`${hasQuery ? `“${result.query}” — ` : ''}Search — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} current="/search" noindex>
-  <section class="prose journal">
-    <p class="journal-label">{site.name} / Search</p>
+  <section class="prose listing">
+    <p class="article-label">{site.name} / Search</p>
     <h1>Search</h1>
     <form class="search" role="search" action="/search" method="get">
-      <label class="sr" for="q">Search the archive</label>
-      <input id="q" name="q" type="search" value={result.query} placeholder="Titles, notes, tags…" autofocus={!hasQuery} maxlength="120" />
+      <label class="sr" for="q">Search articles</label>
+      <input id="q" name="q" type="search" value={result.query} placeholder="Titles, tags, text…" autofocus={!hasQuery} maxlength="120" />
       <button>Search</button>
     </form>
 
     {hasQuery && (
-      <p class="journal-intro" role="status">{result.total} {result.total === 1 ? 'result' : 'results'} for “{result.query}”.</p>
+      <p class="article-intro" role="status">{result.total} {result.total === 1 ? 'result' : 'results'} for “{result.query}”.</p>
     )}
-
-    {result.items.length > 0 && (
+    {result.articles.length > 0 && (
       <section class="results">
-        <h2>Archive</h2>
-        <EntryList items={result.items} showKind kindLabel={(item) => collectionOf(item.kind).label} />
-      </section>
-    )}
-    {result.posts.length > 0 && (
-      <section class="results">
-        <h2>Journal</h2>
-        <PostList posts={result.posts} showExcerpt />
+        <ArticleList articles={result.articles} showExcerpt />
       </section>
     )}
     {hasQuery && result.total === 0 && <p class="empty">Nothing matched. Try a shorter word or a tag.</p>}

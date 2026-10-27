@@ -4,10 +4,8 @@
  */
 import { ApiError, createApiClient } from '../lib/api-client.ts';
 import { $, esc } from './dom.ts';
-import { dataPanel } from './panels/data.ts';
-import { entriesPanel } from './panels/entries.ts';
+import { articlesPanel } from './panels/articles.ts';
 import { filesPanel } from './panels/files.ts';
-import { postsPanel } from './panels/posts.ts';
 import { settingsPanel } from './panels/settings.ts';
 
 const STORAGE_KEY = 'rra.admin.token';
@@ -48,7 +46,7 @@ function renderLogin(message = '') {
   };
 }
 
-const TABS = ['Entries', 'Posts', 'Files', 'Data', 'Settings'] as const;
+const TABS = ['Articles', 'Settings', 'Files'] as const;
 
 async function boot() {
   if (!token) return renderLogin();
@@ -80,11 +78,12 @@ async function boot() {
   });
   $('#logout').onclick = () => logout();
 
-  entriesPanel($('[data-panel=Entries]'), api);
-  postsPanel($('[data-panel=Posts]'), api);
+  const articles = articlesPanel($('[data-panel=Articles]'), api, settings.status);
+  settingsPanel($('[data-panel=Settings]'), api, settings, (next) => {
+    articles.show(next.status);
+    void articles.reload();
+  });
   filesPanel($('[data-panel=Files]'), api);
-  dataPanel($('[data-panel=Data]'), api);
-  settingsPanel($('[data-panel=Settings]'), api, settings);
 
   const fromHash = TABS.find((tab) => tab.toLowerCase() === location.hash.slice(1));
   if (fromHash) app.querySelector<HTMLButtonElement>(`[data-tab=${fromHash}]`)?.click();

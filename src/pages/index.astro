@@ -1,9 +1,9 @@
 ---
 // Route: /  — loads data through the read facade, renders a pure view.
 import HomeView from '../ui/views/HomeView.astro';
-import { getCollections, getSite } from '../server/queries.ts';
+import { getHome, getSite } from '../server/queries.ts';
 
 const site = getSite();
-const collections = await getCollections();
+const home = await getHome();
 ---
-<HomeView site={site} collections={collections} />
+<HomeView site={site} home={home} />

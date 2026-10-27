@@ -48,23 +48,10 @@ export async function busy<T>(root: HTMLElement, action: () => Promise<T>): Prom
 
 export const dateLabel = (value: unknown) => String(value ?? '').slice(0, 10);
 
-/** `2026-10-27 13:45` from an ISO or SQLite timestamp (SQLite ones are UTC). */
+/** Local `2026-10-27 13:45` for an ISO timestamp or epoch ms. */
 export const timeLabel = (value: unknown) => {
-  const raw = String(value ?? '');
-  const date = new Date(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(raw) ? `${raw.replace(' ', 'T')}Z` : raw);
-  if (Number.isNaN(date.getTime())) return raw;
+  const date = new Date(typeof value === 'number' ? value : String(value ?? ''));
+  if (Number.isNaN(date.getTime())) return String(value ?? '');
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
-
-/** Hand a fetched file to the browser's "save" flow. */
-export function saveDownload({ blob, filename }: { blob: Blob; filename: string }) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
-}

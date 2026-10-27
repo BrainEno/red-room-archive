@@ -37,9 +37,9 @@ const K = {
   home:     { px: 0,    py: 2,   pz: 10,  lx: 0.3,  ly: 1.6, lz: 0, open: 0,    ry: -0.3,  lum: 0,   st: 0 },
   intro:    { px: 0,    py: 1.9, pz: 8.2, lx: 0.4,  ly: 1.7, lz: 0, open: 0.1,  ry: -0.2,  lum: 0.9, st: 0 },
   introEnd: { px: 0.6,  py: 1.8, pz: 6.6, lx: 1.0,  ly: 1.8, lz: 0, open: 0.22, ry: 0.15,  lum: 1,   st: 1 },
-  works:    { px: -0.3, py: 1.6, pz: 6.5, lx: -0.1, ly: 1.7, lz: 0, open: 0.35, ry: 0.3,   lum: 1,   st: 1 },
-  music:    { px: 0.5,  py: 0.9, pz: 5,   lx: 0.6,  ly: 2.0, lz: 0, open: 0.15, ry: -0.45, lum: 1,   st: 1 },   // 低机位仰拍
-  video:    { px: -1.5, py: 3,   pz: 9,   lx: -1.4, ly: 1.6, lz: 0, open: 1,    ry: 0.5,   lum: 1,   st: 1 },   // 窗帘全开的大全景
+  articles: { px: -0.3, py: 1.6, pz: 6.5, lx: -0.1, ly: 1.7, lz: 0, open: 0.35, ry: 0.3,   lum: 1,   st: 1 },
+  featured: { px: 0.5,  py: 0.9, pz: 5,   lx: 0.6,  ly: 2.0, lz: 0, open: 0.15, ry: -0.45, lum: 1,   st: 1 },   // 低机位仰拍
+  topics:   { px: -1.5, py: 3,   pz: 9,   lx: -1.4, ly: 1.6, lz: 0, open: 1,    ry: 0.5,   lum: 1,   st: 1 },   // 窗帘全开的大全景
   about:    { px: 0.5,  py: 11,  pz: 1.5, lx: 0.5,  ly: 0,   lz: 0, open: 1,    ry: 0,     lum: 1,   st: 1 },   // 俯拍
   contact:  { px: 0,    py: 1.4, pz: 13,  lx: 0,    ly: 2.2, lz: 0, open: 0,    ry: 0,     lum: 1,   st: 1 },
 };
@@ -54,13 +54,13 @@ const seg = (a: Key, b: Key, trigger: string, start: string, end: string, lumEas
 };
 seg(K.home, K.intro, '#intro', 'top bottom', 'top top', 'power3.in');   // 招牌飞过镜头的同一段滚动里，房间从黑暗中浮现
 seg(K.intro, K.introEnd, '#intro', 'top top', 'bottom bottom');          // 引言停留期间，雕像从地面升起
-seg(K.introEnd, K.works, '#works', 'top bottom', 'top top');
-seg(K.works, K.music, '#music', 'top bottom', 'top top');
-seg(K.music, K.video, '#video', 'top bottom', 'top top');
-seg(K.video, K.about, '#about', 'top bottom', 'top top');
+seg(K.introEnd, K.articles, '#articles', 'top bottom', 'top top');
+seg(K.articles, K.featured, '#featured', 'top bottom', 'top top');
+seg(K.featured, K.topics, '#topics', 'top bottom', 'top top');
+seg(K.topics, K.about, '#about', 'top bottom', 'top top');
 seg(K.about, K.contact, '#contact', 'top bottom', 'top top');
 
-['intro', 'works', 'music', 'video', 'about', 'contact'].forEach((id) =>
+['intro', 'articles', 'featured', 'topics', 'about', 'contact'].forEach((id) =>
   ScrollTrigger.create({ trigger: `#${id}`, start: 'top 50%', end: 'bottom 50%', toggleClass: { targets: `.bar a[href="#${id}"]`, className: 'on' } }));
 
 // 3) 招牌：三层 —— .sign（滚动飞行）→ .cam（开场镜头姿态/对焦）→ canvas（指针视差）
@@ -153,17 +153,10 @@ document.fonts.ready.then(() => {
   if (reduce) { intro.progress(1); neon.ignite(); } else intro.play();
 });
 
-// 6) 列表行：分隔线逐行画出；悬停时地板亮起；音频行点击内联播放
+// 6) 列表行：分隔线逐行画出；悬停时地板亮起
 ScrollTrigger.batch('.row', { start: 'top 92%', once: true,
   onEnter: (rows) => gsap.fromTo(rows, { '--r': 0 }, { '--r': 1, duration: 1.2, ease: 'expo.out', stagger: 0.07 }) });
 document.querySelectorAll('.row').forEach((r) => {
   r.addEventListener('pointerenter', () => gsap.to(world.hover, { v: 1, duration: 0.4 }));
   r.addEventListener('pointerleave', () => gsap.to(world.hover, { v: 0, duration: 0.8 }));
 });
-const au = new Audio(); let cur: HTMLElement | null = null;
-au.onended = () => cur?.classList.remove('play');
-document.querySelectorAll<HTMLElement>('[data-audio]').forEach((el) => el.addEventListener('click', (e) => {
-  e.preventDefault();
-  if (cur === el && !au.paused) { au.pause(); el.classList.remove('play'); return; }
-  cur?.classList.remove('play'); cur = el; au.src = el.dataset.audio!; au.play(); el.classList.add('play');
-}));

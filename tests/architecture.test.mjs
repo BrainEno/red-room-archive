@@ -58,10 +58,20 @@ test('API routes only delegate to server/http/endpoints', () => {
   assert.deepEqual(bad, []);
 });
 
+/** Non-API routes that are pure HTTP adapters (file serving, redirects). */
+const ROUTE_ADAPTERS = [
+  ['pages/uploads/', 'server/http/endpoints/uploads.ts'],
+  ['pages/media/', 'server/http/endpoints/media.ts'],
+  ['pages/works/', 'server/http/endpoints/legacy.ts'],
+  ['pages/writing/', 'server/http/endpoints/legacy.ts'],
+  ['pages/journal/', 'server/http/endpoints/legacy.ts'],
+  ['pages/posts/', 'server/http/endpoints/legacy.ts'],
+];
+
 test('page routes read data only through server/queries.ts', () => {
   const bad = violations(
     (from, to) => from.startsWith('pages/') && !from.startsWith('pages/api/') && to.startsWith('server/') &&
-      to !== 'server/queries.ts' && !(from.startsWith('pages/uploads/') && to === 'server/http/endpoints/uploads.ts'),
+      to !== 'server/queries.ts' && !ROUTE_ADAPTERS.some(([dir, target]) => from.startsWith(dir) && to === target),
     'pages use the read facade',
   );
   assert.deepEqual(bad, []);
@@ -74,11 +84,15 @@ test('only server/db/connection.ts touches better-sqlite3', () => {
   assert.deepEqual(offenders, ['server/db/connection.ts']);
 });
 
-test('src/middleware.ts only delegates to server/http/middleware.ts', () => {
-  const bad = violations(
-    (from, to) => from === 'middleware.ts' && to !== 'server/http/middleware.ts',
-    'middleware is an adapter',
-  );
-  assert.deepEqual(bad, []);
-  assert.ok(files.some((file) => rel(file) === 'middleware.ts'));
+test('the site never writes to Notion (read-only client)', () => {
+  const client = readFileSync(path.join(root, 'server/notion/client.ts'), 'utf8');
+  assert.doesNotMatch(client, /method:\s*['"](PATCH|PUT|DELETE)['"]/);
+  // The only POST is the database query (Notion's read endpoint uses POST).
+  const posts = [...client.matchAll(/method:\s*['"]POST['"]/g)].length;
+  assert.equal(posts, 1);
+  const offenders = files
+    .filter((file) => !file.endsWith('server/notion/client.ts'))
+    .filter((file) => /api\.notion\.com/.test(readFileSync(file, 'utf8')) && !file.endsWith('server/config.ts'))
+    .map(rel);
+  assert.deepEqual(offenders, []);
 });

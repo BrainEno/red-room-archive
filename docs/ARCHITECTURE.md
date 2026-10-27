@@ -1,93 +1,83 @@
 # 架构
 
+网站只读 Notion：一个数据库 = 一组文章。SQLite 是可丢弃的本地缓存。
+
 ```
 src/
-├── shared/      线上契约：API 请求/响应类型、collection 定义（服务端与浏览器共用，零运行时依赖）
-├── core/        纯函数：错误类型、Markdown/Notion 块渲染、URL 安全、slug、文本、媒体识别、.env 解析
-├── content/     站点文案与默认值（名称、简介、引言、facts……），可被后台设置覆盖
+├── shared/      线上契约：API 类型（contracts.ts）、公开 URL 规则（routes.ts）；零运行时依赖
+├── core/        纯函数：Notion 块 → HTML（blocks.ts）、富文本类型、URL 安全、slug、文本、媒体识别、错误类型、.env
+├── content/     站点文案与默认值、演示文章（Notion 块格式）
 ├── server/      后端（只在 Node 里运行）
 │   ├── config.ts            环境变量 → 运行配置
 │   ├── db/                  SQLite 连接 + 版本化迁移 + repository（只有 SQL）
-│   ├── notion/              Notion REST 客户端、属性映射、写回
-│   ├── storage/             本地文件：uploads（流式写盘、路径安全）、backups（快照文件）、zip（无依赖读写）
-│   ├── services/            业务规则：archive（缓存/同步）、posts、revisions（历史/回收站）、backups、
-│   │                        portability（导出/导入）、search、settings、auth、status
+│   │                        articles（文章、正文缓存、notion_media 白名单）· settings · meta
+│   ├── notion/              client（只读 REST：超时、429/5xx 重试、分页）
+│   │                        mapper（页面 → 文章、列识别、schema 检查）· tree（并发受限地取块树）
+│   ├── storage/             uploads（后台上传）· notion-media（Notion 文件的磁盘副本）
+│   ├── services/            articles（同步、缓存、正文渲染）· media（图片代理）· search · settings · auth · status
 │   ├── presenters.ts        领域数据 → shared/contracts 里的 DTO
 │   ├── queries.ts           **页面唯一可用的服务端入口**（只读，返回 DTO）
 │   └── http/
 │       ├── respond.ts       JSON 响应、错误转换、请求体解析、分页、缓存头
-│       ├── middleware.ts    请求中间件：节流的后台维护（自动备份）
-│       └── endpoints/       每个资源一个模块：public / posts / revisions / admin / uploads / data
+│       └── endpoints/       public · admin · uploads · media · legacy（旧地址 301）
 ├── ui/          前端（只做展示）
 │   ├── layouts/ components/ views/   Astro 组件，只通过 props 接收数据
-│   ├── feeds.ts             RSS / sitemap / robots 生成（纯函数）
+│   ├── feeds.ts             RSS / sitemap / robots（纯函数）
 │   ├── scripts/site/        首页动画（Three.js / GSAP / Lenis / Canvas 招牌）
-│   ├── scripts/admin/       后台单页应用（按面板拆分）
+│   ├── scripts/admin/       后台单页应用（Articles / Settings / Files）
 │   ├── scripts/lib/api-client.ts  带类型的浏览器 API 客户端
-│   └── styles/              base / home / pages / admin
-├── middleware.ts  一行 re-export → server/http/middleware.ts
-└── pages/       路由（组合根）：只做“取数 + 渲染视图”或“转发到 endpoint”
-    ├── api/**               一行 re-export，例如 export { list as GET } from '…/endpoints/posts.ts'
+│   └── styles/              base / home / pages（含 Notion 块与颜色）/ admin
+└── pages/       路由（组合根）
+    ├── api/**               一行 re-export 到 server/http/endpoints
+    ├── media/ uploads/      文件服务 → endpoints/media.ts、endpoints/uploads.ts
+    ├── works/ writing/ journal/ posts/   旧地址 → endpoints/legacy.ts
     └── *.astro              调用 server/queries.ts，把结果交给 ui/views/*
 ```
 
 ## 依赖规则（`tests/architecture.test.mjs` 自动检查）
 
 ```
-pages/api/*  ──▶ server/http/endpoints/*
-middleware.ts ──▶ server/http/middleware.ts
+pages/api/*   ──▶ server/http/endpoints/*
 pages/*.astro ──▶ server/queries.ts  +  ui/views/*
+pages/media|uploads|works|writing|journal|posts ──▶ 对应的 endpoint 模块
 ui/*          ──▶ shared/ core/ content/          （永远不 import server/）
 server/*      ──▶ shared/ core/ content/          （永远不 import ui/）
 shared/ core/ ──▶ （叶子层，不 import server/ ui/ pages/）
 better-sqlite3 只出现在 server/db/connection.ts
+notion/client.ts 没有 PATCH/PUT/DELETE，唯一的 POST 是 databases/:id/query
 ```
-
-这样 UI 和 API 是**真正分开的两个面**：
-
-- 浏览器里的后台只通过 `api-client.ts` 走 HTTP；类型来自 `shared/contracts.ts`，接口一改编译就报错。
-- 服务端渲染的页面不经过 HTTP（避免自己请求自己），但它拿到的是与 API **完全相同的 DTO**（都经过 `presenters.ts`），所以访客看到的和 API 客户端看到的永远一致。
-- 想把前端换成别的框架、或把 API 单独部署，只需要替换 `ui/` 或 `pages/`，`server/` 不用动。
 
 ## 一次请求的路径
 
 ```
-GET /api/posts/dawn
-  pages/api/posts/[slug].ts           （re-export）
-  → server/http/endpoints/posts.ts    read：鉴权判断、参数解析
-  → server/services/posts.ts          requirePost：草稿可见性、404
-  → server/db/posts.repository.ts     SELECT
-  → server/presenters.ts              PostView → PostDetail
-  ← respond.ts                        JSON + 缓存头；任何 AppError → { error, code, details? }
+GET /articles/first-light
+  pages/articles/[slug].astro
+  → server/queries.ts getArticle
+    → services/articles.ts findArticle      ensureFresh：从未同步 → 等一次同步；过期 → 后台刷新，先返回缓存
+    → services/articles.ts articleBody      缓存命中（body_updated == updated）→ 直接返回
+                                            未命中 → notion/tree.ts 取块树 → core/blocks.ts 渲染 → 存缓存
+                                            Notion 不可达 → 返回上一次渲染的旧正文
+    → presenters.ts                         ArticleRow + ArticleBody → ArticleDetail
+  → ui/views/ArticleView.astro              纯展示
 
-GET /journal/dawn
-  pages/journal/[slug].astro
-  → server/queries.ts                 getJournalPost：同一个 service + presenter，再渲染 Markdown
-  → ui/views/JournalPostView.astro    纯展示
+GET /media/notion/<id>
+  → endpoints/media.ts → services/media.ts
+      id 不在 notion_media 白名单 → 404
+      磁盘副本存在且属于当前文章版本 → 直接发送（支持 Range / ETag）
+      否则：GET /blocks/:id 或 /pages/:id 取新的签名地址 → 下载（超时、大小上限）→ 原子写盘
 ```
 
-## 数据安全
+## 同步与缓存
 
-```
-PATCH /api/posts/dawn
-  services/posts.ts updatePost
-    transaction {
-      revisions.snapshot(旧行, 'edit')        ← 先存旧版本
-      revisions.rename(旧 slug, 新 slug)       ← 改名时历史跟着走
-      posts.update(...)
-      revisions.prune(slug, POST_REVISIONS_KEEP)
-    }
-```
+- 同步 = 查询整个数据库 → `mapper.toArticles` 在本地过滤（Published、日期 ≤ 现在、有标题、未归档）→ 整体替换 `articles` 表。
+  在本地过滤，所以任何列结构都能用，没有对 Notion filter 语法的依赖。
+- Slug 按页面**创建时间**从旧到新分配：新页面和旧页面重名时，旧文章的地址不会变。
+- 同一时刻只有一个同步任务（并发请求共享同一个 Promise）；失败时保留旧缓存，错误写入 `meta.sync_error`，后台可见。
+- 正文首次阅读时渲染并缓存；`last_edited_time` 变化后，正文作废、该文章的图片副本删除。
+- 修改 Notion token 或数据库后，文章缓存与图片副本整体清空。
+- 子块按层并发获取（并发 3，最多 8 层、5000 块），`child_page`/`child_database` 不展开；同步块读取原始块的内容。
 
-- `transaction()`（`db/connection.ts`）可重入：导入在一个事务里调用多个本身带事务的服务，不会嵌套。
-- 自动备份没有定时器：`middleware.ts` → `scheduledBackupTick()` 每分钟最多检查一次磁盘上最新快照的时间，
-  到期则在响应发出后用 `VACUUM INTO` 写快照（先写临时名再原子改名）。计划由文件推导，重启不丢。
-- 行间 diff（`core/diff.ts`）是纯函数，在浏览器里对比历史版本与当前文本。
+## 数据库迁移
 
-## Notion 缓存策略
-
-- 公开页面永远只读本地 SQLite 缓存，不等 Notion。
-- 每个分类独立维护 `synced:<kind>`：从未同步 → 首次访问时同步；超过 `SYNC_TTL_SECONDS` → 先返回旧数据，后台刷新。
-- 同一分类同一时刻只有一个同步任务（并发请求共享同一个 Promise）。
-- 同步失败：保留旧缓存继续服务，错误写入 `sync_error`，后台 Settings 可见；下一次成功后清空。
-- 正文 HTML 首次阅读时拉取并缓存；页面在 Notion 里被编辑（`last_edited_time` 变化）后自动作废。
+`PRAGMA user_version` 记录版本。第 5 步新增 `articles` 与 `notion_media`；之前版本留下的 `items`、`posts`、`post_revisions`
+**不删除**（没有破坏性迁移），只是不再被读取。

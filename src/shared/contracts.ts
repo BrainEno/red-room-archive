@@ -2,8 +2,9 @@
  * Wire contracts between the HTTP API and every client (Astro pages and the
  * browser-side admin). Type-only: this module must stay free of runtime
  * imports so it can be used on the server and in the browser alike.
+ *
+ * API v2: Notion is the single source of truth; the site only reads.
  */
-import type { Kind } from './kinds.ts';
 
 /* ── Errors ─────────────────────────────────────────────────────────── */
 
@@ -29,82 +30,77 @@ export interface ApiErrorBody {
 
 /* ── Paging ─────────────────────────────────────────────────────────── */
 
-export interface PageQuery {
-  limit?: number;
-  offset?: number;
-}
-
 export interface Paged {
   total: number;
   limit: number;
   offset: number;
 }
 
-/* ── Archive entries (Notion-backed) ────────────────────────────────── */
+/* ── Articles ───────────────────────────────────────────────────────── */
 
-export interface ItemSummary {
+export interface ArticleSummary {
+  /** Notion page id (dashed). */
   id: string;
-  kind: Kind;
-  title: string;
-  slug: string;
-  year: number | null;
-  summary: string | null;
-  type: string | null;
-  tags: string[];
-  cover: string | null;
-  url: string | null;
-  href: string;
-  updated: string;
-  /** Raw mapped Notion properties, lower-cased column names. */
-  data: Record<string, unknown>;
-}
-
-export interface ItemDetail extends ItemSummary {
-  /** Sanitised HTML rendered from the Notion page body. */
-  bodyHtml: string;
-}
-
-export interface ItemListResponse extends Paged {
-  kind: Kind;
-  items: ItemSummary[];
-}
-
-export interface ArchiveResponse {
-  items: Record<Kind, ItemSummary[]>;
-  counts: Record<Kind, number>;
-}
-
-/* ── Posts (SQLite-backed journal) ──────────────────────────────────── */
-
-export interface PostSummary {
   slug: string;
   title: string;
+  /** Publish date (`YYYY-MM-DD` or ISO datetime), falls back to the page's creation time. */
+  date: string;
   tags: string[];
-  created: string;
-  updated: string;
-  published: boolean;
   excerpt: string;
+  /** Site-relative proxy URL (`/media/notion/…`) or an external https URL. */
+  cover: string | null;
+  /** Featured weight (Notion "Rank" column); 0 = not featured. */
+  rank: number;
+  /** Public page, e.g. `/articles/first-light`. */
+  href: string;
+  /** Notion `last_edited_time`. */
+  updated: string;
+}
+
+export interface ArticleLink {
+  slug: string;
+  title: string;
   href: string;
 }
 
-export interface PostDetail extends PostSummary {
-  markdown: string;
-  html?: string;
+export interface TocEntry {
+  id: string;
+  text: string;
+  level: 1 | 2 | 3;
 }
 
-export interface PostListResponse extends Paged {
-  posts: PostSummary[];
-  draftsIncluded: boolean;
+export interface ArticleDetail extends ArticleSummary {
+  /** Sanitised body HTML rendered from the Notion blocks. */
+  html: string;
+  toc: TocEntry[];
+  readingMinutes: number;
+  /** Newer article (by date). */
+  previous: ArticleLink | null;
+  /** Older article (by date). */
+  next: ArticleLink | null;
+}
+
+export interface ArticleListResponse extends Paged {
+  tag: string | null;
+  articles: ArticleSummary[];
+}
+
+export interface TagCount {
+  name: string;
+  count: number;
+}
+
+export interface TagListResponse {
+  tags: TagCount[];
 }
 
 export interface SearchResponse {
   query: string;
   total: number;
-  posts: PostSummary[];
-  items: ItemSummary[];
+  articles: ArticleSummary[];
 }
 
-/* ── Site + status ──────────────────────────────────────────────────── */
+/* ── Site / status ──────────────────────────────────────────────────── */
 
 export interface SiteResponse {
   name: string;
@@ -112,18 +108,21 @@ export interface SiteResponse {
   about: string;
   intro: string;
   notionConfigured: boolean;
-  counts: Record<Kind, number>;
+  /** True while the built-in demo articles are shown (Notion not configured). */
+  demo: boolean;
+  articles: number;
 }
 
 export interface SyncStatus {
   notion: boolean;
-  databases: Record<Kind, boolean>;
+  demo: boolean;
+  /** Epoch ms of the last successful sync (0 = never). */
   syncedAt: number;
   syncing: boolean;
   syncError: string | null;
-  counts: Record<Kind, number>;
-  posts: number;
-  drafts: number;
+  articles: number;
+  /** Articles whose rendered body is cached locally. */
+  bodiesCached: number;
 }
 
 export interface HealthResponse {
@@ -146,7 +145,7 @@ export interface SyncStatusResponse {
   status: SyncStatus;
 }
 
-/* ── Admin: settings, sync, Notion, uploads ─────────────────────────── */
+/* ── Admin: settings / sync / schema ────────────────────────────────── */
 
 export type SettingKey =
   | 'site_name'
@@ -154,9 +153,7 @@ export type SettingKey =
   | 'site_about'
   | 'site_intro'
   | 'NOTION_TOKEN'
-  | 'NOTION_DB_WRITING'
-  | 'NOTION_DB_FILMS'
-  | 'NOTION_DB_MUSIC';
+  | 'NOTION_DATABASE_ID';
 
 export type SettingValues = Record<SettingKey, string>;
 
@@ -167,31 +164,40 @@ export interface SettingsResponse {
 
 export interface SyncResponse {
   ok: boolean;
-  /** Number of entries refreshed, per kind. */
-  synced: Partial<Record<Kind, number>>;
+  /** Published articles after the sync. */
+  synced: number;
+  /** Bodies rendered during this request (`?bodies=1`). */
+  bodies: number;
   status: SyncStatus;
 }
+
+/** The article fields the site reads from a Notion database. */
+export type ArticleField = 'title' | 'slug' | 'date' | 'published' | 'tags' | 'excerpt' | 'cover' | 'rank';
 
 export interface NotionField {
   name: string;
   type: string;
-  options: string[];
+}
+
+export interface FieldMapping {
+  /** Notion column used for this field, or null when none matched. */
+  property: string | null;
+  type: string | null;
+  /** Accepted Notion column types. */
+  accepts: string[];
+  required: boolean;
+  /** What happens when the column is missing. */
+  fallback: string;
 }
 
 export interface NotionSchemaResponse {
-  kind: Kind;
+  database: { id: string; title: string };
   fields: NotionField[];
+  mapping: Record<ArticleField, FieldMapping>;
+  warnings: string[];
 }
 
-export type NotionWriteBody = Record<string, unknown> & { title?: string; body?: string };
-
-export interface NotionWriteResponse {
-  ok: boolean;
-  id: string;
-  url?: string;
-  updated?: boolean;
-  archived?: boolean;
-}
+/* ── Uploads ────────────────────────────────────────────────────────── */
 
 export interface UploadFile {
   name: string;
@@ -217,96 +223,4 @@ export interface UploadResponse {
   name: string;
   size: number;
   url: string;
-}
-
-export interface MarkdownPreviewResponse {
-  html: string;
-}
-
-/* ── Post history + trash ───────────────────────────────────────────── */
-
-/** Why a version was saved: it is the state *before* this action. */
-export type RevisionReason = 'edit' | 'delete' | 'restore' | 'import';
-
-export interface RevisionSummary {
-  id: number;
-  slug: string;
-  title: string;
-  reason: RevisionReason;
-  savedAt: string;
-  published: boolean;
-  tags: string[];
-  /** Characters of Markdown in this version. */
-  size: number;
-}
-
-export interface RevisionDetail extends RevisionSummary {
-  markdown: string;
-  excerpt: string | null;
-  created: string | null;
-}
-
-export interface RevisionListResponse {
-  slug: string;
-  /** False when the post is deleted (its history is the trash entry). */
-  exists: boolean;
-  revisions: RevisionSummary[];
-}
-
-export interface TrashEntry {
-  slug: string;
-  title: string;
-  deletedAt: string;
-  /** Id of the version saved at deletion — restore it to undo the delete. */
-  revisionId: number;
-  revisions: number;
-}
-
-export interface TrashResponse {
-  posts: TrashEntry[];
-}
-
-/* ── Backups, export, import ────────────────────────────────────────── */
-
-export interface BackupFile {
-  name: string;
-  size: number;
-  createdAt: string;
-  /** Automatic snapshots are pruned to `BACKUP_KEEP`; manual ones are kept. */
-  auto: boolean;
-  /** Authenticated download URL. */
-  url: string;
-}
-
-export interface BackupSchedule {
-  /** 0 = automatic backups disabled. */
-  intervalHours: number;
-  keep: number;
-  lastBackupAt: string | null;
-  nextBackupAt: string | null;
-  dir: string;
-}
-
-export interface BackupListResponse {
-  backups: BackupFile[];
-  schedule: BackupSchedule;
-}
-
-export type ImportConflict = 'skip' | 'overwrite' | 'rename';
-
-export interface ImportedPost {
-  file: string;
-  slug: string;
-  title: string;
-}
-
-export interface ImportReport {
-  dryRun: boolean;
-  onConflict: ImportConflict;
-  created: ImportedPost[];
-  updated: ImportedPost[];
-  skipped: ImportedPost[];
-  errors: { file: string; error: string }[];
-  /** Site setting keys applied from `site.json` (only with `?settings=1`). */
-  settings: string[];
 }

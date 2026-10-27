@@ -38,7 +38,7 @@ const ogImage = image && siteUrl ? new URL(image, siteUrl).toString() : image;
   {canonical && <meta property="og:url" content={canonical} />}
   {ogImage && <meta property="og:image" content={ogImage} />}
   <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
-  <link rel="alternate" type="application/rss+xml" title={`${siteName || 'Journal'} — RSS`} href="/rss.xml" />
+  <link rel="alternate" type="application/rss+xml" title={`${siteName || 'Articles'} — RSS`} href="/rss.xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet" />

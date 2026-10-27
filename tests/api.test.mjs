@@ -1,27 +1,41 @@
-// End-to-end contract tests for the JSON API handlers, against an in-memory
-// SQLite database. Handlers are invoked exactly as Astro invokes them.
+// End-to-end contract tests for the JSON API, the media proxy and the page
+// facade — against an in-memory SQLite database and a fake Notion workspace
+// shaped like the original astro-notion blog database.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { API, DB, ID, compact, createNotionMock } from './fixtures/notion-mock.mjs';
 
-const uploads = mkdtempSync(path.join(tmpdir(), 'rra-api-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'rra-api-'));
 process.env.DB_PATH = ':memory:';
-process.env.UPLOAD_DIR = uploads;
+process.env.UPLOAD_DIR = path.join(dir, 'uploads');
+process.env.MEDIA_CACHE_DIR = path.join(dir, 'media');
 process.env.ADMIN_TOKEN = 'test-admin-token';
-delete process.env.NOTION_TOKEN;
+process.env.NOTION_TOKEN = 'secret_env_token';
+process.env.NOTION_API_BASE = API;
+process.env.SYNC_TTL_SECONDS = '3600';
+delete process.env.NOTION_DATABASE_ID;
+// The astro-notion variable name is accepted as a fallback.
+process.env.DATABASE_ID = DB;
 
-const posts = await import('../src/server/http/endpoints/posts.ts');
+const mock = createNotionMock();
+const realFetch = globalThis.fetch;
+globalThis.fetch = mock.fetch;
+
 const pub = await import('../src/server/http/endpoints/public.ts');
 const admin = await import('../src/server/http/endpoints/admin.ts');
 const files = await import('../src/server/http/endpoints/uploads.ts');
+const media = await import('../src/server/http/endpoints/media.ts');
+const queries = await import('../src/server/queries.ts');
 const { resetAuthThrottle } = await import('../src/server/services/auth.ts');
 const { closeConnection } = await import('../src/server/db/connection.ts');
 
 test.after(() => {
+  globalThis.fetch = realFetch;
   closeConnection();
-  rmSync(uploads, { recursive: true, force: true });
+  rmSync(dir, { recursive: true, force: true });
 });
 test.beforeEach(() => resetAuthThrottle());
 
@@ -35,144 +49,217 @@ async function call(handler, { method = 'GET', path: p = '/', params = {}, json,
   if (json !== undefined) h.set('content-type', 'application/json');
   const request = new Request(url, { method, headers: h, body: json !== undefined ? JSON.stringify(json) : body, duplex: 'half' });
   const response = await handler({ request, url, params });
-  const text = response.status === 204 ? '' : await response.text();
+  const raw = response.status === 204 ? new ArrayBuffer(0) : await response.arrayBuffer();
+  const text = Buffer.from(raw).toString();
   let data;
   try { data = text ? JSON.parse(text) : undefined; } catch { data = text; }
-  return { status: response.status, headers: response.headers, data };
+  return { status: response.status, headers: response.headers, data, bytes: Buffer.from(raw) };
 }
 
-test('writes require the admin token; errors follow the contract', async () => {
-  const anonymous = await call(posts.create, { method: 'POST', json: { title: 'x', body: 'y' } });
-  assert.equal(anonymous.status, 401);
-  assert.equal(anonymous.data.code, 'unauthorized');
+const notionCalls = (fragment) => mock.state.calls.filter((c) => c.url.includes(fragment)).length;
 
-  const wrong = await call(posts.create, { method: 'POST', json: { title: 'x', body: 'y' }, token: 'nope' });
-  assert.equal(wrong.status, 401);
+test('sync is admin-only; it paginates, retries 429 and keeps only visible pages', async () => {
+  assert.equal((await call(admin.runSync, { method: 'POST' })).status, 401);
+
+  mock.state.rateLimit = 1;
+  const synced = await call(admin.runSync, { method: 'POST', token: TOKEN });
+  assert.equal(synced.status, 200, JSON.stringify(synced.data));
+  assert.equal(synced.data.synced, 3);
+  assert.equal(notionCalls('/query'), 3, 'one 429 retry + two result pages');
+  assert.equal(synced.data.status.demo, false);
+  assert.equal(synced.data.status.syncError, null);
+
+  const list = await call(pub.listArticlesEndpoint, { path: '/api/articles' });
+  assert.equal(list.status, 200);
+  assert.deepEqual(list.data.articles.map((a) => a.slug), ['first-light', '第二篇', 'first-light-2']);
+  assert.equal(list.data.total, 3);
+  const [first, second] = list.data.articles;
+  assert.equal(first.href, '/articles/first-light');
+  assert.equal(first.cover, `/media/notion/${compact(ID.first)}`, 'Notion-hosted cover goes through the proxy');
+  assert.equal(second.cover, 'https://images.test/second.jpg', 'external cover is used directly');
+  assert.equal(first.rank, 2);
+  assert.equal(first.excerpt, 'Where it begins.');
+  assert.equal(second.href, `/articles/${encodeURIComponent('第二篇')}`);
+  assert.ok(!JSON.stringify(list.data).includes('Draft'), 'unpublished pages never reach the API');
+  assert.ok(!JSON.stringify(list.data).includes('Future'), 'scheduled pages stay hidden until their date');
 });
 
-test('post lifecycle: create → read → patch (rename) → delete', async () => {
-  const created = await call(posts.create, {
-    method: 'POST', token: TOKEN,
-    json: { title: 'First Light', body: 'Line one\nline two', tags: ['notes', 'light'], published: true },
-  });
-  assert.equal(created.status, 201);
-  assert.equal(created.data.slug, 'first-light');
-  assert.equal(created.data.href, '/journal/first-light');
-  assert.deepEqual(created.data.tags, ['notes', 'light']);
-  assert.equal(created.headers.get('location'), '/journal/first-light');
-
-  const dup = await call(posts.create, { method: 'POST', token: TOKEN, json: { title: 'First Light', body: 'again' } });
-  assert.equal(dup.status, 409);
-  assert.equal(dup.data.code, 'conflict');
-  assert.deepEqual(dup.data.details, { slug: 'first-light' });
-
-  const read = await call(posts.read, { path: '/api/posts/first-light?format=html', params: { slug: 'first-light' } });
-  assert.equal(read.status, 200);
-  assert.equal(read.data.markdown, 'Line one\nline two');
-  assert.match(read.data.html, /<br>/);
-
-  const patched = await call(posts.update, { method: 'PATCH', token: TOKEN, params: { slug: 'first-light' }, json: { slug: 'dawn', title: 'Dawn' } });
-  assert.equal(patched.status, 200);
-  assert.equal(patched.data.slug, 'dawn');
-  assert.equal(patched.data.title, 'Dawn');
-  assert.equal(patched.data.markdown, 'Line one\nline two', 'untouched fields survive a partial update');
-
-  const gone = await call(posts.read, { params: { slug: 'first-light' } });
-  assert.equal(gone.status, 404);
-  assert.equal(gone.data.code, 'not_found');
-
-  const removed = await call(posts.remove, { method: 'DELETE', token: TOKEN, params: { slug: 'dawn' } });
-  assert.equal(removed.status, 204);
-  const again = await call(posts.remove, { method: 'DELETE', token: TOKEN, params: { slug: 'dawn' } });
-  assert.equal(again.status, 404);
+test('tags: counts are case-insensitive and filter the list', async () => {
+  const tags = await call(pub.tags);
+  assert.deepEqual(tags.data.tags, [{ name: 'Fiction', count: 2 }, { name: 'Poem', count: 1 }]);
+  const filtered = await call(pub.listArticlesEndpoint, { path: '/api/articles?tag=fiction&limit=1' });
+  assert.equal(filtered.data.total, 2);
+  assert.equal(filtered.data.articles.length, 1);
+  assert.equal(filtered.data.tag, 'fiction');
 });
 
-test('drafts are invisible to the public and 401 when requested anonymously', async () => {
-  await call(posts.create, { method: 'POST', token: TOKEN, json: { title: 'Secret Draft', body: 'wip', published: false } });
+test('article detail renders the block tree once and caches it', async () => {
+  const before = notionCalls('/children');
+  const detail = await call(pub.getArticle, { path: '/api/articles/first-light', params: { slug: 'first-light' } });
+  assert.equal(detail.status, 200, JSON.stringify(detail.data));
+  const { html, toc } = detail.data;
 
-  const publicList = await call(posts.list);
-  assert.ok(!publicList.data.posts.some((p) => p.slug === 'secret-draft'));
-  assert.equal(publicList.data.draftsIncluded, false);
+  assert.deepEqual(toc, [{ id: 'opening', text: 'Opening', level: 1 }, { id: 'closing', text: 'Closing', level: 2 }]);
+  assert.match(html, /<h2 id="opening">Opening<\/h2>/);
+  assert.match(html, /<nav class="toc nc-gray"/);
+  assert.match(html, new RegExp(`<a href="/articles/${encodeURIComponent('第二篇')}">the second</a>`), 'internal links resolve to article URLs');
+  assert.match(html, /<span class="mention">Draft<\/span>/);
+  assert.doesNotMatch(html, /notion\.so/, 'links to unpublished pages are dropped');
+  assert.match(html, new RegExp(`<img src="/media/notion/${compact(ID.image)}"`));
+  assert.doesNotMatch(html, /files\.test/, 'expiring signed URLs never reach the HTML');
+  assert.match(html, /<details class="toggle"><summary>More<\/summary><p>Hidden paragraph about owls\.<\/p><\/details>/);
+  assert.match(html, /<thead><tr><th scope="col">Name<\/th><th scope="col">Value<\/th><\/tr><\/thead>/);
+  assert.match(html, /Synced words\./, 'synced blocks show the original content');
+  assert.doesNotMatch(html, /SECRET/, 'child pages are not inlined');
+  assert.match(html, /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/);
+  assert.match(html, /<span class="nc-red"><em>/);
+  assert.equal(detail.data.previous, null);
+  assert.deepEqual(detail.data.next, { slug: '第二篇', title: '第二篇', href: `/articles/${encodeURIComponent('第二篇')}` });
+  assert.ok(detail.data.readingMinutes >= 1);
+  const fetched = notionCalls('/children') - before;
+  assert.equal(fetched, 4, 'page + toggle + table + synced original (child page skipped)');
 
-  const sneaky = await call(posts.list, { path: '/api/posts?drafts=1' });
-  assert.equal(sneaky.status, 401);
+  await call(pub.getArticle, { path: '/api/articles/first-light', params: { slug: 'first-light' } });
+  assert.equal(notionCalls('/children') - before, fetched, 'second view is served from the cache');
 
-  const adminList = await call(posts.list, { path: '/api/posts?drafts=1', token: TOKEN });
-  assert.ok(adminList.data.posts.some((p) => p.slug === 'secret-draft' && p.published === false));
-  assert.equal(adminList.headers.get('cache-control'), 'no-store');
+  const missing = await call(pub.getArticle, { params: { slug: 'nope' } });
+  assert.equal(missing.status, 404);
+  assert.equal(missing.data.code, 'not_found');
 
-  assert.equal((await call(posts.read, { params: { slug: 'secret-draft' } })).status, 404);
-  assert.equal((await call(posts.read, { params: { slug: 'secret-draft' }, token: TOKEN })).status, 200);
+  assert.equal((await call(pub.getArticle, { path: '/api/articles/first-light?refresh=1', params: { slug: 'first-light' } })).status, 401);
+  const refreshed = await call(pub.getArticle, { path: '/api/articles/first-light?refresh=1', params: { slug: 'first-light' }, token: TOKEN });
+  assert.equal(refreshed.status, 200);
+  assert.equal(refreshed.headers.get('cache-control'), 'no-store');
+  assert.equal(notionCalls('/children') - before, fetched * 2);
 });
 
-test('tag filter narrows both the list and the total', async () => {
-  await call(posts.create, { method: 'POST', token: TOKEN, json: { title: 'Tagged A', body: 'a', tags: 'sound' } });
-  await call(posts.create, { method: 'POST', token: TOKEN, json: { title: 'Tagged B', body: 'b', tags: 'sound, film' } });
-  await call(posts.create, { method: 'POST', token: TOKEN, json: { title: 'Untagged', body: 'c' } });
-  const sound = await call(posts.list, { path: '/api/posts?tag=sound' });
-  assert.equal(sound.data.total, 2);
-  assert.deepEqual(sound.data.posts.map((p) => p.slug).sort(), ['tagged-a', 'tagged-b']);
+test('media proxy: allow-listed ids only, cached on disk, ranges, fresh URL on miss', async () => {
+  const id = compact(ID.image);
+  const first = await call(media.serveNotionMedia, { params: { id } });
+  assert.equal(first.status, 200);
+  assert.equal(first.headers.get('content-type'), 'image/png');
+  assert.deepEqual(first.bytes, Buffer.from(mock.PNG));
+  assert.match(first.headers.get('content-security-policy'), /sandbox/);
+  assert.equal(mock.state.downloads, 1);
+
+  // Notion re-signs URLs; the proxy asks for a fresh one, never reuses the old.
+  mock.state.signature = 2;
+  const again = await call(media.serveNotionMedia, { params: { id } });
+  assert.equal(again.status, 200);
+  assert.equal(mock.state.downloads, 1, 'served from the disk cache');
+
+  const range = await call(media.serveNotionMedia, { params: { id }, headers: { range: 'bytes=0-7' } });
+  assert.equal(range.status, 206);
+  assert.equal(range.bytes.length, 8);
+
+  const cover = await call(media.serveNotionMedia, { params: { id: compact(ID.first) } });
+  assert.equal(cover.status, 200);
+  assert.equal(mock.state.downloads, 2);
+
+  assert.equal((await call(media.serveNotionMedia, { params: { id: compact(ID.child) } })).status, 404, 'ids that are not article media are refused');
+  assert.equal((await call(media.serveNotionMedia, { params: { id: '../../etc/passwd' } })).status, 404);
 });
 
-test('search finds published posts only and escapes LIKE wildcards', async () => {
-  const hit = await call(pub.searchAll, { path: '/api/search?q=Tagged' });
-  assert.equal(hit.status, 200);
-  assert.ok(hit.data.posts.length >= 2);
-  assert.equal(hit.data.total, hit.data.posts.length + hit.data.items.length);
+test('editing a page in Notion invalidates its body and media on the next sync', async () => {
+  const before = notionCalls('/children');
+  mock.touch(ID.first, '2026-10-02T09:00:00.000Z');
+  await call(admin.runSync, { method: 'POST', token: TOKEN });
+  assert.ok(!existsSync(path.join(process.env.MEDIA_CACHE_DIR, compact(ID.image))), 'old image copy is deleted');
 
-  const wildcard = await call(pub.searchAll, { path: '/api/search?q=%25' });
-  assert.equal(wildcard.data.total, 0, '% is matched literally, not as a wildcard');
-
-  const draft = await call(pub.searchAll, { path: '/api/search?q=Secret' });
-  assert.equal(draft.data.posts.length, 0);
-
-  const empty = await call(pub.searchAll, { path: '/api/search' });
-  assert.deepEqual(empty.data, { query: '', total: 0, posts: [], items: [] });
+  const detail = await call(pub.getArticle, { params: { slug: 'first-light' } });
+  assert.equal(detail.data.updated, '2026-10-02T09:00:00.000Z');
+  assert.ok(notionCalls('/children') > before, 'body fetched again');
+  const image = await call(media.serveNotionMedia, { params: { id: compact(ID.image) } });
+  assert.equal(image.status, 200);
+  assert.equal(mock.state.downloads, 3);
 });
 
-test('public collection endpoints validate the kind', async () => {
-  const bad = await call(pub.listCollection, { params: { kind: 'poems' } });
-  assert.equal(bad.status, 400);
-  assert.equal(bad.data.code, 'bad_request');
-
-  const ok = await call(pub.listCollection, { params: { kind: 'music' } });
-  assert.equal(ok.status, 200);
-  assert.deepEqual(Object.keys(ok.data).sort(), ['items', 'kind', 'limit', 'offset', 'total']);
-
-  const archive = await call(pub.archive);
-  assert.deepEqual(Object.keys(archive.data.items).sort(), ['films', 'music', 'writing']);
+test('when Notion is down, the last rendered body is served', async () => {
+  mock.touch(ID.first, '2026-10-03T09:00:00.000Z');
+  await call(admin.runSync, { method: 'POST', token: TOKEN });
+  mock.state.offline = true;
+  try {
+    const detail = await call(pub.getArticle, { params: { slug: 'first-light' } });
+    assert.equal(detail.status, 200);
+    assert.match(detail.data.html, /Opening/);
+    const failed = await call(admin.runSync, { method: 'POST', token: TOKEN });
+    assert.equal(failed.status, 502);
+    assert.equal(failed.data.code, 'upstream_error');
+    const status = await call(admin.readSync, { token: TOKEN });
+    assert.match(status.data.status.syncError, /could not reach Notion/);
+    // The public list keeps working from the cache.
+    assert.equal((await call(pub.listArticlesEndpoint)).data.total, 3);
+  } finally {
+    mock.state.offline = false;
+  }
 });
 
-test('refreshing an entry body is admin-only', async () => {
-  const response = await call(pub.getEntry, { path: '/api/items/writing/x?refresh=1', params: { kind: 'writing', slug: 'x' } });
-  assert.equal(response.status, 401);
+test('search matches title, tags and cached body text', async () => {
+  await call(admin.runSync, { method: 'POST', path: '/api/sync?bodies=1', token: TOKEN });
+  const byTitle = await call(pub.searchArticles, { path: '/api/search?q=light' });
+  assert.deepEqual(byTitle.data.articles.map((a) => a.slug), ['first-light', 'first-light-2']);
+  const byTag = await call(pub.searchArticles, { path: '/api/search?q=poem' });
+  assert.deepEqual(byTag.data.articles.map((a) => a.slug), ['第二篇']);
+  const byBody = await call(pub.searchArticles, { path: '/api/search?q=owls' });
+  assert.deepEqual(byBody.data.articles.map((a) => a.slug), ['first-light']);
+  const none = await call(pub.searchArticles, { path: '/api/search?q=owls%20poem' });
+  assert.equal(none.data.total, 0, 'every term must match');
+  assert.equal((await call(pub.searchArticles, { path: '/api/search?q=' })).data.total, 0);
 });
 
-test('settings: masked token is never echoed, empty string clears overrides', async () => {
+test('page facade: home sections, paginated index, article view', async () => {
+  const home = await queries.getHome();
+  assert.equal(home.total, 3);
+  assert.deepEqual(home.featured.map((a) => a.slug), ['first-light']);
+  assert.deepEqual(home.topics.map((t) => t.name), ['Fiction', 'Poem']);
+
+  const index = await queries.getArticles({ tag: 'Poem' });
+  assert.equal(index.total, 1);
+  assert.equal(index.pages, 1);
+  const view = await queries.getArticle('first-light');
+  assert.equal(view.bodyMissing, false);
+  assert.equal(await queries.getArticle('missing'), undefined);
+});
+
+test('schema check maps the astro-notion columns without warnings', async () => {
+  assert.equal((await call(admin.notionSchema)).status, 401);
+  const schema = await call(admin.notionSchema, { token: TOKEN });
+  assert.equal(schema.status, 200);
+  assert.equal(schema.data.database.title, 'Bottom Think');
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(schema.data.mapping).map(([field, m]) => [field, m.property])),
+    { title: 'Page', slug: 'Slug', date: 'Date', published: 'Published', tags: 'Tags', excerpt: 'Excerpt', cover: 'FeaturedImage', rank: 'Rank' },
+  );
+  assert.deepEqual(schema.data.warnings, []);
+});
+
+test('settings: token masked, database accepts a pasted link, changing it resets the cache', async () => {
   const before = await call(admin.readSettings, { token: TOKEN });
-  assert.equal(before.status, 200);
-  assert.equal(before.data.values.hasToken, false);
+  assert.equal(before.data.values.NOTION_TOKEN, '••••oken');
+  assert.equal(before.data.values.NOTION_DATABASE_ID, DB);
+  assert.doesNotMatch(JSON.stringify(before.data), /secret_env_token/);
 
-  const saved = await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_name: 'Velvet', NOTION_TOKEN: 'secret_abcdef1234' } });
-  assert.equal(saved.data.values.site_name, 'Velvet');
-  assert.equal(saved.data.values.NOTION_TOKEN, '••••1234');
-  assert.equal(saved.data.values.hasToken, true);
-  assert.doesNotMatch(JSON.stringify(saved.data), /secret_abcdef/);
+  const bad = await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { NOTION_DATABASE_ID: 'not a database' } });
+  assert.equal(bad.status, 400);
 
-  const site = await call(pub.site);
-  assert.equal(site.data.name, 'Velvet');
+  const other = 'fedcba9876543210fedcba9876543210';
+  const saved = await call(admin.writeSettings, {
+    method: 'PATCH', token: TOKEN,
+    json: { site_name: 'Velvet', NOTION_TOKEN: '••••oken', NOTION_DATABASE_ID: `https://www.notion.so/team/Blog-${other}?v=99999999999999999999999999999999` },
+  });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.data.values.NOTION_DATABASE_ID, other);
+  assert.equal(saved.data.status.articles, 0, 'old articles are forgotten');
+  assert.equal((await call(pub.site)).data.name, 'Velvet');
 
-  const kept = await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { NOTION_TOKEN: '••••1234', site_name: '' } });
-  assert.equal(kept.data.values.hasToken, true, 'masked token keeps the stored one');
-  assert.equal(kept.data.values.site_name, 'Red Room Archive', 'empty string falls back to the default');
-});
+  // The new database does not exist → sync reports it, nothing leaks.
+  const sync = await call(admin.runSync, { method: 'POST', token: TOKEN });
+  assert.equal(sync.status, 502);
+  assert.doesNotMatch(JSON.stringify(sync.data), /secret database detail/);
 
-test('sync rejects unknown kinds and reports when Notion is not ready', async () => {
-  const unknown = await call(admin.runSync, { method: 'POST', path: '/api/sync?kind=poems', token: TOKEN });
-  assert.equal(unknown.status, 400);
-  const status = await call(admin.readSync, { token: TOKEN });
-  assert.equal(status.status, 200);
-  assert.ok('syncedAt' in status.data.status);
+  const back = await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { NOTION_DATABASE_ID: '', site_name: '' } });
+  assert.equal(back.data.values.NOTION_DATABASE_ID, DB, 'empty value falls back to the environment');
+  assert.equal(back.data.values.site_name, 'Red Room Archive');
 });
 
 test('login: wrong tokens are throttled, missing tokens on other endpoints are not', async () => {
@@ -184,8 +271,6 @@ test('login: wrong tokens are throttled, missing tokens on other endpoints are n
   assert.equal(locked.status, 429);
   assert.equal(locked.data.code, 'rate_limited');
 
-  // An anonymous visitor hammering a protected endpoint without any token
-  // must not lock the owner out.
   for (let i = 0; i < 20; i++) await call(admin.readSettings, { headers: { 'x-forwarded-for': '10.0.0.10' } });
   const owner = await call(admin.login, { method: 'POST', json: { token: TOKEN }, headers: { 'x-forwarded-for': '10.0.0.10' } });
   assert.equal(owner.status, 200);
@@ -223,5 +308,7 @@ test('health reports database status without secrets', async () => {
   const health = await call(pub.health);
   assert.equal(health.status, 200);
   assert.equal(health.data.database, true);
+  assert.equal(health.data.notion, true);
   assert.equal(health.headers.get('cache-control'), 'no-store');
+  assert.doesNotMatch(JSON.stringify(health.data), /secret/);
 });
