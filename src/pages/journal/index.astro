@@ -1,9 +1,9 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { getSite, listPosts } from '../../lib/db';
+import { getSite, listPosts } from '../../lib/db.ts';
 
 const site = await getSite();
-const posts = listPosts() as { slug: string; title: string; tags: string; created: string }[];
+const posts = listPosts();
 const dateLabel = (value: unknown) => String(value ?? '').slice(0, 10);
 ---
 
@@ -21,7 +21,7 @@ const dateLabel = (value: unknown) => String(value ?? '').slice(0, 10);
             <a class="journal-entry" href={`/journal/${encodeURIComponent(post.slug)}`}>
               <span class="journal-date">{dateLabel(post.created)}</span>
               <span class="journal-title">{post.title}</span>
-              <span class="journal-tags">{post.tags ? post.tags.split(',').map((tag) => tag.trim()).filter(Boolean).join(' / ') : ''}</span>
+              <span class="journal-tags">{post.tags.join(' / ')}</span>
               <span class="journal-arrow" aria-hidden="true">↗</span>
             </a>
           </li>

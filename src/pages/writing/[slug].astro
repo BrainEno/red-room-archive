@@ -1,6 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { getBody, getItem } from '../../lib/db';
+import { getBody, getItem } from '../../lib/db.ts';
 const item = await getItem('writing', Astro.params.slug!);
 if (!item) return Astro.redirect('/#works');
 const body = await getBody(item);
