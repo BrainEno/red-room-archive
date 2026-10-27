@@ -1,0 +1,24 @@
+---
+import { COLLECTIONS } from '../../shared/kinds.ts';
+
+export interface Props {
+  siteName: string;
+  /** Path prefix of the active section, e.g. `/works` or `/journal`. */
+  current?: string;
+}
+
+const { siteName, current = '' } = Astro.props;
+const links = [
+  ...COLLECTIONS.map((collection) => ({ href: collection.path, label: collection.label })),
+  { href: '/journal', label: 'Journal' },
+  { href: '/search', label: 'Search' },
+];
+---
+<header class="site-header">
+  <a class="site-brand" href="/">{siteName}</a>
+  <nav aria-label="Archive">
+    {links.map((link) => (
+      <a href={link.href} aria-current={current === link.href ? 'page' : undefined}>{link.label}</a>
+    ))}
+  </nav>
+</header>

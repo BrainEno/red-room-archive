@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { blocksToHtml, markdownToBlocks, richTextHtml } from '../src/lib/blocks.ts';
+import { blocksToHtml, markdownToBlocks, richTextHtml } from '../src/core/blocks.ts';
 
 const para = (text, extra = {}) => ({ type: 'paragraph', paragraph: { rich_text: [{ plain_text: text, annotations: {} }] }, ...extra });
 const bullet = (text) => ({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ plain_text: text }] } });

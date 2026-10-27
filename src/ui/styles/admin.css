@@ -1,0 +1,25 @@
+/* /admin */
+.admin #app { max-width: 880px; margin: 0 auto; padding: 56px 20px 120px; }
+.admin h1 { font-stretch: 62%; font-weight: 800; font-size: 3rem; text-transform: uppercase; }
+.tabs { display: flex; gap: 8px; align-items: center; margin-bottom: 28px; padding-bottom: 12px; border-bottom: 1px solid rgba(241,238,230,.25); }
+.tabs a { margin-left: auto; opacity: .6; }
+.admin button { font: inherit; font-weight: 600; color: var(--ink); background: none; border: 1px solid rgba(241,238,230,.4); padding: 8px 14px; cursor: pointer; }
+.admin button:hover, .tabs button.on { background: var(--ink); color: var(--void); }
+.form { display: grid; gap: 14px; } .card { max-width: 360px; margin: 18vh auto 0; display: grid; gap: 14px; }
+.admin label { display: grid; gap: 4px; font-weight: 600; } .admin label small { font-weight: 400; opacity: .5; margin-left: .5em; }
+.admin input:not([type=checkbox]), .admin textarea, .admin select { font: inherit; color: var(--ink); background: rgba(241,238,230,.06); border: 1px solid rgba(241,238,230,.3); padding: 9px 10px; border-radius: 0; width: 100%; }
+.admin input:focus, .admin textarea:focus, .admin select:focus { outline: 2px solid var(--red); outline-offset: 1px; }
+.row2 { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; } .row2 select { width: auto; } .hint { opacity: .6; font-size: 13px; }
+.up { justify-self: start; } .files li { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid rgba(241,238,230,.2); } .files li > :first-child { flex: 1; word-break: break-all; }
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translate(-50%, 20px); background: var(--ink); color: var(--void); padding: 10px 16px; font-weight: 600; opacity: 0; transition: .3s var(--ease); pointer-events: none; z-index: 9; }
+.toast.on { opacity: 1; transform: translate(-50%, 0); } .toast.bad { background: var(--red); color: var(--ink); }
+.admin button:disabled { opacity: .45; cursor: progress; }
+.admin .ghost { border-color: transparent; opacity: .7; }
+.tabs .tabs-site { margin-left: auto; }
+.admin-sec { margin-top: 36px; font-size: 1.4rem; text-transform: uppercase; font-stretch: 62%; font-weight: 800; }
+.admin label.check { display: flex; gap: 8px; align-items: center; }
+.admin label.check input { width: auto; }
+.row2.tight { margin: 0; }
+.badge { display: inline-block; margin-left: 6px; padding: 0 6px; font-size: 11px; font-weight: 600; border: 1px solid var(--red); color: var(--red); vertical-align: middle; }
+.preview, .preview.prose { margin: 24px 0 0; padding: 24px; border: 1px dashed rgba(241,238,230,.3); max-width: none; }
+.preview h1 { font-size: 2.4rem; margin-bottom: 1rem; }

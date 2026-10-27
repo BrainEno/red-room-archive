@@ -1,0 +1,16 @@
+---
+export interface Props {
+  page: number;
+  pages: number;
+  /** Builds the URL for a page number. */
+  href: (page: number) => string;
+}
+const { page, pages, href } = Astro.props;
+---
+{pages > 1 && (
+  <nav class="pager" aria-label="Pagination">
+    {page > 1 ? <a rel="prev" href={href(page - 1)}>← Newer</a> : <span />}
+    <span class="pager-pos">{page} / {pages}</span>
+    {page < pages ? <a rel="next" href={href(page + 1)}>Older →</a> : <span />}
+  </nav>
+)}

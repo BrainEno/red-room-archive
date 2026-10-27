@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanSlug, postSlug, slugify } from '../src/lib/slug.ts';
+import { cleanSlug, postSlug, slugify } from '../src/core/slug.ts';
 
 test('slugify keeps unicode letters and collapses separators', () => {
   assert.equal(slugify('A Quiet Room'), 'a-quiet-room');

@@ -1,0 +1,9 @@
+---
+// Route: /search?q=
+import SearchView from '../ui/views/SearchView.astro';
+import { getSite, searchArchive } from '../server/queries.ts';
+
+const site = getSite();
+const result = searchArchive(Astro.url.searchParams.get('q') ?? '');
+---
+<SearchView site={site} result={result} />

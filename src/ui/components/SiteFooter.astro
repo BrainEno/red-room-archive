@@ -1,0 +1,16 @@
+---
+export interface Props {
+  siteName: string;
+  email?: string;
+}
+const { siteName, email = '' } = Astro.props;
+const year = new Date().getFullYear();
+---
+<footer class="site-footer">
+  <span>© {year} {siteName}</span>
+  <nav aria-label="Footer">
+    {email && <a href={`mailto:${email}`}>{email}</a>}
+    <a href="/rss.xml">RSS</a>
+    <a href="/">Home</a>
+  </nav>
+</footer>

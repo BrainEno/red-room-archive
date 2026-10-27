@@ -1,0 +1,8 @@
+---
+// Route: any unmatched path.
+import NotFoundView from '../ui/views/NotFoundView.astro';
+import { getSite } from '../server/queries.ts';
+
+const site = getSite();
+---
+<NotFoundView site={site} />

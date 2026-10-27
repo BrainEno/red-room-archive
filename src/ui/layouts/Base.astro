@@ -1,0 +1,47 @@
+---
+/**
+ * Document shell for every page: metadata, fonts, base styles.
+ * Pure presentation — receives everything through props.
+ */
+import '../styles/base.css';
+
+export interface Props {
+  title: string;
+  description?: string;
+  /** Absolute site origin (from SITE_URL); enables canonical + og:url. */
+  siteUrl?: string;
+  siteName?: string;
+  bodyClass?: string;
+  noindex?: boolean;
+  image?: string | null;
+  type?: 'website' | 'article';
+}
+
+const { title, description = '', siteUrl = '', siteName = '', bodyClass = '', noindex = false, image = null, type = 'website' } = Astro.props;
+const canonical = siteUrl ? new URL(Astro.url.pathname, siteUrl).toString() : undefined;
+const ogImage = image && siteUrl ? new URL(image, siteUrl).toString() : image;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{title}</title>
+  {description && <meta name="description" content={description} />}
+  {noindex && <meta name="robots" content="noindex" />}
+  {canonical && <link rel="canonical" href={canonical} />}
+  <meta name="theme-color" content="#0a0506" />
+  <meta property="og:type" content={type} />
+  <meta property="og:title" content={title} />
+  {siteName && <meta property="og:site_name" content={siteName} />}
+  {description && <meta property="og:description" content={description} />}
+  {canonical && <meta property="og:url" content={canonical} />}
+  {ogImage && <meta property="og:image" content={ogImage} />}
+  <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
+  <link rel="alternate" type="application/rss+xml" title={`${siteName || 'Journal'} — RSS`} href="/rss.xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet" />
+</head>
+<body class={bodyClass}><slot /></body>
+</html>

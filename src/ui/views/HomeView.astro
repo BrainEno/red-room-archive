@@ -1,0 +1,95 @@
+---
+/**
+ * Homepage: neon sign → intro → Works / Music / Video → About → Contact.
+ * The markup ids/classes are the contract with ui/scripts/site/home.ts.
+ */
+import Base from '../layouts/Base.astro';
+import '../styles/home.css';
+import { isAudioUrl } from '../../core/media.ts';
+import type { ItemSummary } from '../../shared/contracts.ts';
+import { collectionOf, type Kind } from '../../shared/kinds.ts';
+
+export interface Props {
+  site: {
+    name: string;
+    email: string;
+    about: string;
+    intro: string;
+    tagline: string;
+    url: string;
+    facts: { key: string; value: string }[];
+  };
+  collections: { kind: Kind; items: ItemSummary[] }[];
+}
+
+const { site, collections } = Astro.props;
+const byKind = Object.fromEntries(collections.map((c) => [c.kind, c.items])) as Record<Kind, ItemSummary[]>;
+const writing = byKind.writing ?? [];
+const music = byKind.music ?? [];
+const films = byKind.films ?? [];
+const HOME_LIMIT = 12;
+const pad = (i: number) => String(i + 1).padStart(2, '0');
+const nav = ['intro', 'works', 'music', 'video', 'journal', 'about', 'contact'];
+const str = (value: unknown) => (typeof value === 'string' || typeof value === 'number' ? String(value) : '');
+---
+<Base title={`${site.name} — Archive`} siteName={site.name} siteUrl={site.url} description={site.about}>
+  <canvas id="gl" aria-hidden="true"></canvas>
+  <div id="neon" class="neon"><div class="sign" aria-hidden="true"><div class="cam"><canvas></canvas></div></div></div>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="loader"><span class="count">000</span></div>
+
+  <header class="bar">
+    <a class="brand" href="#home">{site.name}</a>
+    <nav>{nav.map((n) => <a href={n === 'journal' ? '/journal' : `#${n}`}>{n}</a>)}</nav>
+  </header>
+
+  <main>
+    <section id="home" class="s">
+      <h1 class="sr">{site.name} — Red Room Archive</h1>
+      <div class="meta"><span>{site.name}</span><span>{site.tagline}</span><span>Scroll</span></div>
+    </section>
+
+    <section id="intro" class="intro">
+      <div class="stage">
+        <p class="lede">{site.intro}</p>
+        <dl class="facts">{site.facts.map((f) => <div><dt>{f.key}</dt><dd>{f.value}</dd></div>)}</dl>
+      </div>
+    </section>
+
+    <section id="works" class="s l">
+      <h2 class="sec">Works<sup>{writing.length}</sup></h2>
+      <ul class="list">{writing.slice(0, HOME_LIMIT).map((w, i) => (
+        <li><a class="row" href={w.href}><span class="n">{pad(i)}</span><span class="t">{w.title}</span><span>{w.type}</span><span>{w.year}</span><span class="r"></span></a></li>
+      ))}</ul>
+      {writing.length > 0 && <a class="more" href={collectionOf('writing').path}>All works →</a>}
+    </section>
+
+    <section id="music" class="s l">
+      <h2 class="sec">Music<sup>{music.length}</sup></h2>
+      <ul class="list">{music.slice(0, HOME_LIMIT).map((m, i) => (
+        <li><a class="row" href={m.href} data-audio={isAudioUrl(m.url) ? m.url : undefined}>
+          <span class="n">{pad(i)}</span><span class="t">{m.title}</span><span>{str(m.data.artist)}</span><span>{m.year}</span><span class="r">{str(m.data.duration)}</span></a></li>
+      ))}</ul>
+      {music.length > 0 && <a class="more" href={collectionOf('music').path}>All music →</a>}
+    </section>
+
+    <section id="video" class="s l">
+      <h2 class="sec">Video<sup>{films.length}</sup></h2>
+      <ul class="list">{films.slice(0, HOME_LIMIT).map((f, i) => (
+        <li><a class="row" href={f.href}>
+          <span class="n">{pad(i)}</span><span class="t">{f.title}</span><span>{str(f.data.director)}</span><span>{f.year}</span><span class="r">{f.data.rating ? `${str(f.data.rating)}/10` : ''}</span></a></li>
+      ))}</ul>
+      {films.length > 0 && <a class="more" href={collectionOf('films').path}>All video →</a>}
+    </section>
+
+    <section id="about" class="s">
+      <div class="panel"><h2>About</h2><p>{site.about}</p></div>
+    </section>
+
+    <section id="contact" class="s">
+      {site.email ? <a class="mail" href={`mailto:${site.email}`}>{site.email}</a> : <a class="mail" href="/journal">Journal →</a>}
+    </section>
+  </main>
+
+  <script>import '../scripts/site/home.ts';</script>
+</Base>

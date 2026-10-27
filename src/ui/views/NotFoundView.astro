@@ -1,0 +1,16 @@
+---
+import Page from '../layouts/Page.astro';
+
+export interface Props {
+  site: { name: string; url: string; email: string };
+}
+const { site } = Astro.props;
+---
+<Page title={`Not found — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} noindex>
+  <section class="prose notfound">
+    <p class="kicker">404</p>
+    <h1>Behind the curtain</h1>
+    <p>There is nothing at this address — it may have moved, or never existed.</p>
+    <p><a href="/">Return to the archive</a> · <a href="/search">Search</a></p>
+  </section>
+</Page>

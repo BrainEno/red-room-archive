@@ -1,0 +1,31 @@
+---
+import Page from '../layouts/Page.astro';
+import PrevNext from '../components/PrevNext.astro';
+import { formatDate } from '../../core/text.ts';
+import type { PostDetail } from '../../shared/contracts.ts';
+
+export interface Props {
+  site: { name: string; url: string; email: string; journal: { label: string } };
+  post: PostDetail & { html: string };
+  minutes: number;
+  previous?: { slug: string; title: string };
+  next?: { slug: string; title: string };
+}
+const { site, post, minutes, previous, next } = Astro.props;
+const link = (p?: { slug: string; title: string }) => p && { title: p.title, href: `/journal/${encodeURIComponent(p.slug)}` };
+---
+<Page title={`${post.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} description={post.excerpt} current="/journal" type="article">
+  <article class="prose">
+    <p class="kicker"><a href="/journal">{site.journal.label}</a></p>
+    <h1>{post.title}</h1>
+    <p class="by">
+      <time datetime={String(post.created).slice(0, 10)}>{formatDate(post.created)}</time>
+      <span> · {minutes} min read</span>
+      {post.tags.length > 0 && (
+        <span> · {post.tags.map((tag, i) => <>{i > 0 && ', '}<a href={`/journal?tag=${encodeURIComponent(tag)}`}>{tag}</a></>)}</span>
+      )}
+    </p>
+    <Fragment set:html={post.html} />
+  </article>
+  <PrevNext previous={link(previous)} next={link(next)} />
+</Page>

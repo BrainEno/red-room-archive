@@ -1,8 +1,6 @@
 ---
-import Base from '../layouts/Base.astro';
+// Route: /admin — static shell; all data flows through the JSON API.
+import AdminView from '../ui/views/AdminView.astro';
+Astro.response.headers.set('Cache-Control', 'no-store');
 ---
-<Base title="Admin" bodyClass="admin" noindex>
-  <div id="app"></div>
-  <div id="toast" class="toast"></div>
-  <script>import '../scripts/admin.ts';</script>
-</Base>
+<AdminView />

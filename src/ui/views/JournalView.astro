@@ -1,0 +1,44 @@
+---
+import Page from '../layouts/Page.astro';
+import PostList from '../components/PostList.astro';
+import Pager from '../components/Pager.astro';
+import type { PostSummary } from '../../shared/contracts.ts';
+
+export interface Props {
+  site: { name: string; url: string; email: string; journal: { label: string; intro: string } };
+  posts: PostSummary[];
+  page: number;
+  pages: number;
+  total: number;
+  tag?: string;
+  tags: { tag: string; count: number }[];
+}
+const { site, posts, page, pages, total, tag, tags } = Astro.props;
+const query = (p: number) => {
+  const params = new URLSearchParams();
+  if (tag) params.set('tag', tag);
+  if (p > 1) params.set('page', String(p));
+  const text = params.toString();
+  return `/journal${text ? `?${text}` : ''}`;
+};
+const heading = tag ? `#${tag}` : site.journal.label;
+---
+<Page title={`${tag ? `${heading} — ` : ''}${site.journal.label} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} description={site.journal.intro} current="/journal" noindex={page > 1}>
+  <section class="prose journal">
+    <p class="journal-label">{site.name} / {site.journal.label}</p>
+    <h1>{heading}</h1>
+    <p class="journal-intro">{tag ? `${total} ${total === 1 ? 'entry' : 'entries'} tagged “${tag}”.` : site.journal.intro}</p>
+
+    {tags.length > 0 && (
+      <nav class="filters" aria-label="Tags">
+        <a href="/journal" aria-current={!tag ? 'page' : undefined}>All</a>
+        {tags.map((t) => (
+          <a href={`/journal?tag=${encodeURIComponent(t.tag)}`} aria-current={tag === t.tag ? 'page' : undefined}>{t.tag}<sup>{t.count}</sup></a>
+        ))}
+      </nav>
+    )}
+
+    <PostList posts={posts} showExcerpt empty={tag ? 'No entries with this tag.' : 'No journal entries yet.'} />
+    <Pager page={page} pages={pages} href={query} />
+  </section>
+</Page>

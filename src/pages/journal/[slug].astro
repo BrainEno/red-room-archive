@@ -1,17 +1,11 @@
 ---
-import Base from '../../layouts/Base.astro';
-import { getPost } from '../../lib/db.ts';
-import { renderMarkdown } from '../../lib/markdown.ts';
-const p = getPost(Astro.params.slug!);
-// 草稿（published=0）对访客不存在：与真正缺失的 slug 一样回到索引页
-if (!p || !p.published) return Astro.redirect('/journal', 302);
-const html = await renderMarkdown(p.body ?? '');
+// Route: /journal/:slug — drafts are indistinguishable from missing posts.
+import JournalPostView from '../../ui/views/JournalPostView.astro';
+import NotFoundView from '../../ui/views/NotFoundView.astro';
+import { getJournalPost, getSite } from '../../server/queries.ts';
+
+const site = getSite();
+const view = await getJournalPost(Astro.params.slug ?? '');
+if (!view) Astro.response.status = 404;
 ---
-<Base title={p.title} bodyClass="plain">
-  <a class="back" href="/journal">← Journal</a>
-  <article class="prose">
-    <h1>{p.title}</h1>
-    <p class="by">{String(p.created).slice(0, 10)}{p.tagsList.length ? ` · ${p.tagsList.join(', ')}` : ''}</p>
-    <Fragment set:html={html} />
-  </article>
-</Base>
+{view ? <JournalPostView site={site} {...view} /> : <NotFoundView site={site} />}

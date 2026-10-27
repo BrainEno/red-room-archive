@@ -1,0 +1,37 @@
+---
+import Page from '../layouts/Page.astro';
+import EntryList from '../components/EntryList.astro';
+import type { ItemSummary } from '../../shared/contracts.ts';
+import type { Collection } from '../../shared/kinds.ts';
+
+export interface Props {
+  site: { name: string; url: string; email: string };
+  collection: Collection;
+  items: ItemSummary[];
+  /** Active type filter (from ?type=). */
+  type?: string;
+}
+const { site, collection, items, type } = Astro.props;
+const types = [...new Set(items.map((item) => item.type).filter((value): value is string => Boolean(value)))].sort();
+const visible = type ? items.filter((item) => item.type === type) : items;
+const years = visible.map((item) => item.year).filter((year): year is number => typeof year === 'number');
+const span = years.length ? `${Math.min(...years)}–${Math.max(...years)}` : '';
+---
+<Page title={`${collection.label} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} description={collection.blurb} current={collection.path}>
+  <header class="page-head">
+    <p class="kicker">{site.name} / {collection.label}</p>
+    <h1>{collection.label}<sup>{visible.length}</sup></h1>
+    <p class="lead">{collection.blurb}{span && <span class="muted"> {span}</span>}</p>
+  </header>
+
+  {types.length > 1 && (
+    <nav class="filters" aria-label="Filter by type">
+      <a href={collection.path} aria-current={!type ? 'page' : undefined}>All</a>
+      {types.map((t) => (
+        <a href={`${collection.path}?type=${encodeURIComponent(t)}`} aria-current={type === t ? 'page' : undefined}>{t}</a>
+      ))}
+    </nav>
+  )}
+
+  <EntryList items={visible} empty={type ? `Nothing filed under “${type}”.` : 'Nothing here yet — entries appear once the Notion database is connected and synced.'} />
+</Page>

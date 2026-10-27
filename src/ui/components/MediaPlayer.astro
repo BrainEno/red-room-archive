@@ -1,0 +1,38 @@
+---
+/** Picks a native player, a privacy-friendly embed, or an outbound link. */
+import { classifyMedia } from '../../core/media.ts';
+
+export interface Props {
+  url: string | null;
+  title: string;
+  poster?: string | null;
+}
+const { url, title, poster } = Astro.props;
+const media = classifyMedia(url);
+---
+{media.kind === 'audio' && (
+  <figure class="media media-audio">
+    <audio controls preload="metadata" src={media.src}></audio>
+    <figcaption><a href={media.src} download>Download</a></figcaption>
+  </figure>
+)}
+{media.kind === 'video' && (
+  <figure class="media media-video">
+    <video controls preload="metadata" playsinline src={media.src} poster={poster ?? undefined}></video>
+  </figure>
+)}
+{media.kind === 'embed' && (
+  <figure class={`media media-embed media-${media.provider}`}>
+    <iframe
+      src={media.src}
+      title={title}
+      loading="lazy"
+      allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+      allowfullscreen
+      referrerpolicy="strict-origin-when-cross-origin"
+    ></iframe>
+  </figure>
+)}
+{media.kind === 'link' && (
+  <p class="media media-link"><a href={media.href} target="_blank" rel="noopener noreferrer">Open externally ↗</a></p>
+)}
