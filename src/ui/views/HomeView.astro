@@ -1,6 +1,6 @@
 ---
 /**
- * Homepage: neon sign → intro → Latest / Featured / Topics → Contact.
+ * Homepage: neon sign → intro → Latest / Featured / Topics → More (link to /more + email).
  * The markup ids/classes are the contract with ui/scripts/site/home.ts (each
  * section id drives one camera move).
  */
@@ -10,7 +10,7 @@ import { messages } from '../i18n.ts';
 import '../styles/home.css';
 import type { ArticleSummary, TagCount } from '../../shared/contracts.ts';
 import { contentLang, type Locale } from '../../shared/i18n.ts';
-import { ARTICLES_PATH, tagPath } from '../../shared/routes.ts';
+import { ARTICLES_PATH, MORE_PATH, tagPath } from '../../shared/routes.ts';
 
 export interface Props {
   site: {
@@ -32,7 +32,7 @@ const t = messages(locale);
 const TOPIC_LIMIT = 12;
 const pad = (i: number) => String(i + 1).padStart(2, '0');
 const year = (date: string) => String(date).slice(0, 4);
-const nav = ['intro', 'latest', 'topics', 'contact'] as const;
+const nav = ['intro', 'latest', 'topics', 'more'] as const;
 ---
 <Base title={site.name} siteName={site.name} siteUrl={site.url} description={site.about} locale={locale}>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -82,13 +82,20 @@ const nav = ['intro', 'latest', 'topics', 'contact'] as const;
     <section id="topics" class="s l">
       <h2 class="sec">{t.home.topics}<sup>{home.topics.length}</sup></h2>
       <ul class="list">{home.topics.slice(0, TOPIC_LIMIT).map((topic, i) => (
-        <li><a class="row" href={tagPath(topic.name)}><span class="n">{pad(i)}</span><span class="t" lang={contentLang(topic.name)}>{topic.name}</span><span></span><span>{topic.count}</span><span class="r"></span></a></li>
+        <li><a class="row" href={tagPath(topic.key)}><span class="n">{pad(i)}</span><span class="t" lang={contentLang(topic.name)}>{topic.name}</span><span></span><span>{topic.count}</span><span class="r"></span></a></li>
       ))}</ul>
       {home.topics.length > TOPIC_LIMIT && <a class="more" href={ARTICLES_PATH}>{t.home.allTopics}</a>}
     </section>
 
-    <section id="contact" class="s">
-      {site.email ? <a class="mail" href={`mailto:${site.email}`}>{site.email}</a> : <a class="mail" href={ARTICLES_PATH}>{t.home.allArticles}</a>}
+    <section id="more" class="s finale" aria-labelledby="more-h">
+      <h2 id="more-h" class="sr">{t.home.more}</h2>
+      <span id="contact" aria-hidden="true"></span>{/* old /#contact links still land here */}
+      <a class="go" href={MORE_PATH}><span class="go-t">{t.home.learnMore}</span><span class="go-a" aria-hidden="true">↗</span></a>
+      <div class="reach">
+        {site.email && <p><span class="k">{t.home.email}</span><a href={`mailto:${site.email}`}>{site.email}</a></p>}
+        <p class="what">{t.home.moreTopics}</p>
+        <p class="yr">© {new Date().getFullYear()} {site.name}</p>
+      </div>
     </section>
   </main>
 

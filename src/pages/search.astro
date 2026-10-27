@@ -4,6 +4,6 @@ import SearchView from '../ui/views/SearchView.astro';
 import { getSite, searchArticles } from '../server/queries.ts';
 
 const site = getSite(Astro.locals.locale);
-const result = await searchArticles(Astro.url.searchParams.get('q') ?? '');
+const result = await searchArticles(Astro.url.searchParams.get('q') ?? '', 30, site.locale);
 ---
 <SearchView site={site} result={result} />

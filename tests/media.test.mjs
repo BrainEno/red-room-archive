@@ -45,7 +45,7 @@ test('rss and sitemap escape content and use absolute URLs', () => {
   assert.match(rss, /<link>https:\/\/site\.test\/articles\/a<\/link>/);
   assert.match(rss, /<pubDate>Fri, 02 Jan 2026 00:00:00 GMT<\/pubDate>/);
   assert.match(rss, /<enclosure url="https:\/\/site\.test\/media\/notion\/abc"/);
-  const map = sitemap({ origin: 'https://site.test', articles: [article], tags: [{ name: 'x', count: 1 }] });
+  const map = sitemap({ origin: 'https://site.test', articles: [article], tags: [{ key: 'x', name: 'X', count: 1 }] });
   assert.match(map, /<loc>https:\/\/site\.test\/articles<\/loc>/);
   assert.match(map, /<loc>https:\/\/site\.test\/articles\?tag=x<\/loc>/);
   assert.match(map, /<lastmod>2026-01-03<\/lastmod>/);

@@ -45,6 +45,11 @@ export interface ArticleSummary {
   title: string;
   /** Publish date (`YYYY-MM-DD` or ISO datetime), falls back to the page's creation time. */
   date: string;
+  /**
+   * Tag display names in the requested language (`?lang=`, default `en`): one
+   * name per topic, so `Fiction` and `小说` on the same article appear once.
+   * Any of them works as a `?tag=` filter.
+   */
   tags: string[];
   excerpt: string;
   /** Site-relative proxy URL (`/media/notion/…`) or an external https URL. */
@@ -86,6 +91,9 @@ export interface ArticleListResponse extends Paged {
 }
 
 export interface TagCount {
+  /** Stable topic id, the same in every language (e.g. `fiction` for Fiction / 小说). Usable as `?tag=`. */
+  key: string;
+  /** Display name in the requested language. */
   name: string;
   count: number;
 }
@@ -156,6 +164,7 @@ export type SettingKey =
   | 'site_intro'
   | 'site_about_zh'
   | 'site_intro_zh'
+  | 'tag_glossary'
   | 'NOTION_TOKEN'
   | 'NOTION_DATABASE_ID';
 

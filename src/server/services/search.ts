@@ -5,13 +5,16 @@
  */
 import { newestFirst } from '../../core/order.ts';
 import type { SearchResponse } from '../../shared/contracts.ts';
+import { DEFAULT_LOCALE, type Locale } from '../../shared/i18n.ts';
 import { articlesRepository } from '../db/articles.repository.ts';
 import { presentArticle } from '../presenters.ts';
 import { articleBody, isDemo, listArticles } from './articles.ts';
+import { tagIndex, tagLangOf } from './tags.ts';
 
 export const MAX_QUERY_LENGTH = 120;
 
-export async function search(query: string, limit = 20): Promise<SearchResponse> {
+/** Tags match in either language: “fiction” finds articles tagged 小说 when the two are paired. */
+export async function search(query: string, limit = 20, locale: Locale = DEFAULT_LOCALE): Promise<SearchResponse> {
   const clean = String(query ?? '').trim().slice(0, MAX_QUERY_LENGTH);
   if (!clean) return { query: '', total: 0, articles: [] };
 
@@ -20,12 +23,14 @@ export async function search(query: string, limit = 20): Promise<SearchResponse>
     ? new Map(await Promise.all(articles.map(async (a) => [a.id, (await articleBody(a)).text] as const)))
     : articlesRepository.bodyTexts();
   const terms = clean.toLowerCase().split(/\s+/).filter(Boolean);
+  const tags = tagIndex(articles);
+  const lang = tagLangOf(locale);
 
   const scored = articles
     .map((article) => {
       const fields: [string, number][] = [
         [article.title, 5],
-        [article.tags.join(' '), 3],
+        [tags.aliases(article.tags).join(' '), 3],
         [article.excerpt, 2],
         [bodies.get(article.id) ?? '', 1],
       ];
@@ -40,5 +45,5 @@ export async function search(query: string, limit = 20): Promise<SearchResponse>
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || newestFirst(a.article, b.article));
 
-  return { query: clean, total: scored.length, articles: scored.slice(0, limit).map((entry) => presentArticle(entry.article)) };
+  return { query: clean, total: scored.length, articles: scored.slice(0, limit).map((entry) => presentArticle(entry.article, (names) => tags.names(names, lang))) };
 }

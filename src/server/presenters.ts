@@ -10,12 +10,16 @@ import type { ArticleDetail, ArticleLink, ArticleSummary } from '../shared/contr
 import { articlePath } from '../shared/routes.ts';
 import type { ArticleBody, ArticleRow } from './db/articles.repository.ts';
 
-export const presentArticle = (row: ArticleRow): ArticleSummary => ({
+/** Raw Notion tags → display names (see services/tags.ts); the default keeps them as written. */
+export type TagNames = (tags: string[]) => string[];
+const asWritten: TagNames = (tags) => tags;
+
+export const presentArticle = (row: ArticleRow, tagNames: TagNames = asWritten): ArticleSummary => ({
   id: row.id,
   slug: row.slug,
   title: row.title,
   date: row.date,
-  tags: row.tags,
+  tags: tagNames(row.tags),
   excerpt: row.excerpt,
   cover: row.cover,
   rank: row.rank,
@@ -27,8 +31,9 @@ export const presentArticleDetail = (
   row: ArticleRow,
   body: ArticleBody,
   around: { previous: ArticleLink | null; next: ArticleLink | null },
+  tagNames: TagNames = asWritten,
 ): ArticleDetail => ({
-  ...presentArticle(row),
+  ...presentArticle(row, tagNames),
   html: body.html,
   toc: body.toc,
   readingMinutes: readingMinutes(body.text),

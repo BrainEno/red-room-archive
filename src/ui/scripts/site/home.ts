@@ -55,7 +55,7 @@ const K = {
   latest:   { px: -0.3, py: 1.6, pz: 6.5, lx: -0.1, ly: 1.7, lz: 0, open: 0.35, ry: 0.3,   lum: 1,   st: 1 },
   featured: { px: 0.5,  py: 0.9, pz: 5,   lx: 0.6,  ly: 2.0, lz: 0, open: 0.15, ry: -0.45, lum: 1,   st: 1 },   // 低机位仰拍
   topics:   { px: -1.5, py: 3,   pz: 9,   lx: -1.4, ly: 1.6, lz: 0, open: 1,    ry: 0.5,   lum: 1,   st: 1 },   // 窗帘全开的大全景
-  contact:  { px: 0,    py: 1.4, pz: 13,  lx: 0,    ly: 2.2, lz: 0, open: 0,    ry: 0,     lum: 1,   st: 1 },
+  more:     { px: 0,    py: 1.4, pz: 13,  lx: 0,    ly: 2.2, lz: 0, open: 0,    ry: 0,     lum: 1,   st: 1 },   // 拉远、窗帘合上：谢幕
 };
 type Key = typeof K.home;
 Object.assign(world.cam, K.home);
@@ -71,9 +71,9 @@ seg(K.intro, K.introEnd, '#intro', 'top top', 'bottom bottom');          // 引�
 seg(K.introEnd, K.latest, '#latest', 'top bottom', 'top top');
 seg(K.latest, K.featured, '#featured', 'top bottom', 'top top');
 seg(K.featured, K.topics, '#topics', 'top bottom', 'top top');
-seg(K.topics, K.contact, '#contact', 'top bottom', 'top top');   // 全景 → 正面收束（原 about 俯拍段随 about 一起移除）
+seg(K.topics, K.more, '#more', 'top bottom', 'top top');   // 全景 → 正面收束（原 about 俯拍段随 about 一起移除；原 contact 段改名 more）
 
-['intro', 'latest', 'featured', 'topics', 'contact'].forEach((id) =>
+['intro', 'latest', 'featured', 'topics', 'more'].forEach((id) =>
   ScrollTrigger.create({ trigger: `#${id}`, start: 'top 50%', end: 'bottom 50%', toggleClass: { targets: `.bar a[href="#${id}"]`, className: 'on' } }));
 
 // 3) 招牌：三层 —— .sign（滚动飞行）→ .cam（开场镜头姿态/对焦）→ canvas（指针视差）

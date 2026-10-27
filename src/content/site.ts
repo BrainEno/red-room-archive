@@ -36,7 +36,7 @@ export interface SiteCopy {
 
 export const site: SiteIdentity = {
   name: 'Red Room Archive',
-  email: '',
+  email: 'nodeman24@outlook.com',
 };
 
 export const copy: Record<Locale, SiteCopy> = {

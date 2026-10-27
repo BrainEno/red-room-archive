@@ -5,8 +5,8 @@
 ```
 src/
 ├── shared/      线上契约：API 类型（contracts.ts）、公开 URL 规则（routes.ts）、语言协商（i18n.ts）；零运行时依赖
-├── core/        纯函数：Notion 块 → HTML（blocks.ts）、富文本类型、URL 安全、slug、文本与日期格式、排序（order.ts）、媒体识别、错误类型、.env
-├── content/     站点文案（en / zh-CN 两份）与默认值、演示文章（Notion 块格式）
+├── core/        纯函数：Notion 块 → HTML（blocks.ts）、富文本类型、URL 安全、slug、文本与日期格式、排序（order.ts）、中英标签归并（tags.ts）、媒体识别、错误类型、.env
+├── content/     站点文案（en / zh-CN 两份）与默认值、“更多”页面（more.ts）、内置标签对照（tags.ts）、演示文章（Notion 块格式）
 ├── middleware.ts 决定每个请求的语言（?lang → cookie → Accept-Language），写 cookie、Content-Language、Vary
 ├── server/      后端（只在 Node 里运行）
 │   ├── config.ts            环境变量 → 运行配置
@@ -15,7 +15,7 @@ src/
 │   ├── notion/              client（只读 REST：超时、429/5xx 重试、分页）
 │   │                        mapper（页面 → 文章、列识别、schema 检查）· tree（并发受限地取块树）
 │   ├── storage/             uploads（后台上传）· notion-media（Notion 文件的磁盘副本）
-│   ├── services/            articles（同步、缓存、正文渲染）· media（图片代理）· search · settings · auth · status
+│   ├── services/            articles（同步、缓存、正文渲染）· media（图片代理）· search · settings · tags（主题索引、按语言命名、筛选）· auth · status
 │   ├── presenters.ts        领域数据 → shared/contracts 里的 DTO
 │   ├── queries.ts           **页面唯一可用的服务端入口**（只读，返回 DTO）
 │   └── http/
@@ -28,7 +28,7 @@ src/
 │   ├── scripts/site/        首页动画（Three.js / GSAP / Lenis / Canvas 招牌）
 │   ├── scripts/admin/       后台单页应用（Articles / Settings / Files）
 │   ├── scripts/lib/api-client.ts  带类型的浏览器 API 客户端
-│   └── styles/              base / home / pages（含 Notion 块与颜色）/ cjk（全部中文排版规则）/ admin
+│   └── styles/              base / home / pages（含 Notion 块与颜色）/ more（/more 页面）/ cjk（全部中文排版规则）/ admin
 └── pages/       路由（组合根）
     ├── api/**               一行 re-export 到 server/http/endpoints
     ├── media/ uploads/      文件服务 → endpoints/media.ts、endpoints/uploads.ts

@@ -27,7 +27,8 @@
 .sec:lang(zh) { letter-spacing: 0; }
 .row .t:lang(zh) { line-height: 1.12; letter-spacing: .01em; }
 .prose h1:lang(zh), .page-head h1:lang(zh) { line-height: 1.1; letter-spacing: .01em; }
-.mail:lang(zh) { line-height: 1.05; }
+.go:lang(zh) { letter-spacing: 0; }
+.go:lang(zh) .go-a { margin-top: .12em; }
 .bar .brand:lang(zh), .site-brand:lang(zh) { letter-spacing: .02em; }
 
 /* ── Homepage intro (Archivo 600 at up to 4.4rem, 1.06 leading) ───────── */
@@ -55,3 +56,12 @@ html:lang(zh) body { line-height: 1.6; }
    uses the native convention instead — 着重号, dots under the characters. */
 .prose:lang(zh) em { font-style: normal; text-emphasis: filled dot; -webkit-text-emphasis: filled dot; text-emphasis-position: under right; -webkit-text-emphasis-position: under; }
 .prose:lang(zh) :is(code, pre) { letter-spacing: 0; }
+
+/* ── /more ───────────────────────────────────────────────────────────── */
+.mp-head h1:lang(zh) { font-size: clamp(4.2rem, 18vw, 17.5rem); line-height: .92; letter-spacing: 0; } /* ideographs fill the em box: scaled to the height of MORE */
+.mp-intro:lang(zh) { line-height: 1.7; letter-spacing: .02em; }
+.pub-title:lang(zh) { line-height: 1.02; letter-spacing: .01em; }
+.tc-title:lang(zh) { line-height: 1.02; letter-spacing: .02em; }
+.pub-sub:lang(zh), .pub-specs dd:lang(zh), .channel .note:lang(zh) { letter-spacing: .02em; }
+.pub-excerpt blockquote:lang(zh) { line-height: 1.95; letter-spacing: .03em; text-align: justify; line-break: strict; }
+:is(.mp-rule, .mp .lbl, .btn, .qr-empty):lang(zh) { letter-spacing: .08em; }
