@@ -1,34 +1,12 @@
 ---
-import Base from '../../layouts/Base.astro';
-import { getSite, listPosts } from '../../lib/db.ts';
+// Route: /journal?tag=&page=
+import JournalView from '../../ui/views/JournalView.astro';
+import { getJournal, getSite } from '../../server/queries.ts';
 
-const site = await getSite();
-const posts = listPosts();
-const dateLabel = (value: unknown) => String(value ?? '').slice(0, 10);
+const site = getSite();
+const page = Number(Astro.url.searchParams.get('page')) || 1;
+const tag = Astro.url.searchParams.get('tag') ?? undefined;
+const journal = getJournal({ page, tag });
+if (page > journal.pages) Astro.response.status = 404;
 ---
-
-<Base title={`Journal — ${site.name}`} bodyClass="plain">
-  <a class="back" href="/">← Home</a>
-  <main class="prose journal">
-    <p class="journal-label">{site.name} / Journal</p>
-    <h1>Journal</h1>
-    <p class="journal-intro">Notes, fragments, and longer pieces from the archive.</p>
-
-    {posts.length ? (
-      <ol class="journal-list">
-        {posts.map((post) => (
-          <li>
-            <a class="journal-entry" href={`/journal/${encodeURIComponent(post.slug)}`}>
-              <span class="journal-date">{dateLabel(post.created)}</span>
-              <span class="journal-title">{post.title}</span>
-              <span class="journal-tags">{post.tags.join(' / ')}</span>
-              <span class="journal-arrow" aria-hidden="true">↗</span>
-            </a>
-          </li>
-        ))}
-      </ol>
-    ) : (
-      <p class="journal-empty">No journal entries yet.</p>
-    )}
-  </main>
-</Base>
+<JournalView site={site} {...journal} />

@@ -1,0 +1,48 @@
+---
+import Page from '../layouts/Page.astro';
+import MediaPlayer from '../components/MediaPlayer.astro';
+import PrevNext from '../components/PrevNext.astro';
+import type { ItemDetail, ItemSummary } from '../../shared/contracts.ts';
+import type { Collection } from '../../shared/kinds.ts';
+
+export interface Props {
+  site: { name: string; url: string; email: string };
+  collection: Collection;
+  entry: ItemDetail;
+  previous?: ItemSummary;
+  next?: ItemSummary;
+}
+const { site, collection, entry, previous, next } = Astro.props;
+const data = entry.data as Record<string, unknown>;
+const text = (value: unknown) => (typeof value === 'string' || typeof value === 'number' ? String(value) : '');
+
+/** Per-collection credits shown under the title. */
+const credits: [string, string][] = (
+  entry.kind === 'music'
+    ? [['Artist', text(data.artist)], ['Duration', text(data.duration)], ['Year', text(entry.year ?? '')]]
+    : entry.kind === 'films'
+      ? [['Director', text(data.director)], ['Year', text(entry.year ?? '')], ['Rating', data.rating ? `${text(data.rating)}/10` : '']]
+      : [['Type', entry.type ?? ''], ['Year', text(entry.year ?? '')]]
+).filter(([, value]) => value) as [string, string][];
+
+const showMedia = entry.kind !== 'writing' || Boolean(entry.url);
+const description = entry.summary ?? `${entry.title} — ${collection.label.toLowerCase()} from ${site.name}.`;
+---
+<Page title={`${entry.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} description={description} current={collection.path} image={entry.cover} type="article">
+  <article class="prose entry-article">
+    <p class="kicker"><a href={collection.path}>{collection.label}</a></p>
+    <h1>{entry.title}</h1>
+    {credits.length > 0 && (
+      <dl class="credits">{credits.map(([key, value]) => <div><dt>{key}</dt><dd>{value}</dd></div>)}</dl>
+    )}
+    {entry.tags.length > 0 && <p class="tags">{entry.tags.map((tag) => <span>{tag}</span>)}</p>}
+    {entry.cover && entry.kind !== 'films' && <img class="cover" src={entry.cover} alt="" loading="lazy" decoding="async" />}
+    {showMedia && <MediaPlayer url={entry.url} title={entry.title} poster={entry.cover} />}
+    {entry.summary && !entry.bodyHtml && <p class="summary">{entry.summary}</p>}
+    <Fragment set:html={entry.bodyHtml} />
+  </article>
+  <PrevNext
+    previous={previous && { title: previous.title, href: previous.href }}
+    next={next && { title: next.title, href: next.href }}
+  />
+</Page>

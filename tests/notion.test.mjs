@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { archiveItem, createItem, fetchBody, fetchKind, updateItem } from '../src/lib/notion.ts';
+import { blocksToHtml } from '../src/core/blocks.ts';
+import { NotionClient } from '../src/server/notion/client.ts';
+import { NotionWriter, buildProperties } from '../src/server/notion/writer.ts';
+import { isPageId, toItems } from '../src/server/notion/mapper.ts';
 
 // 用假的 fetch 代替 Notion API：验证我们发出去的请求与解析回来的数据。
 const calls = [];
@@ -31,8 +34,13 @@ globalThis.fetch = async (url, init = {}) => {
   return json({});
 };
 
-process.env.NOTION_TOKEN = 'secret_test';
-process.env.NOTION_DB_WRITING = 'db-writing';
+const client = new NotionClient('secret_test');
+const writer = new NotionWriter(client, { writing: 'db-writing', films: undefined, music: undefined });
+const createItem = (kind, fields) => writer.create(kind, fields);
+const updateItem = (kind, id, fields) => writer.update(kind, id, fields);
+const archiveItem = (id) => writer.archive(id);
+const fetchBody = async (id) => blocksToHtml(await writer.bodyBlocks(id));
+const fetchKind = async () => toItems('writing', await client.queryDatabase('db-writing'));
 
 const reset = () => { calls.length = 0; childBlocks = []; queryResults = []; };
 test.after(() => { globalThis.fetch = realFetch; });
@@ -47,8 +55,8 @@ test('createItem maps aliases and encodes each property by its real type', async
   const post = calls.find((c) => c.method === 'POST' && c.url.endsWith('/pages'));
   assert.ok(post, 'POST /pages was sent');
   const p = post.body.properties;
-  assert.deepEqual(p.Name, { title: [{ text: { content: 'A Quiet Room' } }] });
-  assert.deepEqual(p.Slug, { rich_text: [{ text: { content: 'a-quiet-room' } }] });
+  assert.deepEqual(p.Name, { title: [{ type: 'text', text: { content: 'A Quiet Room' } }] });
+  assert.deepEqual(p.Slug, { rich_text: [{ type: 'text', text: { content: 'a-quiet-room' } }] });
   assert.deepEqual(p.Year, { number: 2026 });
   assert.deepEqual(p.Type, { select: { name: 'Essay' } });   // 回归：select/status 需要同名的外层键
   assert.deepEqual(p.Published, { checkbox: true });
@@ -88,7 +96,7 @@ test('updateItem with body replaces the page content (delete old blocks, append 
 
 test('updateItem rejects malformed page ids before calling Notion', async () => {
   reset();
-  await assert.rejects(updateItem('writing', '../../databases/x', { title: 'x' }), /invalid page id/);
+  await assert.rejects(updateItem('writing', '../../databases/x', { title: 'x' }), /invalid Notion page id/);
   assert.equal(calls.length, 0);
 });
 
@@ -125,4 +133,39 @@ test('fetchKind reads paginated results, lowercases keys and skips unpublished p
   assert.equal(items[0].slug, 'piece');
   assert.equal(items[0].data.year, 2026);
   assert.equal(items[0].data.name, 'Published Piece');
+});
+
+test('the Notion client reports upstream failures without leaking the response body', async () => {
+  const previous = globalThis.fetch;
+  globalThis.fetch = async () => new Response('{"message":"database abc is private to workspace XYZ"}', { status: 404 });
+  try {
+    await assert.rejects(client.queryDatabase('db-writing'), (error) => {
+      assert.equal(error.status, 502);
+      assert.equal(error.code, 'upstream_error');
+      assert.doesNotMatch(error.message, /workspace XYZ/);
+      return true;
+    });
+  } finally {
+    globalThis.fetch = previous;
+  }
+});
+
+test('toItems gives colliding slugs a numeric suffix instead of shadowing', () => {
+  const page = (id, title) => ({ id, created_time: '2026-01-01T00:00:00Z', last_edited_time: '2026-01-01T00:00:00Z',
+    properties: { Name: { type: 'title', title: [{ plain_text: title }] } } });
+  const items = toItems('films', [page('a', 'Night'), page('b', 'Night'), page('c', 'Night')]);
+  assert.deepEqual(items.map((i) => i.slug), ['night', 'night-2', 'night-3']);
+});
+
+test('isPageId accepts dashed and undashed ids only', () => {
+  assert.ok(isPageId('abcd1234abcd1234abcd1234abcd1234'));
+  assert.ok(isPageId('abcd1234-abcd-1234-abcd-1234abcd1234'));
+  assert.ok(!isPageId('../x'));
+  assert.ok(!isPageId(''));
+});
+
+test('buildProperties drops empty values and unknown columns', () => {
+  const props = buildProperties({ Name: { name: 'Name', type: 'title' }, Year: { name: 'Year', type: 'number' } },
+    { title: 'T', year: '', bogus: 'x' });
+  assert.deepEqual(Object.keys(props), ['Name']);
 });

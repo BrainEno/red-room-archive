@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseEnv, readEnv } from '../src/lib/env.ts';
+import { parseEnv, readEnv } from '../src/core/env.ts';
 
 test('parseEnv understands comments, export, quotes and inline comments', () => {
   const env = parseEnv([

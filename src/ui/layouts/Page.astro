@@ -1,0 +1,32 @@
+---
+/**
+ * Layout for every inner (non-homepage) page: skip link, site header with
+ * collection navigation, main landmark and footer.
+ */
+import Base from './Base.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import '../styles/pages.css';
+
+export interface Props {
+  title: string;
+  siteName: string;
+  siteUrl?: string;
+  email?: string;
+  description?: string;
+  current?: string;
+  image?: string | null;
+  type?: 'website' | 'article';
+  noindex?: boolean;
+}
+
+const { title, siteName, siteUrl, email = '', description, current, image, type, noindex } = Astro.props;
+---
+<Base title={title} siteName={siteName} siteUrl={siteUrl} description={description} image={image} type={type} noindex={noindex} bodyClass="plain">
+  <a class="skip" href="#content">Skip to content</a>
+  <SiteHeader siteName={siteName} current={current} />
+  <main id="content" class="page">
+    <slot />
+  </main>
+  <SiteFooter siteName={siteName} email={email} />
+</Base>

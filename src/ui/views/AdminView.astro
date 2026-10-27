@@ -1,0 +1,10 @@
+---
+import Base from '../layouts/Base.astro';
+import '../styles/pages.css';
+import '../styles/admin.css';
+---
+<Base title="Admin" bodyClass="admin" noindex>
+  <div id="app"></div>
+  <div id="toast" class="toast" aria-live="polite"></div>
+  <script>import '../scripts/admin/main.ts';</script>
+</Base>

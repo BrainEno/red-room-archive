@@ -1,0 +1,17 @@
+---
+export interface Props {
+  previous?: { title: string; href: string };
+  next?: { title: string; href: string };
+}
+const { previous, next } = Astro.props;
+---
+{(previous || next) && (
+  <nav class="prevnext" aria-label="More from the archive">
+    {previous ? (
+      <a rel="prev" href={previous.href}><small>Previous</small><span>{previous.title}</span></a>
+    ) : <span />}
+    {next ? (
+      <a rel="next" href={next.href}><small>Next</small><span>{next.title}</span></a>
+    ) : <span />}
+  </nav>
+)}

@@ -1,0 +1,13 @@
+---
+// Route: /works/:slug · /music/:slug · /video/:slug
+import EntryView from '../../ui/views/EntryView.astro';
+import NotFoundView from '../../ui/views/NotFoundView.astro';
+import { getEntry, getSite } from '../../server/queries.ts';
+import { collectionBySlug } from '../../shared/kinds.ts';
+
+const site = getSite();
+const collection = collectionBySlug(Astro.params.collection ?? '');
+const view = collection ? await getEntry(collection.kind, Astro.params.slug ?? '') : undefined;
+if (!view) Astro.response.status = 404;
+---
+{collection && view ? <EntryView site={site} collection={collection} {...view} /> : <NotFoundView site={site} />}

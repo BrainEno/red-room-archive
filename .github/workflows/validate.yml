@@ -35,7 +35,9 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Run Markdown regression tests
+      - name: Type check
+        run: npm run typecheck
+      - name: Run tests (unit, API contract, architecture boundaries)
         run: npm test
       - name: Build Astro site
         run: npm run build

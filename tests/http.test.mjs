@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HttpError, paging, readJson, truthy, toResponse } from '../src/lib/http.ts';
-import { isSafeUrl } from '../src/lib/safety.ts';
+import { AppError, conflict, upstreamError } from '../src/core/errors.ts';
+import { errorResponse, paging, readJson, route, truthy } from '../src/server/http/respond.ts';
+import { isSafeUrl } from '../src/core/safety.ts';
 
 test('paging clamps limit and offset', () => {
   const u = (q) => new URL('https://x.test/api?' + q);
@@ -14,17 +15,36 @@ test('paging clamps limit and offset', () => {
 test('readJson rejects malformed and oversized bodies', async () => {
   const ok = await readJson(new Request('https://x.test/', { method: 'POST', body: '{"a":1}' }));
   assert.equal(ok.a, 1);
-
   await assert.rejects(readJson(new Request('https://x.test/', { method: 'POST', body: 'not json' })), /invalid JSON/);
   await assert.rejects(readJson(new Request('https://x.test/', { method: 'POST', body: '[1]' })), /must be an object/);
   await assert.rejects(readJson(new Request('https://x.test/', { method: 'POST', body: '{"a":"' + 'x'.repeat(50) + '"}', headers: { 'content-length': '99999999' } })), /too large/);
 });
 
-test('toResponse maps HttpError to a JSON error and hides unknown errors', () => {
-  const known = toResponse(new HttpError(409, 'slug already exists', { slug: 'x' }));
+test('errorResponse uses the contract shape { error, code, details? }', async () => {
+  const known = errorResponse(conflict('slug already exists', { slug: 'x' }));
   assert.equal(known.status, 409);
-  const unknown = toResponse(new Error('secret internal detail'));
+  assert.deepEqual(await known.json(), { error: 'slug already exists', code: 'conflict', details: { slug: 'x' } });
+
+  const upstream = errorResponse(upstreamError('could not reach Notion'));
+  assert.equal(upstream.status, 502);
+  assert.equal((await upstream.json()).code, 'upstream_error');
+
+  const unknown = errorResponse(new Error('secret internal detail'));
   assert.equal(unknown.status, 500);
+  const body = await unknown.json();
+  assert.equal(body.code, 'internal');
+  assert.doesNotMatch(JSON.stringify(body), /secret/);
+});
+
+test('401 responses advertise the Bearer scheme', () => {
+  const response = errorResponse(new AppError(401, 'unauthorized', 'nope'));
+  assert.equal(response.headers.get('www-authenticate'), 'Bearer');
+});
+
+test('route() converts thrown errors into responses', async () => {
+  const handler = route(() => { throw conflict('taken'); });
+  const response = await handler({});
+  assert.equal(response.status, 409);
 });
 
 test('truthy accepts the usual form/db spellings', () => {

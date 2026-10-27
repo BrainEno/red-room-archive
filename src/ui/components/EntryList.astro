@@ -1,0 +1,35 @@
+---
+/** Numbered index of archive entries (collection pages, search results). */
+import type { ItemSummary } from '../../shared/contracts.ts';
+
+export interface Props {
+  items: ItemSummary[];
+  /** Show the collection label in each row (useful for mixed results). */
+  showKind?: boolean;
+  kindLabel?: (item: ItemSummary) => string;
+  empty?: string;
+}
+const { items, showKind = false, kindLabel = (item: ItemSummary) => item.kind, empty = 'Nothing here yet.' } = Astro.props;
+const pad = (index: number) => String(index + 1).padStart(2, '0');
+const secondary = (item: ItemSummary) => {
+  const data = item.data as Record<string, unknown>;
+  const by = data.artist ?? data.director ?? data.author;
+  return [showKind ? kindLabel(item) : null, typeof by === 'string' ? by : null, item.type].filter(Boolean).join(' · ');
+};
+---
+{items.length ? (
+  <ol class="entries">
+    {items.map((item, index) => (
+      <li>
+        <a class="entry" href={item.href}>
+          <span class="entry-n">{pad(index)}</span>
+          <span class="entry-title">{item.title}</span>
+          <span class="entry-meta">{secondary(item)}</span>
+          <span class="entry-year">{item.year ?? ''}</span>
+        </a>
+      </li>
+    ))}
+  </ol>
+) : (
+  <p class="empty">{empty}</p>
+)}
