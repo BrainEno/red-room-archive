@@ -5,13 +5,16 @@
  * Public pages should read the site profile from here, never from `process.env`
  * directly, so a value edited in /admin takes effect everywhere.
  */
+import { randomUUID } from 'node:crypto';
 import { readEnv } from '../../core/env.ts';
 import { badRequest } from '../../core/errors.ts';
 import { copy, site as identity } from '../../content/site.ts';
 import { DEFAULT_LOCALE, type Locale } from '../../shared/i18n.ts';
 import type { SettingKey, SettingValues } from '../../shared/contracts.ts';
 import { settingsRepository } from '../db/settings.repository.ts';
+import { transaction } from '../db/connection.ts';
 import { metaRepository } from '../db/meta.repository.ts';
+import { articlesRepository } from '../db/articles.repository.ts';
 import { parseNotionId } from '../notion/mapper.ts';
 
 export const SETTING_KEYS: readonly SettingKey[] = [
@@ -120,7 +123,9 @@ export function adminSettings(): { values: SettingValues & { hasToken: boolean }
   return { values: { ...values, hasToken: Boolean(notion.token) } };
 }
 
-type Listener = () => void;
+export const notionGeneration = () => metaRepository.get('notion_generation') ?? '0';
+
+type Listener = (previousGeneration: string) => void;
 const listeners: Listener[] = [];
 
 /** Called after the Notion credentials change (the article cache is reset). */
@@ -130,48 +135,52 @@ export const onNotionChange = (listener: Listener) => listeners.push(listener);
  * Apply a partial settings update.
  *
  * - Omitted keys are untouched.
- * - An empty string clears the override (falls back to `.env`).
- * - A masked token (`••••xxxx`) means "keep the stored value".
+ * - An empty string clears an override (falls back to `.env`), except the token.
+ * - An empty or masked token (`••••xxxx`) means "keep the stored value".
  * - The database accepts an id or a pasted Notion link.
  */
 export function updateSettings(patch: Record<string, unknown>): void {
+  // Validate before making any changes. A bad database ID must not silently
+  // save the token or other fields supplied in the same request.
+  const rawId = 'NOTION_DATABASE_ID' in patch ? String(patch.NOTION_DATABASE_ID ?? '').trim() : '';
+  const databaseId = rawId ? parseNotionId(rawId) : null;
+  if (rawId && !databaseId) throw badRequest('NOTION_DATABASE_ID must be a Notion database id or link', { value: rawId });
+
   let notionChanged = false;
-  const before = notionConfig();
+  let previousGeneration = '0';
+  transaction(() => {
+    const before = notionConfig();
+    previousGeneration = notionGeneration();
+    for (const key of SETTING_KEYS) {
+      if (!(key in patch)) continue;
+      const value = String(patch[key] ?? '').trim();
 
-  for (const key of SETTING_KEYS) {
-    if (!(key in patch)) continue;
-    const value = String(patch[key] ?? '').trim();
-
-    if (key === 'NOTION_TOKEN') {
-      if (!value || value.startsWith('••••')) continue;
-      settingsRepository.set(key, value);
-      continue;
-    }
-
-    if (key === 'NOTION_DATABASE_ID') {
-      if (!value) {
-        settingsRepository.remove(key);
-        settingsRepository.remove('NOTION_DB_WRITING');
-        continue;
+      if (key === 'NOTION_TOKEN') {
+        if (value && !value.startsWith('••••')) settingsRepository.set(key, value);
+      } else if (key === 'NOTION_DATABASE_ID') {
+        if (databaseId) settingsRepository.set(key, databaseId);
+        else {
+          settingsRepository.remove(key);
+          settingsRepository.remove('NOTION_DB_WRITING');
+        }
+      } else {
+        // Saving the form untouched must not freeze defaults as overrides.
+        const fallback = SITE_DEFAULTS[key];
+        if (value && value !== fallback) settingsRepository.set(key, value);
+        else settingsRepository.remove(key);
       }
-      const id = parseNotionId(value);
-      if (!id) throw badRequest('NOTION_DATABASE_ID must be a Notion database id or link', { value });
-      settingsRepository.set(key, id);
-      continue;
     }
 
-    // Saving the form untouched must not freeze today's defaults as overrides.
-    const fallback = SITE_DEFAULTS[key];
-    if (value && value !== fallback) settingsRepository.set(key, value);
-    else settingsRepository.remove(key);
-  }
-
-  const after = notionConfig();
-  notionChanged = before.token !== after.token || before.databaseId !== after.databaseId;
+    const after = notionConfig();
+    notionChanged = before.token !== after.token || before.databaseId !== after.databaseId;
+    if (notionChanged) {
+      metaRepository.remove('synced');
+      metaRepository.remove('sync_error');
+      articlesRepository.clear();
+      metaRepository.set('notion_generation', randomUUID());
+    }
+  });
   if (notionChanged) {
-    // Different credentials or database: the cached articles are no longer trustworthy.
-    metaRepository.remove('synced');
-    metaRepository.remove('sync_error');
-    for (const listener of listeners) listener();
+    for (const listener of listeners) listener(previousGeneration);
   }
 }

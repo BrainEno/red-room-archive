@@ -3,10 +3,11 @@
  *
  * Notion serves uploaded images and files from signed S3 URLs that expire
  * after about an hour, so they cannot be put into cached HTML. The site emits
- * `/media/notion/<id>` instead and keeps a copy here: `<id>` (bytes) next to
- * `<id>.json` (content type, size, and the article revision it belongs to).
+ * `/media/notion/<id>` instead and stores each configuration in a separate
+ * directory. Each `<id>` has a `<id>.json` sidecar (type and article revision).
  */
 import { createWriteStream, mkdirSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -25,20 +26,23 @@ export interface CachedMedia {
 
 const ID = /^[0-9a-f]{32}$/;
 
-const dir = () => {
-  const directory = config.mediaDir();
+// A configuration change gets a new namespace: late downloads cannot replace
+// files belonging to the newly selected database, even across processes.
+const dir = (generation: string) => {
+  if (!/^(0|[0-9a-f-]{36})$/.test(generation)) throw new Error('invalid media generation');
+  const directory = path.join(config.mediaDir(), `generation-${generation}`);
   mkdirSync(directory, { recursive: true });
   return directory;
 };
 
-const fileFor = (id: string) => {
+const fileFor = (id: string, generation: string) => {
   if (!ID.test(id)) throw new Error(`invalid media id: ${id}`);
-  return path.join(dir(), id);
+  return path.join(dir(generation), id);
 };
 
-export async function readCached(id: string): Promise<CachedMedia | null> {
+export async function readCached(id: string, generation: string): Promise<CachedMedia | null> {
   try {
-    const file = fileFor(id);
+    const file = fileFor(id, generation);
     const meta = JSON.parse(await readFile(`${file}.json`, 'utf8')) as { mime: string; revision: string };
     const info = await stat(file);
     return { path: file, size: info.size, mtime: Math.floor(info.mtimeMs / 1000), mime: meta.mime, revision: meta.revision };
@@ -52,8 +56,8 @@ const SAFE_INLINE = /^(image\/(png|jpe?g|gif|webp|avif|bmp|x-icon)|video\/[\w.+-
 export const inlineSafe = (mime: string) => SAFE_INLINE.test(mime);
 
 /** Stream `response` to disk (atomic rename), refusing bodies over `maxBytes`. */
-export async function store(id: string, response: Response, revision: string, maxBytes = config.maxMediaBytes()): Promise<CachedMedia> {
-  const file = fileFor(id);
+export async function store(id: string, response: Response, revision: string, generation: string, validate: () => void, maxBytes = config.maxMediaBytes()): Promise<CachedMedia> {
+  const file = fileFor(id, generation);
   const declared = Number(response.headers.get('content-length') ?? 0);
   if (declared > maxBytes) {
     await response.body?.cancel().catch(() => undefined);
@@ -62,7 +66,7 @@ export async function store(id: string, response: Response, revision: string, ma
   if (!response.body) throw upstreamError('empty response from Notion file storage');
 
   const mime = (response.headers.get('content-type') ?? 'application/octet-stream').split(';')[0]!.trim().toLowerCase();
-  const temp = `${file}.${process.pid}.${Date.now()}.part`;
+  const temp = `${file}.${randomUUID()}.part`;
   let total = 0;
   const source = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream<Uint8Array>);
   source.on('data', (chunk: Buffer) => {
@@ -71,6 +75,7 @@ export async function store(id: string, response: Response, revision: string, ma
   });
   try {
     await pipeline(source, createWriteStream(temp));
+    validate();
     await rename(temp, file);
     await writeFile(`${file}.json`, JSON.stringify({ mime, revision }));
   } catch (error) {
@@ -81,14 +86,14 @@ export async function store(id: string, response: Response, revision: string, ma
   return { path: file, size: info.size, mtime: Math.floor(info.mtimeMs / 1000), mime, revision };
 }
 
-export async function removeMedia(ids: string[]) {
+export async function removeMedia(ids: string[], generation: string) {
   await Promise.all(
-    ids.filter((id) => ID.test(id)).flatMap((id) => [rm(fileFor(id), { force: true }), rm(`${fileFor(id)}.json`, { force: true })]),
+    ids.filter((id) => ID.test(id)).flatMap((id) => [rm(fileFor(id, generation), { force: true }), rm(`${fileFor(id, generation)}.json`, { force: true })]),
   );
 }
 
-export async function clearMedia() {
-  const directory = dir();
+export async function clearMedia(generation: string) {
+  const directory = dir(generation);
   const names = await readdir(directory).catch(() => [] as string[]);
   await Promise.all(names.map((name) => rm(path.join(directory, name), { force: true })));
 }

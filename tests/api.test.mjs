@@ -165,6 +165,9 @@ test('media proxy: allow-listed ids only, cached on disk, ranges, fresh URL on m
   assert.match(first.headers.get('content-security-policy'), /sandbox/);
   assert.equal(mock.state.downloads, 1);
 
+  const { notionGeneration } = await import('../src/server/services/settings.ts');
+  assert.ok(existsSync(path.join(process.env.MEDIA_CACHE_DIR, `generation-${notionGeneration()}`, id)), 'image is cached in the active generation');
+
   // Notion re-signs URLs; the proxy asks for a fresh one, never reuses the old.
   mock.state.signature = 2;
   const again = await call(media.serveNotionMedia, { params: { id } });
@@ -187,7 +190,8 @@ test('editing a page in Notion invalidates its body and media on the next sync',
   const before = notionCalls('/children');
   mock.touch(ID.first, '2026-10-02T09:00:00.000Z');
   await call(admin.runSync, { method: 'POST', token: TOKEN });
-  assert.ok(!existsSync(path.join(process.env.MEDIA_CACHE_DIR, compact(ID.image))), 'old image copy is deleted');
+  const { notionGeneration } = await import('../src/server/services/settings.ts');
+  assert.ok(!existsSync(path.join(process.env.MEDIA_CACHE_DIR, `generation-${notionGeneration()}`, compact(ID.image))), 'old image copy is deleted');
 
   const detail = await call(pub.getArticle, { params: { slug: 'first-light' } });
   assert.equal(detail.data.updated, '2026-10-02T09:00:00.000Z');
