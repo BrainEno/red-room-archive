@@ -5,11 +5,19 @@
 
 Astro 5（SSR / Node）· Three.js · GSAP · Lenis · Canvas 2D · Notion API · SQLite（只用作本地缓存）
 
+需要 Node.js 22（CI 使用 Node.js 22）和 npm。在项目根目录执行：
+
 ```bash
-npm install
+npm ci                 # 按 package-lock.json 安装依赖
 cp .env.example .env   # 先填 ADMIN_TOKEN；Notion 可以之后在 /admin 里配置
 npm run dev            # http://localhost:4321   后台：/admin
 ```
+
+### 字体模块找不到？
+
+如果启动时报 `Cannot find module '@fontsource-variable/archivo/wdth.css'`，先停止开发服务器，在包含 `package-lock.json` 的项目根目录运行 `npm ci`，然后重新运行 `npm run dev`。`npm ci` 会删除并重建 `node_modules`，**不会删除 `.env` 或 `data/`**；不要删除或重建锁文件。切换分支或更新代码后也可能需要重新安装依赖。
+
+可以用 `node -p "require.resolve('@fontsource-variable/archivo/wdth.css')"` 检查当前安装是否能解析该文件。锁定的 Archivo 版本包含这个文件；它提供页面使用的可变字宽，不应改成默认的仅字重字体。如果重装失败，请先检查 npm 的安装错误；若解析成功但仍报错，请确认启动命令是在正确的项目目录中运行。
 
 没配置 Notion 时，网站显示 3 篇内置的演示文章（`src/content/site.ts`），方便先看效果。
 
