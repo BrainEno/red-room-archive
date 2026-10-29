@@ -15,13 +15,13 @@ v2 起网站只读 Notion：没有任何创建/修改文章的接口，内容请
   | 400 | `bad_request` | 参数非法、Notion 未配置 |
   | 401 | `unauthorized` | 缺少或错误的 token（带 `WWW-Authenticate: Bearer`） |
   | 404 | `not_found` | 文章不存在（未发布、定时未到也是 404） |
-  | 409 | `conflict` | 上传文件名冲突 |
+  | 409 | `conflict` | 上传文件名冲突，或 Notion 设置/文章在操作期间发生变化，请重试 |
   | 413 | `payload_too_large` | 请求体、上传文件或 Notion 文件过大 |
   | 429 | `rate_limited` | 错误 token 次数过多（同 IP 10 分钟内 12 次） |
   | 502 | `upstream_error` | Notion 拒绝或不可达（上游细节只写服务器日志） |
   | 503 | `unavailable` | 服务器未配置 `ADMIN_TOKEN` / Notion |
   | 500 | `internal` | 未预期的错误 |
-- **缓存**：公开读接口带短 `Cache-Control`；带 token 的请求一律 `no-store`。
+- **缓存**：公开读接口通常带短 `Cache-Control`，即使请求带 token 也可能被公开缓存；管理接口和带管理员凭据的文章详情使用 `no-store`。不要向公开接口发送敏感数据。
 - **语言**：`/api/site` 的简介/引言，以及文章、标签、搜索接口里的**标签名**随 `?lang=en|zh-CN` 变化（默认 `en`；不看 cookie 和 `Accept-Language`，同一个 URL 永远返回同一种语言，方便缓存）。
   标题、摘要、正文是 Notion 原文，与语言无关。`TagCount.key` 在两种语言里相同，可以当作稳定的主题 id。HTML 页面按 `?lang` → `lang` cookie → `Accept-Language` → `en` 决定语言，响应带 `Content-Language` 与 `Vary: Cookie, Accept-Language`。
 
@@ -66,9 +66,9 @@ interface ArticleSummary {
 | GET | `/api/auth` | 服务器是否配置了 `ADMIN_TOKEN`（公开） | `AuthStatusResponse` |
 | POST | `/api/auth` | `{ token }` 校验登录（公开，带限流） | `AuthResponse` |
 | GET | `/api/settings` | 设置（token 打码）+ 同步状态 | `SettingsResponse` |
-| PATCH | `/api/settings` | 局部更新。空字符串 = 清除覆盖值；打码的 token = 保持不变；`NOTION_DATABASE_ID` 可传 id 或数据库链接。改变 token/数据库会清空文章缓存 | `SettingsResponse` |
+| PATCH | `/api/settings` | 局部更新。空字符串清除普通设置的覆盖值；空或打码的 Notion token 表示保持不变；`NOTION_DATABASE_ID` 可传 id 或数据库链接。改变 token/数据库会清空文章缓存 | `SettingsResponse` |
 | GET | `/api/sync` | 同步状态 | `SyncStatusResponse` |
-| POST | `/api/sync` | 立即同步。`?full=1` 先清空正文与图片缓存；`?bodies=1` 同步后预取所有缺失正文 | `SyncResponse` |
+| POST | `/api/sync` | 立即同步。`?full=1` 成功取回文章列表后清空正文与图片缓存；`?bodies=1` 同步后预取所有缺失正文 | `SyncResponse` |
 | GET | `/api/notion/schema` | 数据库的列、每个文章字段对应到哪一列、警告 | `NotionSchemaResponse` |
 | GET/POST | `/api/uploads` | 列表 / 上传（`?name=` 流式或 multipart；`as=model` 替换首页雕像） | `UploadListResponse` / `UploadResponse` |
 | GET/PATCH/DELETE | `/api/uploads/:name` | 信息 / 改名 / 删除。改名时“更多”页面里引用它的封面/二维码地址同步更新 | `UploadFile` / 204 |
@@ -116,7 +116,7 @@ interface MoreDocument {
 | --- | --- |
 | `GET /api/archive`、`/api/items/:kind`、`/api/items/:kind/:slug` | `GET /api/articles`、`/api/articles/:slug` |
 | `/api/posts*`、`/api/markdown`、`/api/posts/:slug/revisions*`、`/api/trash*` | 删除（文章只在 Notion 里编辑） |
-| `/api/backups*`、`/api/export`、`/api/import` | 删除（数据在 Notion；SQLite 只是缓存） |
+| `/api/backups*`、`/api/export`、`/api/import` | 删除（文章在 Notion；SQLite 仍存有站点设置和“更多”页面，需备份） |
 | `/api/notion/:kind`（读列 / 写页面） | `GET /api/notion/schema`（只读） |
 | `POST /api/sync?kind=` | `POST /api/sync?full=&bodies=` |
 | `SearchResponse.posts / items` | `SearchResponse.articles` |

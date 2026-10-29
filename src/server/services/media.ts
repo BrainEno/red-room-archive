@@ -11,7 +11,8 @@ import { notFound, upstreamError } from '../../core/errors.ts';
 import { articlesRepository } from '../db/articles.repository.ts';
 import { coverSource } from '../notion/mapper.ts';
 import { readCached, store, type CachedMedia } from '../storage/notion-media.ts';
-import { notion } from './articles.ts';
+import { assertGeneration, notion } from './articles.ts';
+import { notionGeneration } from './settings.ts';
 
 const ID = /^[0-9a-f]{32}$/;
 const DOWNLOAD_TIMEOUT_MS = 60_000;
@@ -36,18 +37,29 @@ const pending = new Map<string, Promise<CachedMedia>>();
 export async function notionMedia(rawId: string): Promise<CachedMedia> {
   const id = String(rawId ?? '').toLowerCase().replace(/-/g, '');
   if (!ID.test(id)) throw notFound();
+  const generation = notionGeneration();
   const entry = articlesRepository.media(id);
   const article = entry && articlesRepository.byId(entry.articleId);
   if (!entry || !article) throw notFound();
 
-  const cached = await readCached(id);
+  const validate = () => {
+    assertGeneration(generation);
+    const currentEntry = articlesRepository.media(id);
+    const currentArticle = currentEntry && articlesRepository.byId(currentEntry.articleId);
+    if (!currentEntry || currentEntry.articleId !== entry.articleId || currentEntry.kind !== entry.kind ||
+        !currentArticle || currentArticle.updated !== article.updated) throw notFound('media is no longer published');
+  };
+  const cached = await readCached(id, generation);
+  validate();
   if (cached && cached.revision === article.updated) return cached;
 
-  const running = pending.get(id);
+  const key = `${generation}:${id}`;
+  const running = pending.get(key);
   if (running) return running;
   const job = (async () => {
     try {
       const url = await freshUrl(entry);
+      validate();
       let response: Response;
       try {
         response = await fetch(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
@@ -59,15 +71,24 @@ export async function notionMedia(rawId: string): Promise<CachedMedia> {
         await response.body?.cancel().catch(() => undefined);
         throw upstreamError(`Notion file storage answered ${response.status}`);
       }
-      return await store(id, response, article.updated);
+      try {
+        validate();
+      } catch (error) {
+        await response.body?.cancel().catch(() => undefined);
+        throw error;
+      }
+      const file = await store(id, response, article.updated, generation, validate);
+      validate();
+      return file;
     } catch (error) {
-      // An outdated copy beats a broken image while Notion is unreachable.
+      // Never use a stale fallback after authorization or configuration changes.
+      validate();
       if (cached) return cached;
       throw error;
     } finally {
-      pending.delete(id);
+      pending.delete(key);
     }
   })();
-  pending.set(id, job);
+  pending.set(key, job);
   return job;
 }

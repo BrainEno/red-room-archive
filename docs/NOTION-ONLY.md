@@ -1,6 +1,8 @@
 # 转为 Notion-only：选型与取舍
 
-> 2026-10 · 本次改动的背景记录。问题是：在 red-room-archive 里实现旧项目
+> 历史决策记录（2026-10）：后续新增的“更多”页面和站点设置保存在 SQLite，并非可重建缓存；请以 README 和 ARCHITECTURE 为准。
+>
+> 本次改动的背景记录。问题是：在 red-room-archive 里实现旧项目
 > [BrainEno/astro-notion](https://github.com/BrainEno/astro-notion) 的功能，还是更新旧仓库、把这里的首页 UI 与动画搬过去？
 
 ## 结论：留在本仓库，把旧项目的 Notion 约定移植过来

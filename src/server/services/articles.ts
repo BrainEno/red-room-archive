@@ -12,19 +12,20 @@
  * While Notion is not configured the built-in demo articles are served.
  */
 import { renderBlocks, type LinkedPage, type RenderResult } from '../../core/blocks.ts';
-import { notFound, unavailable } from '../../core/errors.ts';
+import { conflict, notFound, unavailable } from '../../core/errors.ts';
 import { newestFirst } from '../../core/order.ts';
 import { demoArticles } from '../../content/site.ts';
 import type { ArticleLink } from '../../shared/contracts.ts';
 import { articlePath, notionMediaPath } from '../../shared/routes.ts';
 import { config } from '../config.ts';
 import { articlesRepository, type ArticleBody, type ArticleRow } from '../db/articles.repository.ts';
+import { transaction } from '../db/connection.ts';
 import { metaRepository } from '../db/meta.repository.ts';
 import { NotionClient } from '../notion/client.ts';
 import { toArticles } from '../notion/mapper.ts';
 import { fetchBlockTree } from '../notion/tree.ts';
 import { clearMedia, removeMedia } from '../storage/notion-media.ts';
-import { notionConfig, notionReady, onNotionChange } from './settings.ts';
+import { notionConfig, notionGeneration, notionReady, onNotionChange } from './settings.ts';
 
 const compact = (id: string) => id.replace(/-/g, '').toLowerCase();
 
@@ -38,7 +39,13 @@ export function notion(): { client: NotionClient; databaseId: string } {
 
 /* ── Sync ───────────────────────────────────────────────────────────── */
 
-let inFlight: Promise<number> | null = null;
+let mediaCleanup: Promise<void> = Promise.resolve();
+let inFlight: { generation: string; promise: Promise<number> } | null = null;
+
+const changed = () => conflict('Notion settings changed during the operation; please retry');
+export const assertGeneration = (expected: string) => {
+  if (expected !== notionGeneration()) throw changed();
+};
 
 export function syncState() {
   return {
@@ -53,26 +60,46 @@ export function syncState() {
  * share one run. `full` also drops every cached body and media file.
  */
 export function syncArticles(options: { full?: boolean } = {}): Promise<number> {
-  if (inFlight) return inFlight;
-  inFlight = (async () => {
+  if (inFlight) {
+    if (inFlight.generation === notionGeneration()) return inFlight.promise;
+    // Wait for the old task and its disk cleanup to finish before starting a
+    // new sync. Never join a task for different credentials or database.
+    return inFlight.promise.catch(() => undefined).then(() => syncArticles(options));
+  }
+  const current = notionGeneration();
+  // The microtask ensures inFlight is installed before any synchronous error.
+  const promise = Promise.resolve().then(async () => {
     try {
+      await mediaCleanup;
+      assertGeneration(current);
       const { client, databaseId } = notion();
       const pages = await client.queryDatabase(databaseId);
+      assertGeneration(current);
       const mapped = toArticles(pages);
-      const stale = articlesRepository.replaceAll(mapped.rows, mapped.covers, { dropBodies: options.full });
-      if (options.full) await clearMedia();
-      else await removeMedia(stale);
-      metaRepository.set('synced', String(Date.now()));
-      metaRepository.remove('sync_error');
+      const stale = transaction(() => {
+        assertGeneration(current);
+        return articlesRepository.replaceAll(mapped.rows, mapped.covers, { dropBodies: options.full });
+      });
+      if (options.full) await clearMedia(current);
+      else await removeMedia(stale, current);
+      transaction(() => {
+        assertGeneration(current);
+        metaRepository.set('synced', String(Date.now()));
+        metaRepository.remove('sync_error');
+      });
       return mapped.rows.length;
     } catch (error) {
-      metaRepository.set('sync_error', error instanceof Error ? error.message : String(error));
+      transaction(() => {
+        assertGeneration(current);
+        metaRepository.set('sync_error', error instanceof Error ? error.message : String(error));
+      });
       throw error;
     } finally {
       inFlight = null;
     }
-  })();
-  return inFlight;
+  });
+  inFlight = { generation: current, promise };
+  return promise;
 }
 
 /** Make sure the cache is usable; refresh it in the background when stale. */
@@ -90,9 +117,10 @@ export async function ensureFresh(): Promise<void> {
 }
 
 // New credentials or database: forget the old articles and their files.
-onNotionChange(() => {
-  const ids = articlesRepository.clear();
-  void removeMedia(ids);
+onNotionChange((previousGeneration) => {
+  mediaCleanup = mediaCleanup.then(() => clearMedia(previousGeneration)).catch((error) => {
+    console.error('[media] cleanup after settings change', error);
+  });
 });
 
 /* ── Reading ────────────────────────────────────────────────────────── */
@@ -149,7 +177,7 @@ const pageResolver = (articles: ArticleRow[]) => {
 
 const toBody = (result: RenderResult, updated: string): ArticleBody => ({ html: result.html, text: result.text, toc: result.toc, updated });
 
-const rendering = new Map<string, Promise<ArticleBody>>();
+const rendering = new Map<string, { generation: string; promise: Promise<ArticleBody> }>();
 
 /**
  * Rendered body of an article. `refresh` (admin only) ignores the cache.
@@ -166,22 +194,31 @@ export async function articleBody(article: ArticleRow, options: { refresh?: bool
     if (cached) return cached;
   }
 
+  const current = notionGeneration();
   const pending = rendering.get(article.id);
-  if (pending) return pending;
+  if (pending?.generation === current) return pending.promise;
 
   const job = (async () => {
     try {
       const { client } = notion();
       const blocks = await fetchBlockTree(client, article.id);
-      const result = renderBlocks(blocks, {
-        fileUrl: (blockId) => notionMediaPath(blockId),
-        page: pageResolver(articlesRepository.all()),
+      return transaction(() => {
+        assertGeneration(current);
+        const latest = articlesRepository.byId(article.id);
+        if (!latest || latest.updated !== article.updated) throw conflict('Article changed during rendering; please retry');
+        const result = renderBlocks(blocks, {
+          fileUrl: (blockId) => notionMediaPath(blockId),
+          page: pageResolver(articlesRepository.all()),
+        });
+        articlesRepository.registerMedia(article.id, result.files.map(compact));
+        const body = toBody(result, article.updated);
+        articlesRepository.saveBody(article.id, body);
+        return body;
       });
-      articlesRepository.registerMedia(article.id, result.files.map(compact));
-      const body = toBody(result, article.updated);
-      articlesRepository.saveBody(article.id, body);
-      return body;
     } catch (error) {
+      assertGeneration(current);
+      const latest = articlesRepository.byId(article.id);
+      if (!latest || latest.updated !== article.updated) throw error;
       const stale = articlesRepository.body(article.id, { allowStale: true });
       if (stale) {
         console.error('[body] serving stale copy of', article.slug, error instanceof Error ? error.message : error);
@@ -189,10 +226,10 @@ export async function articleBody(article: ArticleRow, options: { refresh?: bool
       }
       throw error;
     } finally {
-      rendering.delete(article.id);
+      if (rendering.get(article.id)?.generation === current) rendering.delete(article.id);
     }
   })();
-  rendering.set(article.id, job);
+  rendering.set(article.id, { generation: current, promise: job });
   return job;
 }
 
