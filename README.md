@@ -82,6 +82,9 @@ Windows PowerShell 可用 `Copy-Item .env.example .env` 创建配置文件。
 Notion 里上传的图片和文件是带签名的临时地址（约 1 小时失效），不能直接写进缓存的 HTML。
 网站改为输出 `/media/notion/<id>`：第一次被访问时向 Notion 重新取一个新地址、下载到 `MEDIA_CACHE_DIR`，之后直接从磁盘发；
 文章在 Notion 里被编辑后，旧副本在下次同步时删除。只有已发布文章里出现的文件 id 才会被代理，其他一律 404。
+文章没有封面时，列表以标题、日期、摘要和标签呈现，不显示占位图片；正文直接从文章头部进入。
+搜索结果和首页本来就是文字列表；无封面文章不添加虚构的社交分享图或 RSS 附件。
+
 外链图片（`external`）直接使用原地址。媒体缓存按 Notion 配置版本分目录；升级后旧格式的磁盘副本不会再被读取，
 会在需要时重新下载。旧缓存可在停服后从 `MEDIA_CACHE_DIR` 清理（不要删除 `DB_PATH` 或 `UPLOAD_DIR`）。
 
@@ -187,10 +190,11 @@ npm test            # 渲染器、Notion 映射、接口契约（用假的 Notio
 npm run typecheck   # tsc --noEmit
 npm run build       # 生产构建
 npm run check       # 以上三步
+npm run test:render # 构建后检查有图/无图文章的 SSR 输出
 node tests/fixtures/notion-mock.mjs 4999 [--showcase]   # 本地假 Notion：NOTION_API_BASE=http://127.0.0.1:4999/v1；--showcase 加几篇中英文章预览排版
 ```
 
-CI（`.github/workflows/validate.yml`）依次执行类型检查、测试与构建。
+CI（`.github/workflows/validate.yml`）依次执行类型检查、单元测试、构建和页面渲染测试。
 
 ## 还没做
 
