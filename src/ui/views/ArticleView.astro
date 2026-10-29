@@ -32,9 +32,11 @@ const lang = contentLang(`${article.title} ${article.excerpt}`);
         <p class="tags">{article.tags.map((tag) => <a href={tagPath(tag)}>{tag}</a>)}</p>
       )}
       {article.cover && <img class="cover" src={article.cover} alt="" decoding="async" fetchpriority="high" />}
-      {bodyMissing
-        ? <p class="body-missing" lang={locale}>{t.article.unavailable}</p>
-        : <Fragment set:html={article.html} />}
+      <div class:list={['article-body', { 'text-only': !article.cover }]}>
+        {bodyMissing
+          ? <p class="body-missing" lang={locale}>{t.article.unavailable}</p>
+          : <Fragment set:html={article.html} />}
+      </div>
     </article>
     {showToc && (
       <aside class="article-aside">
