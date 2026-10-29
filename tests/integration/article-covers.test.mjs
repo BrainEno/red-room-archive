@@ -92,10 +92,16 @@ test('covered and text-only articles render correctly in the built site', async 
     assert.match(home, /class="site-about"[^>]*>中文简介/);
     assert.match(home, /class="lede"[^>]*>中文引言/);
     assert.match(home, /中文标语/);
+    const topicsZh = home.match(/<section id="topics"[\s\S]*?<\/section>/)?.[0];
+    assert.ok(topicsZh);
+    assert.match(topicsZh, /<a class="row" href="\/articles"><span class="n">00<\/span><span class="t">全部<\/span>/);
     const englishHome = await get('/?lang=en');
     assert.match(englishHome, /About in English/);
     assert.match(englishHome, /English intro/);
     assert.match(englishHome, /English tagline/);
+    const topicsEn = englishHome.match(/<section id="topics"[\s\S]*?<\/section>/)?.[0];
+    assert.ok(topicsEn);
+    assert.match(topicsEn, /<a class="row" href="\/articles"><span class="n">00<\/span><span class="t">All<\/span>/);
     assert.doesNotMatch(englishHome, /中文标语/);
     const listing = await get('/articles?lang=zh-CN');
     const plain = entry(listing, '/articles/text-only');
@@ -154,6 +160,12 @@ test('covered and text-only articles render correctly in the built site', async 
     assert.doesNotMatch(await get('/search?q=Draft'), /href="\/articles\/draft"/);
     assert.doesNotMatch(await get('/rss.xml'), /\/articles\/draft/);
     assert.equal((await fetch(`http://127.0.0.1:${port}/articles/draft`)).status, 404);
+    for (const page of mock.state.pages) page.properties.Published.checkbox = false;
+    assert.equal((await sync()).status, 200);
+    const emptyHome = await get('/?lang=zh-CN');
+    const emptyTopics = emptyHome.match(/<section id="topics"[\s\S]*?<\/section>/)?.[0];
+    assert.ok(emptyTopics);
+    assert.match(emptyTopics, /<a class="row" href="\/articles"><span class="n">00<\/span><span class="t">全部<\/span>/, 'All remains available when there are no topics');
   } finally {
     if (child && child.exitCode === null) { child.kill(); await once(child, 'exit'); }
     await new Promise((resolve) => notion.close(resolve));
