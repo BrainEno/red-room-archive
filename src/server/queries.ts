@@ -54,13 +54,15 @@ export interface HomeData {
   total: number;
 }
 
+export const HOME_ARTICLE_LIMIT = 10;
+
 /** Tag names, topics and every list are in `locale` (Fiction on the English page, 小说 on the Chinese one). */
-export async function getHome(locale: Locale = DEFAULT_LOCALE, limit = 12): Promise<HomeData> {
+export async function getHome(locale: Locale = DEFAULT_LOCALE): Promise<HomeData> {
   const all = await listArticles();
   const names = tagNamer(all, locale);
   return {
-    latest: all.slice(0, limit).map((row) => presentArticle(row, names)),
-    featured: featuredArticles(all).map((row) => presentArticle(row, names)),
+    latest: all.slice(0, HOME_ARTICLE_LIMIT).map((row) => presentArticle(row, names)),
+    featured: featuredArticles(all, HOME_ARTICLE_LIMIT).map((row) => presentArticle(row, names)),
     topics: topicCounts(all, locale),
     total: all.length,
   };
@@ -123,7 +125,7 @@ export async function getArticle(slug: string, locale: Locale = DEFAULT_LOCALE):
 export async function getRecentArticles(limit = 50): Promise<ArticleSummary[]> {
   const all = await listArticles();
   const names = tagNamer(all, DEFAULT_LOCALE);
-  return all.slice(0, limit).map((row) => presentArticle(row, names));
+  return all.slice(0, HOME_ARTICLE_LIMIT).map((row) => presentArticle(row, names));
 }
 
 /** Every topic, for the sitemap (one URL per topic, by key). */

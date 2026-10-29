@@ -84,9 +84,12 @@ const nav = ['intro', 'latest', 'topics', 'more'] as const;
 
     <section id="topics" class="s l">
       <h2 class="sec">{t.home.topics}<sup>{home.topics.length}</sup></h2>
-      <ul class="list">{home.topics.slice(0, TOPIC_LIMIT).map((topic, i) => (
-        <li><a class="row" href={tagPath(topic.key)}><span class="n">{pad(i)}</span><span class="t" lang={contentLang(topic.name)}>{topic.name}</span><span></span><span>{topic.count}</span><span class="r"></span></a></li>
-      ))}</ul>
+      <ul class="list">
+        <li><a class="row" href={ARTICLES_PATH}><span class="n">00</span><span class="t">{t.articles.all}</span><span></span><span>{home.total}</span><span class="r"></span></a></li>
+        {home.topics.slice(0, TOPIC_LIMIT).map((topic, i) => (
+          <li><a class="row" href={tagPath(topic.key)}><span class="n">{pad(i)}</span><span class="t" lang={contentLang(topic.name)}>{topic.name}</span><span></span><span>{topic.count}</span><span class="r"></span></a></li>
+        ))}
+      </ul>
       {home.topics.length > TOPIC_LIMIT && <a class="more" href={ARTICLES_PATH}>{t.home.allTopics}</a>}
     </section>
 

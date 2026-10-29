@@ -155,7 +155,7 @@ export async function requireArticle(slug: string): Promise<ArticleRow> {
 }
 
 /** Articles with a positive Rank, highest first (the old blog's "featured"). */
-export const featuredArticles = (articles: ArticleRow[], limit = 5) =>
+export const featuredArticles = (articles: ArticleRow[], limit = 10) =>
   articles.filter((article) => article.rank > 0).sort((a, b) => b.rank - a.rank || newestFirst(a, b)).slice(0, limit);
 
 const link = (article: ArticleRow | undefined): ArticleLink | null =>

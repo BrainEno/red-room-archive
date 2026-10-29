@@ -19,13 +19,28 @@
 .article-entry.has-cover { grid-template-columns: 7.5rem minmax(0, 1fr) 6.5rem 1.5rem; }
 .article-date { padding-top: .25rem; font-size: .78rem; opacity: .55; font-variant-numeric: tabular-nums; }
 .article-copy { display: block; min-width: 0; overflow-wrap: anywhere; }
-.article-title { display: block; font-size: clamp(1.15rem, 2.8vw, 2rem); font-weight: 650; line-height: 1.15; transition: color .3s; }
+.article-title { display: block; font-size: clamp(1.15rem, 2.8vw, 2rem); font-weight: 650; line-height: 1.15; }
 .article-excerpt { display: block; max-width: 58ch; margin-top: .5rem; font-size: .92rem; opacity: .65; line-height: 1.5; }
 .article-tags { display: block; margin-top: .6rem; font-size: .75rem; opacity: .55; }
 .article-list .article-cover { display: block; width: 100%; aspect-ratio: 4 / 3; height: auto; object-fit: cover; align-self: center; margin: 0; background: rgba(241,238,230,.06); }
-.article-arrow { justify-self: end; align-self: center; transition: transform .3s var(--ease); }
-.article-entry:hover .article-title, .article-entry:focus-visible .article-title { color: var(--red); }
-.article-entry:hover .article-arrow, .article-entry:focus-visible .article-arrow { transform: translate(3px, -3px); }
+.article-arrow { justify-self: end; align-self: center; transition: transform .3s var(--ease), color .3s; }
+/* Keep the summary and date readable: the generic prose-link red otherwise
+   cascades through the entire card. Use a quiet highlight and a warm accent. */
+.prose .article-entry:hover, .prose .article-entry:focus-visible {
+  color: inherit;
+  background: linear-gradient(90deg, rgba(241,238,230,.045), transparent 80%);
+}
+.article-entry:hover .article-title, .article-entry:focus-visible .article-title {
+  text-decoration: underline;
+  text-decoration-color: rgba(241,238,230,.48);
+  text-decoration-thickness: 1px;
+  text-underline-offset: .22em;
+}
+.article-entry:hover .article-arrow, .article-entry:focus-visible .article-arrow { color: #e7a395; transform: translate(3px, -3px); }
+@media (prefers-reduced-motion: reduce) {
+  .article-arrow { transition: none; }
+  .article-entry:hover .article-arrow, .article-entry:focus-visible .article-arrow { transform: none; }
+}
 .article-empty { padding-top: 1rem; opacity: .65; }
 
 /* Article content (rendered Notion blocks) */
