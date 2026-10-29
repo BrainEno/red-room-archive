@@ -45,11 +45,33 @@ Windows PowerShell 可用 `Copy-Item .env.example .env` 创建配置文件。
 
 ## 连接 Notion
 
-1. 在 <https://www.notion.so/my-integrations> 新建一个 **Internal integration**，复制 token。
-2. 打开你的文章数据库 → 右上角 `•••` → **Connections** → 添加这个 integration。
-3. 在 `/admin → Settings` 填 token 和数据库（直接粘贴数据库链接即可），保存后点 **Check columns**，看每个字段对应到了哪一列。
-4. 回到 **Articles** 面板点 **Sync now**。之后文章列表缓存超过 `SYNC_TTL_SECONDS`（默认 5 分钟）时，下一次访问会触发后台刷新，当前请求先返回缓存；没有访问就不会自动刷新。需要立即更新可点击 **Sync now**。
+### 1. 创建连接并授权
 
+1. 在 <https://www.notion.so/my-integrations> 创建与文章所在工作区对应的 **Internal integration**，启用读取内容权限（Read content），复制 token。不要把 token 发给别人或提交到 Git。
+2. 在 Notion 中打开**文章数据库本身**，而不是只打开包含表格的普通页面。右上角 `•••` → **Connections / 添加连接** → 找到并添加刚创建的 integration。必要时检查包含数据库的父页面是否也已授权；授权给其他 integration 不算。Notion 的 404 既可能是 ID 错，也可能是无权限。
+
+### 2. 在你的截图里从哪里复制？
+
+截图中封面和大字 **Bottom Think** 是外层页面；下方同名表格是嵌在页面里的数据库视图。**不要复制右上角 Share 旁的链条图标**（那是外层页面链接），也不要复制某一篇文章行的链接。
+
+将鼠标移到表格右上方工具栏，点击**放大为整页的双向斜箭头 `⤢`**：在截图里它位于放大镜右边、滑杆图标左边，`New` 按钮的左侧。打开后从浏览器地址栏复制数据库页面 URL，或者在打开的数据库页面通过 Share/Copy link 复制。若这是其他数据库的**链接视图**，要转到**原始数据库**再复制和授权。如果界面版本按钮名称不同，也可以悬停表格左侧的 `⋮⋮`，按 Notion 菜单打开或复制数据库链接；使用 **Check columns** 核实。仅凭截图无法判断这个视图是否是原始数据库，也无法看到真实 ID。
+
+数据库 URL 的示例（仅示意，并非你的 ID）：
+
+```text
+https://www.notion.so/workspace/0123456789abcdef0123456789abcdef?v=ffffffffffffffffffffffffffffffff
+                                └──────── 数据库 ID ────────┘  └── 视图 ID ──┘
+```
+
+填写**整条数据库 URL**或路径里 `?` 前的 32 位数据库 ID；`?v=` 后面是视图 ID，不能当数据库 ID。不要使用某篇文章、外层普通页面、数据源 ID 或分享链接的短链。详细区别可见 [Notion 的 ID 说明](https://developers.notion.com/guides/get-started/upgrade-faqs-2025-09-03)。
+
+### 3. 保存并检查
+
+1. 打开**同一个正在运行的站点** `/admin → Settings`，填入 token 和数据库链接，点击 **Save**（检查使用的是已保存的配置；切换数据库会清空旧文章缓存）。
+2. 点击 **Check columns**：确认数据库名称和各字段的映射，特别是 `Published → Published / checkbox`。如提示 page, not a database，通常复制了外层页面或文章链接；按上面的 `⤢` 打开数据库本身重新复制。若仍是 404，也请核对连接所在工作区、Read content 权限及数据库的 Connections 授权。不要把 token、完整数据库链接或敏感报错公开发给别人。
+3. 回到 **Articles → Sync now**。之后缓存超过 `SYNC_TTL_SECONDS`（默认 5 分钟）时，下一次访问触发后台刷新，当前请求先返回缓存；没有访问就不会自动刷新。需要立即更新可点击 **Sync now**。取消勾选后也要等下一次成功同步才会从网站移除。
+
+如果 Check columns 显示多数据源错误，目前仅支持**单数据源**数据库（Notion 2022-06-28 API）；需要先使用单数据源，或等待后续 API 升级。截图无法判断你的数据库有几个数据源。
 ### 数据库列
 
 只有**标题列**是必需的，其余都可选。列按**名称（不区分大小写/空格）+ 类型**一起识别，所以叫 “Date” 的文本列不会被当成日期。
@@ -59,13 +81,15 @@ Windows PowerShell 可用 `Copy-Item .env.example .env` 创建配置文件。
 | --- | --- | --- | --- |
 | 标题 | 任意名称（Page / Name / Title…） | Title | — |
 | Slug | Slug | Text / Formula | 由标题生成；重名的第二篇得到 `-2` |
-| 日期 | Date, Publish Date, 发布日期 | Date / Created time | 用页面创建时间 |
+| 日期 | Date, Publish Date, 发布日期 | Date / Created time / Formula（日期） | 网站首次同步发现文章公开时的服务器本地日期 |
 | 发布 | Published, Public, Status, 发布 | Checkbox，或 Status/Select 值为 Published/Public/Done/已发布 | **全部公开**（Check columns 会警告） |
 | 标签 | Tags, Category, 标签 | Multi-select / Select | 无标签 |
 | 摘要 | Excerpt, Summary, Description, 摘要 | Text | 无摘要 |
 | 封面 | FeaturedImage, Cover, Image, 封面 | Files / URL | 用页面自身的封面 |
 | 精选 | Rank, Featured, 权重 | Number / Checkbox | 不显示精选 |
 
+- **草稿**：你的 `Published` 复选框为未勾选时是草稿，不会进入文章列表、正文或搜索；勾选后，成功同步才公开。没有可识别的 `Published` 列时兼容旧行为，**所有有标题的页面都会公开**，所以务必先用 Check columns 检查并确认。
+- **Date 留空**：网站首次同步发现该文章公开时，记录**服务器本地时区的当天日期**到本地 SQLite；以后同步、全文重同步、取消后重新勾选或更换 token 都沿用它。Notion 中填写的 Date 优先；清空后如果已有空日期记录则恢复，否则首次记下清空后的同步日期；不会写回 Notion。若网站没运行，日期是之后首次成功同步的日期，不一定是真正勾选日；服务器时区和你所在地不同时，跨午夜的日期可能不同（本地运行使用电脑的时区）。首次接入时，旧文章若 Date 为空也会记首次同步日期。需要精确或历史日期时请在 Notion 手动填写 Date。记录随 `data/archive.db` 备份；删除或更换该数据库会丢失记录。
 - **定时发布**：日期在未来的文章不会出现，到期后的下一次同步自动出现（只有日期没有时间时按 UTC 零点）。
 - 完整别名表在 `src/server/notion/mapper.ts` 的 `FIELDS`，想加自己的列名改这里即可。
 - 读取用的是 Notion API `2022-06-28` 的 `databases/:id/query`；只支持单数据源的数据库；多数据源数据库暂不支持。
@@ -119,12 +143,16 @@ Notion 只有一个标签列，中英文章混写时会出现 `Fiction` 和 `小
 
 邮箱默认 `nodeman24@outlook.com`（`src/content/site.ts`），后台 Settings 里的 Contact email 优先。
 
+首页的霓虹招牌是一幅固定的装饰插画，不是根据站点名生成的 Logo；站点名显示在导航和首页底部。后台保存后，同一浏览器、同一来源（协议、域名、端口）的已打开站点页面会自动刷新；不同浏览器或设备请手动刷新。中文、英文文案各自独立，切换语言时请填写相应字段。
+
+Notion 和 GitHub 联动、发布自动化的调研见 [docs/NOTION-GITHUB.md](docs/NOTION-GITHUB.md)。
+
 ## 后台 `/admin`
 
 输入 `ADMIN_TOKEN` 登录（只存在当前标签页的 sessionStorage；请用 HTTPS 部署）。
 
 - **Articles**：已发布文章一览；**Sync now** / **Sync + fetch bodies**（同时预取所有正文，让搜索覆盖全文）/ **Full resync**（清空正文和图片缓存后重新同步）；单篇 **Refresh** 重新拉取正文。
-- **Settings**：站点名称/邮箱；简介（meta description）与首页引言，英文、中文各一份（中文留空就用内置中文文案，不会回退到英文）；中英标签对照（Tag pairs）；Notion token 与数据库（优先于 `.env`）；**Check columns** 显示字段映射与警告。
+- **Settings**：站点名称/邮箱；简介（首页、meta description、RSS）、首页引言与标语，英文、中文各一份（中文留空就用内置中文文案，不会回退到英文）；中英标签对照（Tag pairs）；Notion token 与数据库（优先于 `.env`）；**Check columns** 显示字段映射与警告。
 - **More**：编辑 `/more` 页面（出版物、联系方式、二维码，中英并排），见上文。
 - **Files**：上传音频/视频/图片/PDF；上传 `.glb` 并选择 “Statue model” 可替换首页雕像；“更多”页面用到的文件标 on /more。
 
@@ -141,7 +169,7 @@ src/content  站点文案、演示文章                    src/pages    路由�
 ```
 
 - 首页动画参数：`src/ui/scripts/site/home.ts`（镜头关键帧）、`neon.ts`（招牌）、`scene.ts`（窗帘、雕像、灯光）。
-- 首页文案（引言、facts、标语，中英两份）：`src/content/site.ts`；“更多”页面：后台 More（默认示例在 `src/content/more.ts`）；标签对照：`src/content/tags.ts`；界面文字（导航、区块标题、分页…）：`src/ui/i18n.ts`；名称/邮箱/简介/引言也可以在后台改。
+- 首页默认文案（facts 等）：`src/content/site.ts`；“更多”页面：后台 More（默认示例在 `src/content/more.ts`）；标签对照：`src/content/tags.ts`；界面文字（导航、区块标题、分页…）：`src/ui/i18n.ts`；名称/邮箱/简介/引言/标语在后台改。
 - 中文显示字体：`public/fonts/display-sc/`，由 `scripts/fonts/build-display-sc.py` 生成，见 [docs/I18N.md](docs/I18N.md)。
 - 接口约定见 **[docs/API.md](docs/API.md)**；为什么选择在本仓库实现、而不是回到旧仓库，见 [docs/NOTION-ONLY.md](docs/NOTION-ONLY.md)。
 

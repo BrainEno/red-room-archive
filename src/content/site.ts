@@ -6,7 +6,7 @@
  * the demo articles shown while Notion is not configured.
  *
  * Keep this module safe to commit: no tokens, no private content. Live values
- * (name, email, about, intro) can be overridden at runtime from /admin.
+ * (name, email, about, intro, tagline) can be overridden at runtime from /admin.
  */
 import type { NotionBlock } from '../core/blocks.ts';
 import type { Locale } from '../shared/i18n.ts';
@@ -20,10 +20,10 @@ export interface SiteIdentity {
 /**
  * Editorial copy, one set per interface language. Interface chrome (nav,
  * buttons, section titles) lives in ui/i18n.ts; this is the text that is
- * *about you* and that /admin can override (`about`, `intro`).
+ * *about you* and that /admin can override (`about`, `intro`, `tagline`).
  */
 export interface SiteCopy {
-  /** One line: meta description, RSS description. */
+  /** One line: homepage, meta description, RSS description. */
   about: string;
   /** Two or three sentences shown in the intro section, revealed word by word. */
   intro: string;

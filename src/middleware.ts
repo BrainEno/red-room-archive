@@ -31,6 +31,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (!response.headers.get('content-type')?.startsWith('text/html')) return response;
   try {
     response.headers.set('Content-Language', locale);
+    // Public HTML contains editable settings; never serve a stale copy without revalidation.
+    if (!response.headers.has('Cache-Control')) response.headers.set('Cache-Control', 'no-cache');
     const vary = response.headers.get('Vary');
     response.headers.set('Vary', [vary, 'Cookie', 'Accept-Language'].filter(Boolean).join(', '));
   } catch {

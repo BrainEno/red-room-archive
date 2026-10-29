@@ -124,6 +124,12 @@ export const articlesRepository = {
    * `updated` did not change. Returns the media ids that are no longer
    * referenced (their cached files should be deleted).
    */
+  firstPublicationDate(databaseId: string, pageId: string, today: string): string {
+    const db = connection();
+    db.prepare('INSERT OR IGNORE INTO notion_first_publication(database_id, page_id, date) VALUES (?, ?, ?)').run(databaseId, pageId, today);
+    return (db.prepare('SELECT date FROM notion_first_publication WHERE database_id = ? AND page_id = ?').get(databaseId, pageId) as { date: string }).date;
+  },
+
   replaceAll(rows: ArticleRow[], covers: { id: string; articleId: string }[], options: { dropBodies?: boolean } = {}): string[] {
     return transaction(() => {
       const db = connection();

@@ -6,10 +6,12 @@ import { $, busy, esc, fail, toast } from '../dom.ts';
 const LABELS: Record<SettingKey, string> = {
   site_name: 'Site name',
   site_email: 'Contact email',
-  site_about: 'Description — English (meta description, RSS)',
+  site_about: 'Description — English (homepage, meta description, RSS)',
   site_intro: 'Homepage intro — English (revealed word by word)',
-  site_about_zh: 'Description — 简体中文',
+  site_about_zh: 'Description — 简体中文（首页、搜索摘要、RSS）',
   site_intro_zh: 'Homepage intro — 简体中文',
+  site_tagline: 'Homepage tagline — English (bottom of opening screen)',
+  site_tagline_zh: 'Homepage tagline — 简体中文（首页首屏底部）',
   tag_glossary: 'Tag pairs — one per line, e.g. “Fiction = 小说” (adds to the built-in pairs)',
   NOTION_TOKEN: 'Notion integration token',
   NOTION_DATABASE_ID: 'Notion database — id or link',
@@ -66,7 +68,7 @@ export function settingsPanel(root: HTMLElement, api: ApiClient, initial: Settin
       <form class="form" id="sf">${keys.map((key) => `<label>${LABELS[key]}${field(key)}</label>`).join('')}
         <div class="row2 tight"><button>Save</button><button type="button" id="chk">Check columns</button></div>
       </form>
-      <p class="hint">Share the database with your integration in Notion (••• → Connections). Only a title column is required; see the README for the recognised column names.</p>
+      <p class="hint">Description and Homepage intro appear after scrolling; Description also appears in search/RSS. Fill the fields for the language you view. Save before checking columns. Open the database itself (not the containing page), and add your integration via ••• → Connections. <a href="https://github.com/BrainEno/red-room-archive/blob/main/README.md#连接-notion" target="_blank" rel="noopener noreferrer">Connection guide ↗</a></p>
       <div id="schema"></div>`;
 
     const form = $<HTMLFormElement>('#sf', root);
@@ -74,10 +76,15 @@ export function settingsPanel(root: HTMLElement, api: ApiClient, initial: Settin
       event.preventDefault();
       try {
         const values = Object.fromEntries(new FormData(form)) as Record<SettingKey, string>;
+        const previous = state;
         state = await busy(form, () => api.settings.update(values));
+        const profileKeys: SettingKey[] = ['site_name', 'site_email', 'site_about', 'site_intro', 'site_about_zh', 'site_intro_zh', 'site_tagline', 'site_tagline_zh'];
+        if (profileKeys.some((key) => previous.values[key] !== state.values[key])) {
+          try { localStorage.setItem('rra:settings-changed', `${Date.now()}-${Math.random()}`); } catch { /* refresh other tabs manually */ }
+        }
         render();
         onSaved(state);
-        toast('Saved');
+        toast('Saved — open site tabs will refresh');
       } catch (error) {
         fail(error);
       }
@@ -85,11 +92,17 @@ export function settingsPanel(root: HTMLElement, api: ApiClient, initial: Settin
 
     $('#chk', root).onclick = async () => {
       const target = $('#schema', root);
+      const data = new FormData(form);
+      if (String(data.get('NOTION_TOKEN') ?? '').trim() || String(data.get('NOTION_DATABASE_ID') ?? '').trim() !== state.values.NOTION_DATABASE_ID) {
+        target.innerHTML = '<p class="warn" role="alert">Save the new token or database link before checking columns.</p>';
+        return;
+      }
       try {
         const schema = await busy(form, () => api.notion.schema());
         target.innerHTML = schemaHtml(schema);
       } catch (error) {
-        target.innerHTML = '';
+        const message = error instanceof Error ? error.message : String(error);
+        target.innerHTML = `<p class="warn" role="alert">${esc(message)}</p>`;
         fail(error);
       }
     };

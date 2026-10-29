@@ -75,10 +75,13 @@ export function syncArticles(options: { full?: boolean } = {}): Promise<number> 
       const { client, databaseId } = notion();
       const pages = await client.queryDatabase(databaseId);
       assertGeneration(current);
-      const mapped = toArticles(pages);
-      const stale = transaction(() => {
+      // Record fallback dates only inside the generation-checked transaction;
+      // a sync from an old database must not write after a settings switch.
+      const { mapped, stale } = transaction(() => {
         assertGeneration(current);
-        return articlesRepository.replaceAll(mapped.rows, mapped.covers, { dropBodies: options.full });
+        const mapped = toArticles(pages, Date.now(), (pageId, today) => articlesRepository.firstPublicationDate(databaseId, pageId, today));
+        const stale = articlesRepository.replaceAll(mapped.rows, mapped.covers, { dropBodies: options.full });
+        return { mapped, stale };
       });
       if (options.full) await clearMedia(current);
       else await removeMedia(stale, current);

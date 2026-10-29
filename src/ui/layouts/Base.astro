@@ -57,5 +57,9 @@ const ogImage = image && siteUrl ? new URL(image, siteUrl).toString() : image;
   {canonical && !noindex && <link rel="alternate" hreflang="x-default" href={localized(DEFAULT_LOCALE)} />}
   <meta property="og:locale" content={locale.replace('-', '_')} />
 </head>
-<body class={bodyClass}><slot /></body>
+<body class={bodyClass}><slot />
+  <script>
+    import '../scripts/site/settings-refresh.ts';
+  </script>
+</body>
 </html>

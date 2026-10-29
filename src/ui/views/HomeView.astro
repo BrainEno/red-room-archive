@@ -56,7 +56,10 @@ const nav = ['intro', 'latest', 'topics', 'more'] as const;
 
     <section id="intro" class="intro">
       <div class="stage">
-        <p class="lede" lang={contentLang(site.intro)}>{site.intro}</p>
+        <div class="intro-copy">
+          <p class="site-about" lang={contentLang(site.about)}>{site.about}</p>
+          <p class="lede" lang={contentLang(site.intro)}>{site.intro}</p>
+        </div>
         <dl class="facts">{site.facts.map((f) => <div><dt>{f.key}</dt><dd>{f.value}</dd></div>)}</dl>
       </div>
     </section>

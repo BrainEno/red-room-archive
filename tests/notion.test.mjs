@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { API, ID, compact, createNotionMock } from './fixtures/notion-mock.mjs';
 
 process.env.NOTION_API_BASE = API;
+process.env.TZ = 'UTC';
 const { NotionClient } = await import('../src/server/notion/client.ts');
 const { coverSource, describeSchema, isPageId, parseNotionId, resolveMapping, toArticles } = await import('../src/server/notion/mapper.ts');
 const { fetchBlockTree } = await import('../src/server/notion/tree.ts');
@@ -68,7 +69,7 @@ test('resolveMapping matches aliases by name *and* type, title by type', () => {
   assert.equal(mapping.slug, null);
 });
 
-test('status/select publish flags, created-time fallback and page covers', () => {
+test('status/select publish flags, first-seen date fallback and page covers', () => {
   const base = { created_time: '2026-01-02T03:04:05.000Z', last_edited_time: '2026-01-02T03:04:05.000Z' };
   const title = (t) => ({ type: 'title', title: [{ plain_text: t }] });
   const pages = [
@@ -80,7 +81,7 @@ test('status/select publish flags, created-time fallback and page covers', () =>
   const { rows } = toArticles(pages, NOW);
   assert.deepEqual(rows.map((r) => r.title).sort(), ['Live one', 'No flag']);
   assert.equal(rows.find((r) => r.title === 'Live one').cover, 'https://img.test/a.jpg', "falls back to the page's own cover");
-  assert.equal(rows[0].date, base.created_time);
+  assert.equal(rows[0].date, '2026-10-27');
   assert.equal(coverSource({ ...pages[0], cover: { type: 'file', file: { url: 'https://s3.test/x' } } }).kind, 'file');
 });
 
@@ -151,4 +152,17 @@ test('legacy URLs map onto /articles', () => {
   assert.equal(legacyTarget('tag/%E5%B0%8F%E8%AF%B4', none), `/articles?tag=${encodeURIComponent('小说')}`);
   assert.equal(legacyTarget(undefined, new URLSearchParams('tag=notes')), '/articles?tag=notes');
   assert.equal(legacyTarget('a/b/c', none), '/articles');
+});
+
+
+test('database-page error is actionable without echoing Notion details', async () => {
+  globalThis.fetch = async () => Response.json({ object: 'error', message: 'Provided ID secret-id is a page, not a database. Use the retrieve page API instead' }, { status: 400 });
+  try {
+    await assert.rejects(new NotionClient('secret-token').database('id'), (error) => {
+      assert.match(error.message, /page link, not the database/);
+      assert.doesNotMatch(error.message, /secret-id|secret-token/);
+      assert.equal(error.details.notionStatus, 400);
+      return true;
+    });
+  } finally { globalThis.fetch = realFetch; }
 });

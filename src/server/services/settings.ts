@@ -24,6 +24,8 @@ export const SETTING_KEYS: readonly SettingKey[] = [
   'site_intro',
   'site_about_zh',
   'site_intro_zh',
+  'site_tagline',
+  'site_tagline_zh',
   'tag_glossary',
   'NOTION_TOKEN',
   'NOTION_DATABASE_ID',
@@ -70,17 +72,19 @@ export interface SiteProfile {
   email: string;
   about: string;
   intro: string;
+  tagline: string;
 }
 
 /**
  * Admin-editable copy per interface language: `site_about` / `site_intro`
- * for English, `site_about_zh` / `site_intro_zh` for Chinese. A language
+ * for English, `site_about_zh` / `site_intro_zh` for Chinese; taglines use
+ * `site_tagline` / `site_tagline_zh`. A language
  * without an override shows its built-in copy (content/site.ts) — never the
  * other language's text, so what /admin shows is exactly what visitors read.
  */
-const COPY_KEYS: Record<Locale, { about: SettingKey; intro: SettingKey }> = {
-  en: { about: 'site_about', intro: 'site_intro' },
-  'zh-CN': { about: 'site_about_zh', intro: 'site_intro_zh' },
+const COPY_KEYS: Record<Locale, { about: SettingKey; intro: SettingKey; tagline: SettingKey }> = {
+  en: { about: 'site_about', intro: 'site_intro', tagline: 'site_tagline' },
+  'zh-CN': { about: 'site_about_zh', intro: 'site_intro_zh', tagline: 'site_tagline_zh' },
 };
 
 export function siteProfile(locale: Locale = DEFAULT_LOCALE): SiteProfile {
@@ -90,6 +94,7 @@ export function siteProfile(locale: Locale = DEFAULT_LOCALE): SiteProfile {
     email: resolveSetting('site_email') || identity.email,
     about: resolveSetting(keys.about) || copy[locale].about,
     intro: resolveSetting(keys.intro) || copy[locale].intro,
+    tagline: resolveSetting(keys.tagline) || copy[locale].tagline,
   };
 }
 
@@ -100,6 +105,8 @@ const SITE_DEFAULTS: Partial<Record<SettingKey, string>> = {
   site_intro: copy.en.intro,
   site_about_zh: copy['zh-CN'].about,
   site_intro_zh: copy['zh-CN'].intro,
+  site_tagline: copy.en.tagline,
+  site_tagline_zh: copy['zh-CN'].tagline,
 };
 
 const mask = (value: string | undefined) => (value ? `••••${value.slice(-4)}` : '');
@@ -116,6 +123,8 @@ export function adminSettings(): { values: SettingValues & { hasToken: boolean }
     site_intro: profile.intro,
     site_about_zh: zh.about,
     site_intro_zh: zh.intro,
+    site_tagline: profile.tagline,
+    site_tagline_zh: zh.tagline,
     tag_glossary: resolveSetting('tag_glossary') ?? '',
     NOTION_TOKEN: mask(notion.token),
     NOTION_DATABASE_ID: notion.databaseId ?? '',

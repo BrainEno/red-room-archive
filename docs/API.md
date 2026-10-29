@@ -21,8 +21,8 @@ v2 起网站只读 Notion：没有任何创建/修改文章的接口，内容请
   | 502 | `upstream_error` | Notion 拒绝或不可达（上游细节只写服务器日志） |
   | 503 | `unavailable` | 服务器未配置 `ADMIN_TOKEN` / Notion |
   | 500 | `internal` | 未预期的错误 |
-- **缓存**：公开读接口通常带短 `Cache-Control`，即使请求带 token 也可能被公开缓存；管理接口和带管理员凭据的文章详情使用 `no-store`。不要向公开接口发送敏感数据。
-- **语言**：`/api/site` 的简介/引言，以及文章、标签、搜索接口里的**标签名**随 `?lang=en|zh-CN` 变化（默认 `en`；不看 cookie 和 `Accept-Language`，同一个 URL 永远返回同一种语言，方便缓存）。
+- **缓存**：公开读接口通常带短 `Cache-Control`，即使请求带 token 也可能被公开缓存；`/api/site`、管理接口和带管理员凭据的文章详情使用 `no-store`。不要向公开接口发送敏感数据。
+- **语言**：`/api/site` 的简介/引言/标语，以及文章、标签、搜索接口里的**标签名**随 `?lang=en|zh-CN` 变化（默认 `en`；不看 cookie 和 `Accept-Language`，同一个 URL 永远返回同一种语言，方便缓存）。
   标题、摘要、正文是 Notion 原文，与语言无关。`TagCount.key` 在两种语言里相同，可以当作稳定的主题 id。HTML 页面按 `?lang` → `lang` cookie → `Accept-Language` → `en` 决定语言，响应带 `Content-Language` 与 `Vary: Cookie, Accept-Language`。
 
 ## 公开接口
@@ -30,7 +30,7 @@ v2 起网站只读 Notion：没有任何创建/修改文章的接口，内容请
 | 方法 | 路径 | 说明 | 响应 |
 | --- | --- | --- | --- |
 | GET | `/api/health` | 探针 | `HealthResponse` |
-| GET | `/api/site?lang=` | 站点信息（`about`/`intro` 为该语言的版本，`locale` 回显实际语言）、文章数、是否演示模式 | `SiteResponse` |
+| GET | `/api/site?lang=` | 站点信息（`about`/`intro`/`tagline` 为该语言的版本，`locale` 回显实际语言）、文章数、是否演示模式 | `SiteResponse` |
 | GET | `/api/articles?tag=&limit=&offset=&lang=` | 文章列表，按日期时间倒序（只有日期的按当天 00:00 UTC；同一时刻按 Notion 创建时间，再按标题）；`tag` 接受主题的任一名称或 key（`fiction`、`Fiction`、`小说` 等价） | `ArticleListResponse` |
 | GET | `/api/articles/:slug?lang=` | 单篇（含渲染后的 `html`、`toc`、`readingMinutes`、`previous`/`next`）。`?refresh=1` 重新从 Notion 取正文，**仅管理员** | `ArticleDetail` |
 | GET | `/api/tags?lang=` | 所有主题（中英同义标签已合并）及文章数，按数量倒序；`{ key, name, count }` | `TagListResponse` |
@@ -106,7 +106,7 @@ interface MoreDocument {
 校验失败返回 `400 bad_request`，`details.field` 是出错字段的路径（如 `publications.0.link`、`channels.1.qr`），后台据此定位输入框。
 `PUT` 也接受宽松写法：字符串表示两种语言相同；`excerpt` 可以是段落数组；`link` 可以是 `{ href, label }`（与 `src/content/more.ts` 的写法一致）。
 
-`SettingKey`：`site_name` `site_email` `site_about` `site_intro` `site_about_zh` `site_intro_zh` `tag_glossary` `NOTION_TOKEN` `NOTION_DATABASE_ID`。
+`SettingKey`：`site_name` `site_email` `site_about` `site_intro` `site_about_zh` `site_intro_zh` `site_tagline` `site_tagline_zh` `tag_glossary` `NOTION_TOKEN` `NOTION_DATABASE_ID`。
 `tag_glossary` 是多行文本，一行一组同义标签（`Fiction = 小说`），叠加在内置对照表 `src/content/tags.ts` 之上。
 `*_zh` 是中文版本；某种语言没有覆盖值时使用 `src/content/site.ts` 里该语言的内置文案（不会跨语言回退）。保存的值等于默认值时会删除该覆盖。
 

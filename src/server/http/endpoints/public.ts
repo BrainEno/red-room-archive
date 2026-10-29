@@ -44,7 +44,7 @@ export const health = route(() => {
 const langOf = (url: URL) => parseLocale(url.searchParams.get('lang')) ?? DEFAULT_LOCALE;
 
 /** GET /api/site?lang= — public profile and article count. */
-export const site = route((context) => json<SiteResponse>(siteResponse(langOf(context.url)), { headers: publicCache(60) }));
+export const site = route((context) => json<SiteResponse>(siteResponse(langOf(context.url)), { headers: NO_STORE }));
 
 /** GET /api/articles?tag=&limit=&offset=&lang= — newest first, summaries only; tag names in `lang`. */
 export const listArticlesEndpoint = route(async (context) => {
