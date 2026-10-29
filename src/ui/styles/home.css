@@ -15,20 +15,24 @@
 /* 12 列瑞士网格 */
 .bar, .s { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 16px; padding-inline: clamp(16px, 3vw, 40px); }
 .bar { position: fixed; inset: 0 0 auto; z-index: 40; padding-block: 18px; mix-blend-mode: difference; font-weight: 600; }
-.bar .brand { grid-column: 1 / 4; align-self: center; font-stretch: 62%; font-weight: 800; font-size: 1.15rem; line-height: 1; white-space: nowrap; opacity: 0; transition: opacity .6s var(--ease); }
+.bar .brand { grid-column: 1 / 4; align-self: center; font-stretch: 62%; font-weight: 800; font-size: 1.15rem; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 1; transition: opacity .6s var(--ease); }
 .bar .brand.on { opacity: 1; }
 .bar nav { grid-column: 4 / 13; display: flex; justify-content: flex-end; gap: clamp(14px, 2.4vw, 32px); }
 .bar nav > a { position: relative; text-transform: capitalize; }
 .bar nav > a::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 1px; background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform .5s var(--ease); }
 .bar nav > a:hover::after, .bar nav > a.on::after { transform: scaleX(1); }
 .s { min-height: 100svh; padding-block: 120px 40px; align-content: end; }
-.meta { grid-column: 1 / 13; display: flex; justify-content: space-between; font-weight: 600; position: relative; z-index: 6; }
+.meta { grid-column: 1 / 13; display: flex; justify-content: space-between; gap: 1rem; font-weight: 600; position: relative; z-index: 6; }
+.meta span { min-width: 0; overflow-wrap: anywhere; }
+.meta span:last-child { flex-shrink: 0; }
 
 /* 引言：sticky 舞台，滚动时逐词“点亮”，与招牌退场衔接 */
 .intro { position: relative; height: 220svh; }
 .intro .stage { position: sticky; top: 0; height: 100svh; display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: 1fr auto; column-gap: 16px;
   padding: 120px clamp(16px, 3vw, 40px) 40px; background: linear-gradient(90deg, rgba(10,5,6,.78), transparent 78%); }
-.lede { grid-column: 1 / 9; align-self: center; font-weight: 600; font-size: clamp(1.9rem, 4.4vw, 4.4rem); line-height: 1.06; letter-spacing: -.015em; text-wrap: balance; }
+.intro-copy { grid-column: 1 / 9; align-self: center; min-width: 0; overflow-wrap: anywhere; }
+.site-about { margin-bottom: 1rem; font-size: clamp(.85rem, 1.4vw, 1rem); opacity: .7; }
+.lede { font-weight: 600; font-size: clamp(1.9rem, 4.4vw, 4.4rem); line-height: 1.06; letter-spacing: -.015em; text-wrap: balance; }
 .facts { grid-column: 1 / 11; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .facts > div { position: relative; padding-top: 12px; }
 .facts > div::before { content: ""; position: absolute; inset: 0 0 auto; height: 1px; background: currentColor; opacity: .7; transform: scaleX(var(--r, 1)); transform-origin: left; }
@@ -80,7 +84,8 @@
   .list { grid-column: 1 / 13; }
   .sign { width: min(96vw, 118svh); }
   .intro .stage { padding-bottom: 72px; background: rgba(10,5,6,.55); }
-  .lede { grid-column: 1 / 13; font-size: clamp(1.6rem, 7vw, 2.4rem); }
+  .intro-copy { grid-column: 1 / 13; }
+  .lede { font-size: clamp(1.6rem, 7vw, 2.4rem); }
   .facts { grid-column: 1 / 13; grid-template-columns: 1fr; gap: 10px; }
   .row { grid-template-columns: 2.2rem 1fr 3.2rem; }
   .row span:nth-child(3), .row .r { display: none; }

@@ -43,8 +43,8 @@ export interface SiteView {
 }
 
 export function getSite(locale: Locale = DEFAULT_LOCALE): SiteView {
-  const { tagline, facts, articlesIntro } = copy[locale];
-  return { locale, ...siteProfile(locale), tagline, facts, articlesIntro, url: config.siteUrl() };
+  const { facts, articlesIntro } = copy[locale];
+  return { locale, ...siteProfile(locale), facts, articlesIntro, url: config.siteUrl() };
 }
 
 export interface HomeData {

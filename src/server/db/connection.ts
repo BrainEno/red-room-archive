@@ -150,6 +150,16 @@ const MIGRATIONS: ((db: DatabaseConnection) => void)[] = [
       );
     `);
   },
+  // 8 — first observed publication dates for Notion pages with no Date.
+  // Kept separately from the disposable article cache, including across unpublishing.
+  (db) => {
+    db.exec(`CREATE TABLE IF NOT EXISTS notion_first_publication (
+      database_id TEXT NOT NULL,
+      page_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      PRIMARY KEY (database_id, page_id)
+    )`);
+  },
 ];
 
 let depth = 0;

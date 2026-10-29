@@ -32,7 +32,7 @@ export const FIELDS: Record<ArticleField, FieldSpec> = {
     aliases: ['date', 'publishdate', 'publisheddate', 'publishedat', 'published', 'pubdate', '发布日期', '发布时间', '日期', 'created'],
     accepts: ['date', 'created_time', 'formula'],
     required: false,
-    fallback: "the page's creation time",
+    fallback: "the date first observed as published by the site (server local time)",
   },
   published: {
     aliases: ['published', 'publish', 'public', 'ispublished', 'status', '发布', '已发布', '公开', '状态'],
@@ -180,7 +180,10 @@ export interface MappedArticles {
  * reached — and give every article a unique slug. Slugs are assigned oldest
  * page first, so an existing URL never changes when a newer page reuses a title.
  */
-export function toArticles(pages: NotionPage[], now = Date.now()): MappedArticles {
+export function toArticles(
+  pages: NotionPage[], now = Date.now(),
+  firstPublicationDate: (pageId: string, today: string) => string = (_id, today) => today,
+): MappedArticles {
   const result: MappedArticles = { rows: [], covers: [], skipped: [] };
   const used = new Set<string>();
   const ordered = [...pages].sort((a, b) => instant(a.created_time) - instant(b.created_time) || a.id.localeCompare(b.id));
@@ -203,11 +206,16 @@ export function toArticles(pages: NotionPage[], now = Date.now()): MappedArticle
       result.skipped.push({ id: page.id, reason: 'unpublished' });
       continue;
     }
-    const date = dateOf(field('date')) ?? page.created_time;
-    if (instant(date) > now) {
+    const explicitDate = dateOf(field('date'));
+    if (explicitDate && instant(explicitDate) > now) {
       result.skipped.push({ id: page.id, reason: 'scheduled' });
       continue;
     }
+    const clock = new Date(now);
+    const today = `${clock.getFullYear()}-${String(clock.getMonth() + 1).padStart(2, '0')}-${String(clock.getDate()).padStart(2, '0')}`;
+    // A local day may be tomorrow in UTC; it must not schedule a blank-Date
+    // article for later merely because the server is east of Greenwich.
+    const date = explicitDate ?? firstPublicationDate(page.id, today);
 
     const base = cleanSlug(textOf(field('slug'))) || slugify(title) || compactId(page.id).slice(0, 8);
     let slug = base;
@@ -258,7 +266,7 @@ export function describeSchema(databaseId: string, database: NotionDatabase): No
   const warnings: string[] = [];
   if (!resolved.title) warnings.push('No title column found — nothing can be published.');
   if (!resolved.published) warnings.push('No "Published" checkbox found: every page in this database will be public.');
-  if (!resolved.date) warnings.push('No "Date" column found: articles are dated by creation time and cannot be scheduled.');
+  if (!resolved.date) warnings.push('No "Date" column found: articles use the first observed publication date (server local time) and cannot be scheduled.');
   for (const field of ARTICLE_FIELDS) {
     if (resolved[field] || field === 'title') continue;
     const spec = FIELDS[field];

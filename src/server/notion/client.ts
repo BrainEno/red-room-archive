@@ -118,14 +118,22 @@ export class NotionClient {
       if (!response.ok) {
         const body = await response.text().catch(() => '');
         console.error('[notion]', response.status, path, body.slice(0, 800));
+        let isPageNotDatabase = false;
+        try {
+          const error = JSON.parse(body) as { message?: unknown };
+          isPageNotDatabase = typeof error.message === 'string' && /is a page, not a database/i.test(error.message);
+        } catch { /* Notion may return a non-JSON error */ }
+        const databaseRequest = path.startsWith('/databases/');
         throw upstreamError(
           response.status === 401
             ? 'Notion rejected the integration token'
-            : response.status === 403 || response.status === 404
-              ? 'Notion database or page not found — check the id and share the database with the integration'
-              : response.status === 429
-                ? 'Notion rate limit reached, try again shortly'
-                : `Notion request failed (${response.status})`,
+            : isPageNotDatabase && databaseRequest
+              ? 'This is a page link, not the database. Open the table as a full page and copy that database link; then Save and Check columns.'
+              : response.status === 403 || response.status === 404
+                ? 'Notion could not access this database or page. Check the database link and add the integration under the database’s Connections menu.'
+                : response.status === 429
+                  ? 'Notion rate limit reached, try again shortly'
+                  : `Notion request failed (${response.status})`,
           { notionStatus: response.status },
         );
       }

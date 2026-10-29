@@ -72,7 +72,7 @@ test('covered and text-only articles render correctly in the built site', async 
     child = spawn(process.execPath, ['dist/server/entry.mjs'], {
       env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), DB_PATH: path.join(dir, 'site.db'),
         MEDIA_CACHE_DIR: path.join(dir, 'media'), UPLOAD_DIR: path.join(dir, 'uploads'),
-        NOTION_TOKEN: 'mock-token', NOTION_DATABASE_ID: DB, NOTION_API_BASE: `http://127.0.0.1:${notionPort}/v1`, SITE_URL: 'https://archive.test' },
+        ADMIN_TOKEN: 'test-admin', NOTION_TOKEN: 'mock-token', NOTION_DATABASE_ID: DB, NOTION_API_BASE: `http://127.0.0.1:${notionPort}/v1`, SITE_URL: 'https://archive.test' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     await ready(child);
@@ -81,6 +81,22 @@ test('covered and text-only articles render correctly in the built site', async 
       assert.equal(response.status, 200, url);
       return response.text();
     };
+    const save = await fetch(`http://127.0.0.1:${port}/api/settings`, {
+      method: 'PATCH', headers: { 'Authorization': 'Bearer test-admin', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ site_name: 'My <Archive>', site_about: 'About in English', site_intro: 'English intro', site_tagline: 'English tagline',
+        site_about_zh: '中文简介', site_intro_zh: '中文引言', site_tagline_zh: '中文标语' }),
+    });
+    assert.equal(save.status, 200);
+    const home = await get('/?lang=zh-CN');
+    assert.match(home, /My &lt;Archive&gt;/);
+    assert.match(home, /class="site-about"[^>]*>中文简介/);
+    assert.match(home, /class="lede"[^>]*>中文引言/);
+    assert.match(home, /中文标语/);
+    const englishHome = await get('/?lang=en');
+    assert.match(englishHome, /About in English/);
+    assert.match(englishHome, /English intro/);
+    assert.match(englishHome, /English tagline/);
+    assert.doesNotMatch(englishHome, /中文标语/);
     const listing = await get('/articles?lang=zh-CN');
     const plain = entry(listing, '/articles/text-only');
     const covered = entry(listing, '/articles/first-light');
@@ -117,6 +133,27 @@ test('covered and text-only articles render correctly in the built site', async 
     assert.ok(plainItem && coveredItem);
     assert.doesNotMatch(plainItem, /<enclosure/);
     assert.match(coveredItem, /<enclosure/);
+
+    // The screenshot's Published checkbox is the visibility boundary, even
+    // with a blank Date. Verify actual HTML, search, RSS and detail routes.
+    assert.doesNotMatch(listing, /href="\/articles\/draft"/);
+    const draft = mock.state.pages.find((page) => page.id === ID.draft);
+    draft.properties.Date.date = null;
+    draft.properties.Published.checkbox = true;
+    const sync = () => fetch(`http://127.0.0.1:${port}/api/sync`, { method: 'POST', headers: { Authorization: 'Bearer test-admin' } });
+    assert.equal((await sync()).status, 200);
+    const visible = await get('/articles');
+    assert.match(visible, /href="\/articles\/draft"/);
+    const response = await fetch(`http://127.0.0.1:${port}/api/articles`);
+    const article = (await response.json()).articles.find((row) => row.title === 'Draft');
+    assert.match(article.date, /^\d{4}-\d{2}-\d{2}$/);
+    assert.match(await get('/rss.xml'), /\/articles\/draft/);
+    draft.properties.Published.checkbox = false;
+    assert.equal((await sync()).status, 200);
+    assert.doesNotMatch(await get('/articles'), /href="\/articles\/draft"/);
+    assert.doesNotMatch(await get('/search?q=Draft'), /href="\/articles\/draft"/);
+    assert.doesNotMatch(await get('/rss.xml'), /\/articles\/draft/);
+    assert.equal((await fetch(`http://127.0.0.1:${port}/articles/draft`)).status, 404);
   } finally {
     if (child && child.exitCode === null) { child.kill(); await once(child, 'exit'); }
     await new Promise((resolve) => notion.close(resolve));

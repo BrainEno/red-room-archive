@@ -1,0 +1,53 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { API, DB, ID, createNotionMock } from './fixtures/notion-mock.mjs';
+
+const dir = mkdtempSync(path.join(tmpdir(), 'rra-publication-'));
+process.env.DB_PATH = path.join(dir, 'site.db');
+process.env.MEDIA_CACHE_DIR = path.join(dir, 'media');
+process.env.NOTION_TOKEN = 'test-token';
+process.env.NOTION_DATABASE_ID = DB;
+process.env.NOTION_API_BASE = API;
+process.env.TZ = 'Asia/Taipei';
+const mock = createNotionMock();
+const originalFetch = globalThis.fetch;
+const originalNow = Date.now;
+globalThis.fetch = mock.fetch;
+const { syncArticles, listArticles, findArticle } = await import('../src/server/services/articles.ts');
+const { closeConnection } = await import('../src/server/db/connection.ts');
+const { updateSettings } = await import('../src/server/services/settings.ts');
+test.after(() => { globalThis.fetch = originalFetch; Date.now = originalNow; closeConnection(); rmSync(dir, { recursive: true, force: true }); });
+
+test('Published controls visibility; blank Date is first observed server-local day, durable across sync and unpublishing', async () => {
+  const page = mock.state.pages.find((p) => p.id === ID.draft);
+  page.properties.Date.date = null;
+  Date.now = () => Date.parse('2026-10-28T23:30:00Z');
+  await syncArticles();
+  assert.equal((await listArticles()).some((row) => row.id === ID.draft), false);
+  page.properties.Published.checkbox = true;
+  await syncArticles();
+  assert.equal((await listArticles()).find((row) => row.id === ID.draft).date, '2026-10-29');
+  assert.ok(await findArticle('draft'));
+  closeConnection(); // Simulate a process restart, not just another in-memory sync.
+  Date.now = () => Date.parse('2026-10-31T08:00:00Z');
+  await syncArticles({ full: true });
+  assert.equal((await listArticles()).find((row) => row.id === ID.draft).date, '2026-10-29');
+  page.properties.Published.checkbox = false;
+  await syncArticles();
+  assert.equal(await findArticle('draft'), undefined);
+  page.properties.Published.checkbox = true;
+  await syncArticles();
+  assert.equal((await listArticles()).find((row) => row.id === ID.draft).date, '2026-10-29');
+  page.properties.Date.date = { start: '2026-10-30', end: null };
+  await syncArticles();
+  assert.equal((await listArticles()).find((row) => row.id === ID.draft).date, '2026-10-30', 'explicit Notion date wins');
+  page.properties.Date.date = null;
+  await syncArticles();
+  assert.equal((await listArticles()).find((row) => row.id === ID.draft).date, '2026-10-29', 'clearing explicit date restores recorded fallback');
+  updateSettings({ NOTION_TOKEN: 'new-token' });
+  await syncArticles();
+  assert.equal((await listArticles()).find((row) => row.id === ID.draft).date, '2026-10-29', 'token rotation does not reset dates');
+});
