@@ -196,6 +196,7 @@ src/content  站点文案、演示文章                    src/pages    路由�
 | `MAX_UPLOAD_MB` | 300 | 单个上传文件上限；multipart 单文件另限 8 MiB，较大文件使用 `?name=` 原始流上传 |
 | `MAX_JSON_KB` | 256 | JSON 请求体上限 |
 | `NOTION_API_BASE` | `https://api.notion.com/v1` | 仅用于测试或代理 |
+| `FRAME_ANCESTORS` | `'self'` | 允许哪些页面用 iframe 嵌入本站（CSP `frame-ancestors`）：如 `*`、`'none'` 或空格分隔的 `https://` 来源；格式不合法时回退默认值。静态构建写进 `_headers` |
 
 读取顺序：`process.env` → 构建时注入的 `import.meta.env` → 运行目录的 `.env` / `.env.local`。改完 `.env` 需重启进程。
 **Notion 来源变化**：有效 token、数据库 ID 或 `NOTION_API_BASE` 变化会隔离并清除旧文章缓存、重置同步状态；后台设置仍优先于环境变量。首次升级此安全机制时，旧缓存也会被清除并重新同步，若 Notion 离线可能暂时没有文章。SQLite 中保存加盐的来源指纹，不把 token 作为指纹明文保存；原先由后台保存的 Notion token 仍会以明文存入 SQLite，应保护数据库和备份。来源变化不会清除站点设置、More 或首次发现发布日期。
@@ -206,6 +207,8 @@ src/content  站点文案、演示文章                    src/pages    路由�
 
 `npm run build && npm start`。需要可写磁盘的 Node 环境（VPS / Fly.io / Railway 卷）：SQLite 缓存、图片副本和上传文件都在磁盘上。
 部署探针：`GET /api/health`。
+
+**安全响应头**：所有 HTML 页面带 `Content-Security-Policy`（脚本、样式只允许同源文件，没有 `unsafe-inline`；图片/音视频允许 `https:`，嵌入允许 `https:` iframe）、`X-Content-Type-Options: nosniff`、`Referrer-Policy`、`Permissions-Policy`；`/admin` 另加 `Cache-Control: no-store`。页面因此不含任何内联脚本、内联样式或 `onload` 之类的属性（`astro.config.mjs` 关闭了内联，`tests/security-headers.test.mjs` 和静态导出测试会检查）；改模板时请保持这一点。`astro dev` 下不发送 CSP（Vite 会注入内联代码）。静态构建把同一组响应头写入 `static-dist/_headers`（Netlify、Cloudflare 都会读取）。
 
 **部署限制：**目前只支持单个 Node 进程操作同一份数据目录；不要使用多 worker 或多个实例共享 SQLite/媒体目录。
 配置切换的跨进程旧任务防护已加入，但同步去重、媒体清理、后台限流等仍不是跨进程协调的。

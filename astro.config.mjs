@@ -20,10 +20,14 @@ export default defineConfig({
   // breaks multipart uploads and DELETEs from scripts and from behind reverse
   // proxies whose public Origin differs from the internal URL.
   security: { checkOrigin: false },
+  // No inline <style>/<script>: every asset is a same-origin file, so the
+  // Content-Security-Policy (server/http/security.ts) needs no 'unsafe-inline'.
+  build: { inlineStylesheets: 'never' },
   vite: {
     ssr: { external: ['better-sqlite3'] },
     build: {
       chunkSizeWarningLimit: 700,
+      assetsInlineLimit: 0,
       rollupOptions: { output: { manualChunks: vendorChunk } },
     },
   },

@@ -68,7 +68,7 @@ const markDemoPreview = (doc) => {
       meta.parentNode = node; node.childNodes.push(meta);
     }
     if (node.tagName === 'body') {
-      const notice = parseFragment('<div role="status" data-demo-preview style="position:fixed;bottom:0;right:0;z-index:2147483647;background:#fff;color:#111;padding:8px 12px;font:600 14px/1.4 sans-serif;max-width:100%;box-sizing:border-box">DEMO PREVIEW · Notion not configured / 演示预览 · 未连接 Notion</div>').childNodes[0];
+      const notice = parseFragment('<div role="status" data-demo-preview>DEMO PREVIEW · Notion not configured / 演示预览 · 未连接 Notion</div>').childNodes[0];
       notice.parentNode = node; node.childNodes.push(notice);
     }
   });
@@ -271,7 +271,17 @@ try {
   const urls = routes.filter((r) => r.target !== '/search' && !r.target.includes('/page/')).flatMap((r) => ['en', 'zh-CN'].map((lang) => `<url><loc>${xml(siteUrl + langPrefix(lang) + r.target)}</loc></url>`));
   await writeFile(path.join(dest, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`);
   await writeFile(path.join(dest, 'robots.txt'), previewDemo ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nDisallow: /admin\nDisallow: /api/\nSitemap: ${siteUrl}/sitemap.xml\n`);
-  await writeFile(path.join(dest, '_headers'), `/media/notion/*\n  Content-Security-Policy: default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox\n  X-Content-Type-Options: nosniff\n`);
+  // Same security headers as the Node server (server/http/security.ts), copied
+  // from what the snapshot server actually sent, so the two cannot drift apart.
+  const pageHeaders = (await get('/?lang=en')).headers;
+  const security = ['Content-Security-Policy', 'X-Content-Type-Options', 'Referrer-Policy', 'Permissions-Policy']
+    .map((name) => [name, pageHeaders.get(name)]);
+  if (security.some(([, value]) => !value)) throw new Error('The snapshot server did not send the expected security headers.');
+  await writeFile(path.join(dest, '_headers'), [
+    '/*', ...security.map(([name, value]) => `  ${name}: ${value}`),
+    '/media/notion/*', "  Content-Security-Policy: default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox",
+    '',
+  ].join('\n'));
   console.log(`Static snapshot built: ${articles.length} published articles, ${media.size} media files, ${uploads.size} uploaded files.`);
 } catch (error) {
   await rm(dest, { recursive: true, force: true });

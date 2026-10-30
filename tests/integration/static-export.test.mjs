@@ -223,6 +223,20 @@ test('Netlify preview without Notion credentials is an explicitly marked demo; p
   assert.match(home, /href="\/articles\/connect-notion"/);
   assert.match(await readFile('static-dist/404.html', 'utf8'), /data-demo-preview/);
   assert.match(await readFile('static-dist/robots.txt', 'utf8'), /Disallow: \/$/m);
+  // The same security headers as the Node server, and pages that satisfy them:
+  // no inline scripts, <style> blocks, style attributes or event handlers.
+  const headers = await readFile('static-dist/_headers', 'utf8');
+  assert.match(headers, /^\/\*\n {2}Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self';/);
+  assert.match(headers, /frame-ancestors 'self'/);
+  assert.match(headers, /Referrer-Policy: strict-origin-when-cross-origin/);
+  assert.doesNotMatch(headers.split('/media/notion/*')[0], /unsafe-inline/);
+  for (const file of ['index.html', 'zh-CN/index.html', 'articles/index.html', 'search/index.html', 'more/index.html', '404.html', 'articles/connect-notion/index.html', 'profile-editor.html']) {
+    const html = await readFile(path.join('static-dist', file), 'utf8');
+    assert.doesNotMatch(html, /<script(?![^>]*\ssrc=)[^>]*>\s*\S/, `${file}: inline script`);
+    assert.doesNotMatch(html, /<style[\s>]/, `${file}: <style> block`);
+    assert.doesNotMatch(html, /\sstyle=/, `${file}: style attribute`);
+    assert.doesNotMatch(html, /\son[a-z]+=/, `${file}: event handler attribute`);
+  }
   for (const patch of [{ CONTEXT: 'production' }, { NOTION_TOKEN: 'only-token' }, { NOTION_DATABASE_ID: DB }, { STATIC_DEMO: '0' }, { NETLIFY: '', SITE_URL: 'https://archive.test' }]) {
     const result = await run({ ...env, ...patch });
     assert.notEqual(result.code, 0);

@@ -50,8 +50,9 @@ const ogImage = image && siteUrl ? new URL(image, siteUrl).toString() : image;
   <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
   <link rel="alternate" type="application/rss+xml" title={`${siteName || 'Articles'} — RSS`} href="/rss.xml" />
   {/* Chinese display cut (scripts/fonts/build-display-sc.py): ~30 KB of @font-face rules, loaded without
-       blocking render; the browser fetches only the unicode-range slices a page's display text needs. */}
-  <link rel="stylesheet" href="/fonts/display-sc/display-sc.css" media="print" onload="this.media='all'" />
+       blocking render (media="print" until scripts/site/async-css.ts switches it, no inline handler so the CSP
+       holds); the browser fetches only the unicode-range slices a page's display text needs. */}
+  <link rel="stylesheet" href="/fonts/display-sc/display-sc.css" media="print" data-async-css />
   <noscript><link rel="stylesheet" href="/fonts/display-sc/display-sc.css" /></noscript>
   {canonical && !noindex && LOCALES.map((code) => <link rel="alternate" hreflang={code} href={localized(code)} />)}
   {canonical && !noindex && <link rel="alternate" hreflang="x-default" href={localized(DEFAULT_LOCALE)} />}
@@ -59,6 +60,7 @@ const ogImage = image && siteUrl ? new URL(image, siteUrl).toString() : image;
 </head>
 <body class={bodyClass}><slot />
   <script>
+    import '../scripts/site/async-css.ts';
     import '../scripts/site/settings-refresh.ts';
   </script>
 </body>
