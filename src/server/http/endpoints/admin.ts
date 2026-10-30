@@ -1,5 +1,5 @@
 /**
- * Admin endpoints: login, settings, sync and the Notion schema check.
+ * Admin endpoints: login, overview, settings, sync and the Notion schema check.
  * Every handler except `authStatus` requires `Authorization: Bearer <ADMIN_TOKEN>`.
  * The site never writes to Notion — edit content there.
  */
@@ -8,6 +8,7 @@ import type {
   AuthResponse,
   AuthStatusResponse,
   NotionSchemaResponse,
+  OverviewResponse,
   SettingsResponse,
   SyncResponse,
   SyncStatusResponse,
@@ -16,6 +17,7 @@ import { describeSchema } from '../../notion/mapper.ts';
 import { notion, syncArticles, warmBodies } from '../../services/articles.ts';
 import { adminToken, authenticate, requestPeer, requireAdmin } from '../../services/auth.ts';
 import { contentBundle } from '../../services/bundle.ts';
+import { overview } from '../../services/overview.ts';
 import { adminSettings, importSiteProfile, notionReady, updateSettings } from '../../services/settings.ts';
 import { syncStatus } from '../../services/status.ts';
 import { NO_STORE, json, readJson, route, truthy } from '../respond.ts';
@@ -30,6 +32,14 @@ export const login = route(async (context) => {
   const { token } = await readJson(context.request);
   authenticate(context.request, token, requestPeer(context));
   return json<AuthResponse>({ ok: true }, { headers: NO_STORE });
+});
+
+/* ── Overview ───────────────────────────────────────────────────────── */
+
+/** GET /api/overview — what the site publishes and what needs attention (/admin → Overview). */
+export const readOverview = route(async (context) => {
+  requireAdmin(context.request, requestPeer(context));
+  return json<OverviewResponse>(await overview(), { headers: NO_STORE });
 });
 
 /* ── Settings ───────────────────────────────────────────────────────── */

@@ -1,5 +1,6 @@
 /** Small DOM helpers shared by the admin panels. */
 import { escapeHtml } from '../../../core/text.ts';
+import { errorText } from './i18n.ts';
 
 export { escapeHtml as esc };
 export { formatBytes as bytes } from '../../../core/text.ts';
@@ -21,7 +22,8 @@ export function toast(message: string, bad = false) {
   toastTimer = setTimeout(() => (element.className = 'toast'), 3200);
 }
 
-export const fail = (error: unknown) => toast(error instanceof Error ? error.message : String(error), true);
+/** Show a failed action; in the Chinese admin, API errors get a translated summary. */
+export const fail = (error: unknown) => toast(errorText(error), true);
 
 /** Open the native file picker and resolve with the chosen file (or null). */
 export const pickFile = (accept = '') =>

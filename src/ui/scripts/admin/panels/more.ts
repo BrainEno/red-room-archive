@@ -9,6 +9,7 @@ import type { LocalizedText, MoreDocument, MoreDocumentResponse } from '../../..
 import { MORE_PATH } from '../../../../shared/routes.ts';
 import { ApiError, type ApiClient } from '../../lib/api-client.ts';
 import { $, busy, esc, fail, pickFile, timeLabel, toast } from '../dom.ts';
+import { t } from '../i18n.ts';
 import {
   bilingualLabel,
   blankChannel,
@@ -21,6 +22,7 @@ import {
 } from '../more-model.ts';
 
 const IMAGE_TYPES = 'image/png,image/jpeg,image/webp,image/gif';
+const m = t.more;
 
 type ListKey = 'publications' | 'channels';
 
@@ -45,7 +47,7 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
   const pair = (label: string, path: string, value: LocalizedText, opts: { rows?: number; hint?: string; zhPlaceholder?: string } = {}) => {
     const input = (lang: 'en' | 'zh-CN') => {
       const p = `${path}.${lang}`;
-      const attrs = `data-path="${p}" lang="${lang}" aria-label="${esc(`${label} — ${lang === 'en' ? 'English' : '中文'}`)}"`;
+      const attrs = `data-path="${p}" lang="${lang}" aria-label="${esc(`${label} — ${lang === 'en' ? m.langEn : m.langZh}`)}"`;
       const placeholder = lang === 'zh-CN' && opts.zhPlaceholder ? ` placeholder="${esc(opts.zhPlaceholder)}"` : '';
       return opts.rows
         ? `<textarea ${attrs} rows="${opts.rows}"${placeholder}>${esc(value[lang])}</textarea>`
@@ -61,24 +63,24 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
 
   const image = (label: string, path: string, url: string, kind: 'cover' | 'qr') => `
     <div class="me-image ${kind}">
-      <div class="me-thumb" data-thumb="${path}">${thumb(url, label)}</div>
+      <div class="me-thumb" data-thumb="${path}">${thumb(url, kind)}</div>
       <div class="me-image-ctl">
         <label class="me-single">${esc(label)} URL<input data-path="${path}" data-check="image" spellcheck="false" value="${esc(url)}" placeholder="/uploads/…  or  https://…"></label>
         <div class="row2 tight">
-          <button type="button" data-act="upload" data-target="${path}">Upload image…</button>
-          <button type="button" class="ghost" data-act="clear" data-target="${path}">Remove</button>
+          <button type="button" data-act="upload" data-target="${path}">${esc(m.upload)}</button>
+          <button type="button" class="ghost" data-act="clear" data-target="${path}">${esc(m.remove)}</button>
         </div>
       </div>
     </div>`;
 
-  const thumb = (url: string, label: string) =>
-    url && isImageUrl(url) ? `<img src="${esc(url)}" alt="${esc(label)}">` : `<span>${label === 'QR code' ? 'No QR' : 'Typographic cover'}</span>`;
+  const thumb = (url: string, kind: 'cover' | 'qr') =>
+    url && isImageUrl(url) ? `<img src="${esc(url)}" alt="${esc(kind === 'qr' ? m.qr : m.cover)}">` : `<span>${esc(kind === 'qr' ? m.noQr : m.typographic)}</span>`;
 
   const controls = (list: ListKey, index: number, length: number) => `
     <span class="me-ctl">
-      <button type="button" data-act="up" data-list="${list}" data-index="${index}" ${index === 0 ? 'disabled' : ''} aria-label="Move up">↑</button>
-      <button type="button" data-act="down" data-list="${list}" data-index="${index}" ${index === length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
-      <button type="button" data-act="remove" data-list="${list}" data-index="${index}" aria-label="Remove">×</button>
+      <button type="button" data-act="up" data-list="${list}" data-index="${index}" ${index === 0 ? 'disabled' : ''} aria-label="${esc(m.moveUp)}">↑</button>
+      <button type="button" data-act="down" data-list="${list}" data-index="${index}" ${index === length - 1 ? 'disabled' : ''} aria-label="${esc(m.moveDown)}">↓</button>
+      <button type="button" data-act="remove" data-list="${list}" data-index="${index}" aria-label="${esc(m.removeItem)}">×</button>
     </span>`;
 
   const pad = (i: number) => String(i + 1).padStart(2, '0');
@@ -91,25 +93,25 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
         <summary>
           <span class="me-num">${pad(index)}</span>
           <span class="me-mini">${p.cover && isImageUrl(p.cover) ? `<img src="${esc(p.cover)}" alt="">` : ''}</span>
-          <span class="me-title">${esc(bilingualLabel(p.title, 'Untitled'))}<small>${esc(p.year)}</small></span>
+          <span class="me-title">${esc(bilingualLabel(p.title, m.untitled))}<small>${esc(p.year)}</small></span>
         </summary>
         <div class="me-body">
           ${controls('publications', index, doc.publications.length)}
-          ${image('Cover', at('cover'), p.cover, 'cover')}
+          ${image(m.cover, at('cover'), p.cover, 'cover')}
           <div class="me-head"><span></span><span>EN</span><span>中文</span></div>
-          ${pair('Title', at('title'), p.title)}
-          ${pair('Subtitle', at('subtitle'), p.subtitle)}
+          ${pair(m.title, at('title'), p.title)}
+          ${pair(m.subtitle, at('subtitle'), p.subtitle)}
           <div class="me-singles">
-            ${single('Year', at('year'), p.year, { placeholder: '2026' })}
-            ${single('Pages', at('pages'), p.pages, { type: 'number', placeholder: '48' })}
+            ${single(m.year, at('year'), p.year, { placeholder: '2026' })}
+            ${single(m.pages, at('pages'), p.pages, { type: 'number', placeholder: '48' })}
           </div>
-          ${pair('Printing', at('format'), p.format, { zhPlaceholder: 'Risograph 双色印刷' })}
-          ${pair('Edition', at('edition'), p.edition, { zhPlaceholder: '限量 100 册' })}
-          ${pair('Size', at('size'), p.size, { hint: 'one side is enough' })}
-          ${pair('Excerpt', at('excerpt'), p.excerpt, { rows: 9, hint: 'blank line = new paragraph' })}
-          ${pair('Excerpt source', at('excerptSource'), p.excerptSource, { zhPlaceholder: '选自第一章' })}
-          ${single('Order / shop link', at('link'), p.link, { check: 'link', placeholder: 'https://…  — leave empty to offer an email link' })}
-          ${pair('Button label', at('linkLabel'), p.linkLabel, { hint: 'optional' })}
+          ${pair(m.printing, at('format'), p.format, { zhPlaceholder: 'Risograph 双色印刷' })}
+          ${pair(m.edition, at('edition'), p.edition, { zhPlaceholder: '限量 100 册' })}
+          ${pair(m.size, at('size'), p.size, { hint: m.oneSide })}
+          ${pair(m.excerpt, at('excerpt'), p.excerpt, { rows: 9, hint: m.paragraphs })}
+          ${pair(m.excerptSource, at('excerptSource'), p.excerptSource, { zhPlaceholder: '选自第一章' })}
+          ${single(m.link, at('link'), p.link, { check: 'link', placeholder: m.linkPlaceholder })}
+          ${pair(m.linkLabel, at('linkLabel'), p.linkLabel, { hint: m.optional })}
         </div>
       </details>`;
   };
@@ -122,17 +124,17 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
         <summary>
           <span class="me-num">${pad(index)}</span>
           <span class="me-mini qr">${c.qr && isImageUrl(c.qr) ? `<img src="${esc(c.qr)}" alt="">` : ''}</span>
-          <span class="me-title">${esc(bilingualLabel(c.name, 'Unnamed'))}<small>${esc(c.handle)}</small></span>
+          <span class="me-title">${esc(bilingualLabel(c.name, m.unnamed))}<small>${esc(c.handle)}</small></span>
         </summary>
         <div class="me-body">
           ${controls('channels', index, doc.channels.length)}
-          ${image('QR code', at('qr'), c.qr, 'qr')}
+          ${image(m.qr, at('qr'), c.qr, 'qr')}
           <div class="me-head"><span></span><span>EN</span><span>中文</span></div>
-          ${pair('Platform', at('name'), c.name, { zhPlaceholder: '微信公众号' })}
-          ${pair('Note', at('note'), c.note, { hint: 'optional', zhPlaceholder: '扫码关注' })}
+          ${pair(m.platform, at('name'), c.name, { zhPlaceholder: '微信公众号' })}
+          ${pair(m.note, at('note'), c.note, { hint: m.optional, zhPlaceholder: '扫码关注' })}
           <div class="me-singles">
-            ${single('Account / ID', at('handle'), c.handle, { placeholder: '@name' })}
-            ${single('Link', at('href'), c.href, { check: 'link', placeholder: 'https://…  (optional)' })}
+            ${single(m.handle, at('handle'), c.handle, { placeholder: '@name' })}
+            ${single(m.href, at('href'), c.href, { check: 'link', placeholder: m.hrefPlaceholder })}
           </div>
         </div>
       </details>`;
@@ -142,13 +144,13 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
 
   const statusText = () =>
     meta.custom
-      ? `Published ${meta.updated ? timeLabel(meta.updated) : ''}`
-      : 'Showing the built-in sample content (content/more.ts) — edit and save to replace it';
+      ? m.published(meta.updated ? timeLabel(meta.updated) : '')
+      : m.sample;
 
   const updateStatus = () => {
     const status = root.querySelector('#me-status');
     if (!status) return;
-    status.innerHTML = `${esc(statusText())}${dirty() ? ' · <b class="warn">unsaved changes</b>' : ''}`;
+    status.innerHTML = `${esc(statusText())}${dirty() ? ` · <b class="warn">${esc(t.common.unsaved)}</b>` : ''}`;
     root.querySelector('#me-save')?.classList.toggle('primary', dirty());
   };
 
@@ -157,28 +159,28 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
       <div class="me-bar">
         <p class="hint" id="me-status"></p>
         <div class="row2 tight">
-          <button type="button" id="me-save">Save</button>
-          <a class="me-link" href="${MORE_PATH}" target="_blank" rel="noopener">View page ↗</a>
+          <button type="button" id="me-save">${esc(t.common.save)}</button>
+          <a class="me-link" href="${MORE_PATH}" target="_blank" rel="noopener">${esc(m.viewPage)}</a>
           <span class="me-spacer"></span>
-          <button type="button" class="ghost" id="me-export">Export JSON</button>
-          <button type="button" class="ghost" id="me-import">Import JSON…</button>
-          <button type="button" class="ghost" id="me-reset" ${meta.custom ? '' : 'disabled'}>Reset to samples</button>
+          <button type="button" class="ghost" id="me-export">${esc(m.exportJson)}</button>
+          <button type="button" class="ghost" id="me-import">${esc(m.importJson)}</button>
+          <button type="button" class="ghost" id="me-reset" ${meta.custom ? '' : 'disabled'}>${esc(m.reset)}</button>
         </div>
       </div>
 
-      <h3 class="admin-sec">Intro</h3>
+      <h3 class="admin-sec">${esc(m.intro)}</h3>
       <div class="me-head"><span></span><span>EN</span><span>中文</span></div>
-      ${pair('Intro', 'intro', doc.intro, { rows: 3 })}
+      ${pair(m.intro, 'intro', doc.intro, { rows: 3 })}
 
-      <h3 class="admin-sec">Publications <small class="hint">${doc.publications.length}</small></h3>
-      <p class="hint">Order here = order on the page. Covers: any ratio, about 1200 px on the long side; leave empty for a typographic cover.</p>
-      <div class="me-list">${doc.publications.map((_, i) => publicationCard(i)).join('') || '<p class="hint">No publications — the section is hidden.</p>'}</div>
-      <button type="button" data-act="add" data-list="publications">+ Add publication</button>
+      <h3 class="admin-sec">${esc(m.publications)} <small class="hint">${doc.publications.length}</small></h3>
+      <p class="hint">${esc(m.publicationsHint)}</p>
+      <div class="me-list">${doc.publications.map((_, i) => publicationCard(i)).join('') || `<p class="hint">${esc(m.noPublications)}</p>`}</div>
+      <button type="button" data-act="add" data-list="publications">${esc(m.addPublication)}</button>
 
-      <h3 class="admin-sec">Contact channels <small class="hint">${doc.channels.length}</small></h3>
-      <p class="hint">Social accounts with optional QR codes (square PNG/JPG). The contact email comes from Settings.</p>
-      <div class="me-list">${doc.channels.map((_, i) => channelCard(i)).join('') || '<p class="hint">No channels — only the email is shown.</p>'}</div>
-      <button type="button" data-act="add" data-list="channels">+ Add channel</button>`;
+      <h3 class="admin-sec">${esc(m.channels)} <small class="hint">${doc.channels.length}</small></h3>
+      <p class="hint">${esc(m.channelsHint)}</p>
+      <div class="me-list">${doc.channels.map((_, i) => channelCard(i)).join('') || `<p class="hint">${esc(m.noChannels)}</p>`}</div>
+      <button type="button" data-act="add" data-list="channels">${esc(m.addChannel)}</button>`;
     updateStatus();
     root.querySelectorAll<HTMLInputElement>('[data-check]').forEach(checkField);
   }
@@ -189,7 +191,7 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
     const value = input.value.trim();
     const ok = input.dataset.check === 'image' ? isImageUrl(value) : isLinkUrl(value);
     input.classList.toggle('invalid', !ok);
-    input.title = ok ? '' : input.dataset.check === 'image' ? 'Use /uploads/…, another site path, or an https:// URL' : 'Use https://, http:// or mailto:';
+    input.title = ok ? '' : input.dataset.check === 'image' ? m.badImage : m.badLink;
   };
 
   const setImage = (path: string, url: string) => {
@@ -206,8 +208,7 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
   const refreshPreview = (path: string) => {
     const url = String(getPath(doc, path) ?? '');
     const box = root.querySelector<HTMLElement>(`[data-thumb="${path}"]`);
-    const kind = path.endsWith('.qr') ? 'QR code' : 'Cover';
-    if (box) box.innerHTML = thumb(url, kind);
+    if (box) box.innerHTML = thumb(url, path.endsWith('.qr') ? 'qr' : 'cover');
     const mini = box?.closest('details')?.querySelector('.me-mini');
     if (mini) mini.innerHTML = url && isImageUrl(url) ? `<img src="${esc(url)}" alt="">` : '';
   };
@@ -232,8 +233,8 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
       if (title) {
         title.innerHTML =
           list === 'publications'
-            ? `${esc(bilingualLabel(doc.publications[index].title, 'Untitled'))}<small>${esc(doc.publications[index].year)}</small>`
-            : `${esc(bilingualLabel(doc.channels[index].name, 'Unnamed'))}<small>${esc(doc.channels[index].handle)}</small>`;
+            ? `${esc(bilingualLabel(doc.publications[index].title, m.untitled))}<small>${esc(doc.publications[index].year)}</small>`
+            : `${esc(bilingualLabel(doc.channels[index].name, m.unnamed))}<small>${esc(doc.channels[index].handle)}</small>`;
       }
     }
     updateStatus();
@@ -274,19 +275,19 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
         (next ?? card?.querySelector<HTMLElement>('summary'))?.focus();
       }
     } else if (act === 'remove' && list) {
-      const label = list === 'publications' ? bilingualLabel(doc.publications[index].title, 'this publication') : bilingualLabel(doc.channels[index].name, 'this channel');
-      if (!confirm(`Remove “${label}”? (Nothing is published until you save.)`)) return;
+      const label = list === 'publications' ? bilingualLabel(doc.publications[index].title, m.thisPublication) : bilingualLabel(doc.channels[index].name, m.thisChannel);
+      if (!confirm(m.confirmRemove(label))) return;
       items.splice(index, 1);
       render();
     } else if (act === 'upload' && target) {
       const file = await pickFile(IMAGE_TYPES);
       if (!file) return;
       try {
-        toast(`Uploading ${file.name}…`);
+        toast(m.uploading(file.name));
         const uploaded = await busy(button.parentElement!, () => api.uploads.upload(file));
         setImage(target, uploaded.url);
         hooks.onFilesChanged?.();
-        toast('Uploaded — save to publish');
+        toast(m.uploaded);
       } catch (error) {
         fail(error);
       }
@@ -312,7 +313,7 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
       const response = await busy(root, () => api.more.save(doc));
       load(response);
       hooks.onFilesChanged?.();
-      toast('Saved — /more is updated');
+      toast(m.saved);
     } catch (error) {
       fail(error);
       showInvalid(error);
@@ -334,19 +335,19 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
       if (!file) return;
       try {
         const json = JSON.parse(await file.text());
-        if (!confirm(`Replace the whole /more page with ${file.name}? This publishes it immediately.`)) return;
+        if (!confirm(m.confirmImport(file.name))) return;
         load(await busy(root, () => api.more.save(documentFromImport(json) as MoreDocument)));
         hooks.onFilesChanged?.();
-        toast('Imported and saved');
+        toast(m.imported);
       } catch (error) {
-        fail(error instanceof SyntaxError ? new Error(`${file.name} is not valid JSON`) : error);
+        fail(error instanceof SyntaxError ? new Error(m.notJson(file.name)) : error);
       }
     } else if (id === 'me-reset') {
-      if (!confirm('Delete the saved page and go back to the built-in sample content? Export JSON first if you may want it back.')) return;
+      if (!confirm(m.confirmReset)) return;
       try {
         load(await busy(root, () => api.more.reset()));
         hooks.onFilesChanged?.();
-        toast('Reset to the built-in content');
+        toast(m.resetDone);
       } catch (error) {
         fail(error);
       }
@@ -366,14 +367,14 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
     event.returnValue = '';
   });
 
-  root.innerHTML = '<p class="hint">Loading…</p>';
+  root.innerHTML = `<p class="hint">${esc(t.common.loading)}</p>`;
   api.more.document().then(load).catch(fail);
 
   return {
     isDirty: dirty,
     /** Pick up server-side changes (a renamed upload); never discards unsaved edits. */
     reload: () => {
-      if (dirty()) return toast('A file used on /more was renamed — check its URL in the More tab before saving', true);
+      if (dirty()) return toast(m.renamedWhileDirty, true);
       api.more.document().then(load).catch(fail);
     },
   };

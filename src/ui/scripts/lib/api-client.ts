@@ -16,6 +16,7 @@ import type {
   MoreDocumentResponse,
   MoreResponse,
   NotionSchemaResponse,
+  OverviewResponse,
   SearchResponse,
   SettingsResponse,
   SettingValues,
@@ -110,6 +111,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
         request<ArticleDetail>(`/api/articles/${seg(slug)}${q({ refresh: refresh ? 1 : undefined })}`),
       tags: () => request<TagListResponse>('/api/tags'),
     },
+
+    overview: () => request<OverviewResponse>('/api/overview'),
 
     notion: {
       schema: () => request<NotionSchemaResponse>('/api/notion/schema'),

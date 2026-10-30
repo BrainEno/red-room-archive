@@ -66,6 +66,7 @@ interface ArticleSummary {
 | --- | --- | --- | --- |
 | GET | `/api/auth` | 服务器是否配置了 `ADMIN_TOKEN`（公开） | `AuthStatusResponse` |
 | POST | `/api/auth` | `{ token }` 校验登录（公开，带限流） | `AuthResponse` |
+| GET | `/api/overview` | 后台概览：同步状态；站点名称、邮箱、`SITE_URL`；文章总数、精选（Rank > 0）、主题数、无标签数、最新一篇、每年篇数；“更多”页（是否保存过、出版物/渠道数）；上传文件数与大小；`checks`：需要处理的事项（`{ code, level: 'warn' \| 'info', count? }`，只给代码，文字由后台按界面语言翻译）。只读，不含任何凭据 | `OverviewResponse` |
 | GET | `/api/settings` | 设置（token 打码）+ 同步状态 | `SettingsResponse` |
 | PATCH | `/api/settings` | 局部更新。空字符串清除普通设置的覆盖值；空或打码的 Notion token 表示保持不变；`NOTION_DATABASE_ID` 可传 id 或数据库链接。改变 token/数据库会清空文章缓存 | `SettingsResponse` |
 | POST | `/api/settings/profile` | 导入站点资料 JSON（`red-room-site-profile`，版本 1 或 2），只替换公开字段，不动 Notion 配置 | `SettingsResponse` |

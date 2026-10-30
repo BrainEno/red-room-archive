@@ -84,6 +84,27 @@ test('sync is admin-only; it paginates, retries 429 and keeps only visible pages
   assert.ok(!JSON.stringify(list.data).includes('Future'), 'scheduled pages stay hidden until their date');
 });
 
+test('admin overview: what is published and what needs attention', async () => {
+  assert.equal((await call(admin.readOverview)).status, 401);
+  const { status, data } = await call(admin.readOverview, { token: TOKEN });
+  assert.equal(status, 200, JSON.stringify(data));
+  assert.equal(data.status.demo, false);
+  assert.equal(data.articles.total, 3);
+  assert.equal(data.articles.featured, 1, 'first-light has Rank 2');
+  assert.equal(data.articles.topics, 2);
+  assert.deepEqual(data.articles.latest, { title: 'First Light', href: '/articles/first-light', date: data.articles.latest.date });
+  assert.equal(data.articles.years.reduce((n, y) => n + y.count, 0), 3);
+  assert.equal(data.more.custom, false);
+  assert.ok(data.more.publications > 0);
+  assert.equal(typeof data.uploads.bytes, 'number');
+  const codes = data.checks.map((check) => check.code);
+  assert.ok(!codes.includes('notion-missing') && !codes.includes('sync-error'));
+  assert.ok(codes.includes('more-sample'), 'the built-in More sample is pointed out');
+  assert.ok(codes.includes('site-url-missing'), 'SITE_URL is not set in this test');
+  assert.ok(data.checks.every((check) => check.level === 'warn' || check.level === 'info'));
+  assert.ok(!JSON.stringify(data).includes('secret_env_token'), 'no credentials in the overview');
+});
+
 test('tags: counts are case-insensitive and filter the list', async () => {
   const tags = await call(pub.tags);
   // Labels follow what the archive uses (`Poem`, not the glossary's first name `Poetry`).
