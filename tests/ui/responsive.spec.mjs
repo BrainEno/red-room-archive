@@ -123,6 +123,8 @@ test('read aloud controls respond to supported and unsupported speech APIs', asy
     await expect(page.locator('[data-read-aloud]')).toBeVisible();
     await page.locator('[data-play]').click();
     await expect(page.locator('[data-read-aloud]')).toHaveAttribute('data-state', 'playing');
+    await expect(page.locator('[data-caption]')).toContainText(/Reading aloud|正在朗读/);
+    await expect(page.locator('[data-stop]')).toBeVisible();
     await page.locator('[data-play]').click();
     await expect(page.locator('[data-read-aloud]')).toHaveAttribute('data-state', 'paused');
     await page.locator('[data-stop]').click();

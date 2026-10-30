@@ -27,9 +27,11 @@ export interface Props {
   modified?: string;
   tags?: string[];
   jsonLd?: JsonLd[];
+  /** Show the newsletter link in the footer (site setting; hidden by default). */
+  newsletter?: boolean;
 }
 
-const { title, siteName, locale, siteUrl, email = '', description, current, image, type, noindex, imageAlt, published, modified, tags, jsonLd } = Astro.props;
+const { title, siteName, locale, siteUrl, email = '', description, current, image, type, noindex, imageAlt, published, modified, tags, jsonLd, newsletter = false } = Astro.props;
 const t = messages(locale);
 ---
 <Base title={title} siteName={siteName} siteUrl={siteUrl} description={description} image={image} type={type} noindex={noindex} locale={locale} imageAlt={imageAlt} published={published} modified={modified} tags={tags} jsonLd={jsonLd} bodyClass="plain">
@@ -38,6 +40,6 @@ const t = messages(locale);
   <main id="content" class="page" tabindex="-1">
     <slot />
   </main>
-  <SiteFooter siteName={siteName} email={email} locale={locale} />
+  <SiteFooter siteName={siteName} email={email} locale={locale} newsletter={newsletter} />
   <script>import '../scripts/site/cover-fallback.ts';</script>
 </Base>

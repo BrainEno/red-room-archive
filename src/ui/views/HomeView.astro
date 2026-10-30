@@ -23,6 +23,7 @@ export interface Props {
     tagline: string;
     url: string;
     facts: { key: string; value: string }[];
+    newsletterSignup?: boolean;
   };
   home: { latest: ArticleSummary[]; featured: ArticleSummary[]; topics: TagCount[]; total: number; model: string };
 }
@@ -65,8 +66,9 @@ const jsonLd = site.url
     <section id="intro" class="intro">
       <div class="stage">
         <div class="intro-copy">
-          <p class="site-about" lang={contentLang(site.about)}>{site.about}</p>
-          <p class="lede" lang={contentLang(site.intro)}>{site.intro}</p>
+          {/* No intro: the about line takes the large word-by-word slot. */}
+          {site.intro && <p class="site-about" lang={contentLang(site.about)}>{site.about}</p>}
+          <p class="lede" lang={contentLang(site.intro || site.about)}>{site.intro || site.about}</p>
         </div>
         {site.facts.length > 0 && (
           <dl class="facts">{site.facts.map((f) => <div><dt lang={contentLang(f.key)}>{f.key}</dt><dd lang={contentLang(f.value)}>{f.value}</dd></div>)}</dl>
@@ -109,7 +111,7 @@ const jsonLd = site.url
       <a class="go" href={to(MORE_PATH)}><span class="go-t">{t.home.learnMore}</span><span class="go-a" aria-hidden="true">↗</span></a>
       <div class="reach">
         {site.email && <p><span class="k">{t.home.email}</span><a href={`mailto:${site.email}`}>{site.email}</a></p>}
-        <p class="letters-reach"><span class="k">{t.newsletter.homeKey}</span><a href={to(SUBSCRIBE_PATH)}>{t.newsletter.homeLink}</a></p>
+        {site.newsletterSignup && <p class="letters-reach"><span class="k">{t.newsletter.homeKey}</span><a href={to(SUBSCRIBE_PATH)}>{t.newsletter.homeLink}</a></p>}
         <p class="what">{t.home.moreTopics}</p>
         <p class="yr">© {new Date().getFullYear()} {site.name}</p>
       </div>

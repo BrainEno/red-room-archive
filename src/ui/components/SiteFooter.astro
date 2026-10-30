@@ -7,8 +7,10 @@ export interface Props {
   siteName: string;
   locale: Locale;
   email?: string;
+  /** Newsletter sign-up link (hidden unless the site setting is on). */
+  newsletter?: boolean;
 }
-const { siteName, locale, email = '' } = Astro.props;
+const { siteName, locale, email = '', newsletter = false } = Astro.props;
 const t = messages(locale);
 const year = new Date().getFullYear();
 ---
@@ -17,7 +19,7 @@ const year = new Date().getFullYear();
   <nav aria-label="Footer">
     {email && <a href={`mailto:${email}`}>{email}</a>}
     <a href={localePath(ARCHIVE_PATH, locale)}>{t.nav.archive}</a>
-    <a href={localePath(SUBSCRIBE_PATH, locale)}>{t.newsletter.footer}</a>
+    {newsletter && <a href={localePath(SUBSCRIBE_PATH, locale)}>{t.newsletter.footer}</a>}
     <a href="/rss.xml">RSS</a>
     <a href={localePath('/', locale)}>{t.nav.home}</a>
   </nav>

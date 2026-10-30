@@ -36,6 +36,7 @@
 | `NEWSLETTER_SECRET` | Functions | **仅 Production** | 加密名单、退订链接 |
 | `NEWSLETTER_EMAIL_PROVIDER`、`NEWSLETTER_EMAIL_API_KEY`、`NEWSLETTER_FROM` | Functions | **仅 Production** | 发信 |
 | `NEWSLETTER_REPLY_TO`、`NEWSLETTER_DAILY_LIMIT`、`NEWSLETTER_MONTHLY_LIMIT`、`NEWSLETTER_TOKEN_TTL_HOURS`、`NEWSLETTER_SITE_NAME` | Functions | Production | 可选 |
+| `SHOW_NEWSLETTER_SIGNUP`（可选，默认关闭） | Builds | Production | `1` 时在首页、文章末尾、页脚和 sitemap 显示订阅入口；改动后需重新部署。不是密钥 |
 
 - **不要把生产密钥给 Deploy Preview**：预览可能来自不可信的 PR，PR 自己的代码能读取注入的变量。只在 Production 设置 `NEWSLETTER_*` 和 `ADMIN_TOKEN` 后，预览站的订阅会显示“尚未开放”（503），这是预期行为。
 - 预览和分支部署即使配置了密钥，也只会读写自己的 Blobs key（`subscribers-deploy-preview.json` 等），不会碰生产名单。
@@ -57,6 +58,7 @@ Netlify 会在仓库文件和构建产物里搜索每个**标记为 secret 的�
 4. 创建只有发信权限的 API key（Resend：API Keys → Create → Permission 选 **Sending access**，可限定到你的域名）。
 5. 生成 `NEWSLETTER_SECRET`：`openssl rand -base64 48`。**离线保存一份**——丢失后名单无法解密，换掉会使所有退订链接失效。
 6. 在 Netlify 设置上表变量，触发一次生产部署。
+7. 订阅入口默认隐藏：验证通过后再加 `SHOW_NEWSLETTER_SIGNUP=1`（Builds）并重新部署，入口才会出现在公开页面。见 [NEWSLETTER.md → 显示 / 隐藏订阅入口](NEWSLETTER.md#显示--隐藏订阅入口)。
 
 ### 上线后验证
 
@@ -89,7 +91,7 @@ Cloudflare Pages 等主机可以发布同一个 `static-dist/`，但没有 Netli
 ## Node 动态站
 
 1. `npm ci && npm run build`，设置 `ADMIN_TOKEN`、`SITE_URL`、Notion 变量，`npm start`。
-2. 订阅数据在同一个 SQLite 数据库（迁移 11 自动创建表）。设置同样的 `NEWSLETTER_*` 变量即可开放订阅。
+2. 订阅数据在同一个 SQLite 数据库（迁移 11 自动创建表）。设置同样的 `NEWSLETTER_*` 变量即可开放订阅；公开入口在 `/admin → 设置 → 邮件订阅` 开关，立即生效（也可用 `SHOW_NEWSLETTER_SIGNUP=1` 作为默认值）。
 3. 反向代理后的客户端无法可靠区分（不信任转发头），订阅限流会落到共享桶（10 分钟 60 次）；建议在代理层另设限流。
 4. 备份：数据库与上传目录，见 README。
 

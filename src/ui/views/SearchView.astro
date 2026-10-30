@@ -7,7 +7,7 @@ import { localePath, type Locale } from '../../shared/i18n.ts';
 import { SEARCH_PATH } from '../../shared/routes.ts';
 
 export interface Props {
-  site: { locale: Locale; name: string; url: string; email: string };
+  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean };
   result: SearchResponse;
 }
 const { site, result } = Astro.props;
@@ -15,7 +15,7 @@ const { locale } = site;
 const t = messages(locale).search;
 const hasQuery = Boolean(result.query);
 ---
-<Page title={`${hasQuery ? `“${result.query}” — ` : ''}${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} current={SEARCH_PATH} noindex>
+<Page title={`${hasQuery ? `“${result.query}” — ` : ''}${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} locale={locale} current={SEARCH_PATH} noindex>
   <section class="prose listing">
     <p class="article-label">{site.name} / {t.title}</p>
     <h1>{t.title}</h1>

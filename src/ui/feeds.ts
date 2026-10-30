@@ -43,15 +43,15 @@ ${items}
 `;
 }
 
-export function sitemap(input: { origin: string; articles: ArticleSummary[]; tags?: TagCount[] }): string {
-  const { origin, articles, tags = [] } = input;
+export function sitemap(input: { origin: string; articles: ArticleSummary[]; tags?: TagCount[]; newsletterSignup?: boolean }): string {
+  const { origin, articles, tags = [], newsletterSignup = false } = input;
   const urls: { loc: string; lastmod?: string }[] = [
     { loc: '/' },
     { loc: ARTICLES_PATH, lastmod: articles[0]?.updated },
     { loc: TOPICS_PATH },
     { loc: ARCHIVE_PATH, lastmod: articles[0]?.updated },
     { loc: MORE_PATH },
-    { loc: SUBSCRIBE_PATH },
+    ...(newsletterSignup ? [{ loc: SUBSCRIBE_PATH }] : []),
     ...tags.map((tag) => ({ loc: topicPath(tag.slug) })), // one URL per topic, whatever language it is written in
     ...articles.map((article) => ({ loc: article.href, lastmod: article.updated || article.date })),
   ];

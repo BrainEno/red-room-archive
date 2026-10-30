@@ -35,7 +35,7 @@ Windows PowerShell 可用 `Copy-Item .env.example .env` 创建配置文件。
 | `/archive` | 全部文章一页列完，按年份分组，顶部有年份索引 |
 | `/search?q=` | 搜索标题、标签、摘要和正文 |
 | `/more` | 自印出版物（封面、规格、选读）与联系方式（邮箱、社交账号二维码），在后台 **More** 编辑，见下文 |
-| `/subscribe` | 邮件订阅（双重确认）；文章末尾、页脚和首页信息栏都有入口，见下文“邮件订阅” |
+| `/subscribe` | 邮件订阅（双重确认）。文章末尾、页脚和首页信息栏的入口**默认隐藏**，开启方法见下文“邮件订阅” |
 | `/newsletter/confirm` · `/newsletter/unsubscribe` | 确认订阅 / 退订页（来自邮件链接，不被索引） |
 | `/rss.xml` · `/sitemap.xml` · `/robots.txt` | 订阅与搜索引擎 |
 | `/media/notion/:id` | Notion 里上传的图片/文件的本地副本（见下文“图片”） |
@@ -141,7 +141,7 @@ https://www.notion.so/workspace/0123456789abcdef0123456789abcdef?v=fffffffffffff
 
 文章页采用适合长文的单栏、行距和段落留白，保留 Notion 段落、列表等富文本中的手动换行以及空段落；有三个以上标题时桌面显示侧栏目录，手机可展开目录；不会擅自把作者的长段落拆成短段。升级后旧缓存正文会在首次阅读时重新渲染；如果 Notion 暂时不可用，先显示旧缓存，恢复后会再次尝试。
 
-支持 Web Speech 语音合成且启用 JavaScript 的浏览器会显示 **朗读 / Listen**，点击后朗读标题与正文，可暂停、继续、停止、调整语速（从下一段生效）。会读取折叠内容及图片说明，跳过目录、音视频播放器和书签的网址；离开页面时停止。功能使用浏览器/设备可用的语音，并按段落尝试匹配中文或英文，混合语言和没有相应语音的设备可能读得不准确。浏览器可能使用本地或联网语音服务，具体隐私及网络要求由浏览器和设备决定；本站不生成或保存音频。关闭 JavaScript、不支持该 API 或没有可朗读正文时，入口不显示。
+支持 Web Speech 语音合成且启用 JavaScript 的浏览器会显示 **朗读 / Listen**，点击后朗读标题与正文，可暂停、继续、停止、调整语速（从下一段生效）；朗读时按钮变红，下方说明文字显示状态与进度百分比，分隔线上的红线表示已读部分。会读取折叠内容及图片说明，跳过目录、音视频播放器和书签的网址；离开页面时停止。功能使用浏览器/设备可用的语音，并按段落尝试匹配中文或英文，混合语言和没有相应语音的设备可能读得不准确。浏览器可能使用本地或联网语音服务，具体隐私及网络要求由浏览器和设备决定；本站不生成或保存音频。关闭 JavaScript、不支持该 API 或没有可朗读正文时，入口不显示。
 
 ### 图片
 
@@ -205,7 +205,7 @@ Notion 和 GitHub 联动、发布自动化的调研见 [docs/NOTION-GITHUB.md](d
 
 - **Overview（概览）**：登录后的第一页。文章来源（Notion / 示例）与上次同步时间；文章、精选、主题、已缓存正文、出版物、联系渠道、上传文件的数量；**需要处理**的事项（未配置 Notion、同步失败、从未同步、没有已发布文章、正文未缓存、未设置 `SITE_URL`、没有联系邮箱、无标签文章、“更多”页仍是示例），每条都带直达按钮；最新文章与每年文章数；快捷操作：立即同步、查看英文/中文网站、下载内容包、进入设置。数据来自 `GET /api/overview`，每次切到该标签都会刷新。
 - **Articles**：已发布文章一览；**Sync now** / **Sync + fetch bodies**（同时预取所有正文，让搜索覆盖全文）/ **Full resync**（清空正文和图片缓存后重新同步）；单篇 **Refresh** 重新拉取正文。
-- **Settings**：分为 **Site / Homepage copy / Topics / Notion / Backup & static sites** 五组，顶部有分组导航，底部固定的保存栏显示是否有未保存的修改（`Ctrl/⌘ + S` 也可保存；有未保存修改时离开页面会提示）。首页文案的英文、中文左右并排（窄屏上下排列）。内容：站点名称/邮箱；简介（首页、meta description、RSS）、首页引言与标语、首页信息栏（Homepage facts：每行一条 `标签: 内容`，最多 6 条；留空用内置默认，填 `-` 隐藏），英文、中文各一份（中文留空就用内置中文文案，不会回退到英文）；中英标签对照（Tag pairs）；Notion token 与数据库（优先于 `.env`）；**Settings** 显示 Notion 配置是否存在（包括从环境变量读取），但这不代表连接有效；**Check columns** 实际验证权限与字段映射。**Export site profile** 导出已保存的非机密站点文字和标签对照；**Import site profile** 验证后立即替换这些字段，不修改 Notion 配置。导入会丢弃尚未保存的表单编辑。**Download content bundle (.zip)** 下载静态部署用的内容包（见下文）。
+- **Settings**：分为 **Site / Homepage copy / Topics / Newsletter / Notion / Backup & static sites** 六组，顶部有分组导航，底部固定的保存栏显示是否有未保存的修改（`Ctrl/⌘ + S` 也可保存；有未保存修改时离开页面会提示）。首页文案的英文、中文左右并排（窄屏上下排列）。内容：站点名称/邮箱；简介（首页、meta description、RSS）、首页引言与标语、首页信息栏（Homepage facts：每行一条 `标签: 内容`，最多 6 条；内置默认为空，显示为 `-`，即不显示这一栏），英文、中文各一份（中文留空就用内置中文文案，不会回退到英文）；中英标签对照（Tag pairs）；**Newsletter**：是否在公开页面显示订阅入口（默认关闭，保存后立即生效）；Notion token 与数据库（优先于 `.env`）；**Settings** 显示 Notion 配置是否存在（包括从环境变量读取），但这不代表连接有效；**Check columns** 实际验证权限与字段映射。**Export site profile** 导出已保存的非机密站点文字和标签对照；**Import site profile** 验证后立即替换这些字段，不修改 Notion 配置。导入会丢弃尚未保存的表单编辑。**Download content bundle (.zip)** 下载静态部署用的内容包（见下文）。
 - **More**：编辑 `/more` 页面（出版物、联系方式、二维码，中英并排），见上文。
 - **Newsletter（订阅）**：订阅总数 / 已订阅 / 待确认 / 已退订、邮件服务状态与今日发信量；按邮箱搜索、按状态筛选；待确认地址可重发确认；**导出 CSV**（只含邮箱、状态、语言、来源和时间，不含 token、哈希或密钥）。静态 Netlify 站点的 `/admin` 也能用同一个 `ADMIN_TOKEN` 登录，但只显示这一模块。
 - **Files**：上传音频/视频/图片/PDF；上传 `.glb` 并选择 “Statue model” 可替换首页雕像（首页只请求实际存在的那一个模型：上传的或仓库内置的 `public/models/venus.glb`；建议先用 `npx gltfpack -i in.glb -o out.glb -cc` 压缩，内置模型就是这样从 11.7 MB 压到约 0.8 MB 的，三角面减半后肉眼无差别）；“更多”页面用到的文件标 on /more。
@@ -219,6 +219,8 @@ Notion 和 GitHub 联动、发布自动化的调研见 [docs/NOTION-GITHUB.md](d
 - **Netlify 静态站**：`/api/newsletter/*` 由 `netlify/functions/newsletter.mts`（Netlify Function）处理，数据加密存放在 **Netlify Blobs**——都包含在 Netlify 免费套餐里，不需要新的数据库账号。
 - **Node 站点**：同一套服务，数据在 SQLite（迁移 11）。
 - **发信**：Resend（免费每天 100 封）或 Brevo（免费每天 300 封），均无需绑卡，需要验证发信域名。
+
+**订阅入口默认隐藏**（首页、文章末尾、页脚和 sitemap 都不出现），功能本身不受影响：`/subscribe`（不被索引）、确认 / 退订链接和后台“订阅”模块照常可用。重新开启：Node 站点在 `/admin → 设置 → 邮件订阅` 勾选，立即生效；Netlify 静态站设置构建变量 `SHOW_NEWSLETTER_SIGNUP=1` 后重新部署。详见 [docs/NEWSLETTER.md](docs/NEWSLETTER.md#显示--隐藏订阅入口)。
 
 未配置邮件服务时，订阅表单会明确显示“尚未开放”，不保存任何数据，也不会假装发送成功。配置、数据结构、安全设计、备份与故障恢复见 **[docs/NEWSLETTER.md](docs/NEWSLETTER.md)**，上线步骤见 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**。
 
@@ -257,6 +259,7 @@ src/content  站点文案、演示文章                    src/pages    路由�
 | `LINK_PREVIEWS` | 开 | 设为 `off` / `0` / `false` 时不抓取书签网页的标题和简介 |
 | `NOTION_WEBHOOK_TOKEN` | — | 可选。固定 Notion webhook 的验证令牌，跳过后台握手（见“Webhook 即时更新”） |
 | `NEWSLETTER_SECRET` · `NEWSLETTER_EMAIL_PROVIDER` · `NEWSLETTER_EMAIL_API_KEY` · `NEWSLETTER_FROM` | — | 邮件订阅（四个都设置才会开放）。可选 `NEWSLETTER_REPLY_TO`、`NEWSLETTER_DAILY_LIMIT`（90）、`NEWSLETTER_MONTHLY_LIMIT`（2800）、`NEWSLETTER_TOKEN_TTL_HOURS`（48）、`NEWSLETTER_SITE_NAME`。见 [docs/NEWSLETTER.md](docs/NEWSLETTER.md#2-环境变量)；静态构建不会使用也不会输出它们 |
+| `SHOW_NEWSLETTER_SIGNUP` | 关闭 | `1` 时显示公开的订阅入口（首页、文章末尾、页脚、sitemap）。Node 站点上后台“设置 → 邮件订阅”的选择优先；静态构建只读这个变量，改动后需重新部署 |
 | `FRAME_ANCESTORS` | `'self'` | 允许哪些页面用 iframe 嵌入本站（CSP `frame-ancestors`）：如 `*`、`'none'` 或空格分隔的 `https://` 来源；格式不合法时回退默认值。静态构建写进 `_headers` |
 
 读取顺序：`process.env` → 构建时注入的 `import.meta.env` → 运行目录的 `.env` / `.env.local`。改完 `.env` 需重启进程。
@@ -331,6 +334,10 @@ cp -a /absolute/path/uploads "$backup/uploads"
 **解压到仓库根目录的 `site-content/` 文件夹**（即 `site-content/site-profile.json`、`site-content/more.json`、`site-content/uploads/`），提交后重新构建即可。构建会把这些内容导入隔离的临时数据库，“更多”页面和首页按后台里的样子生成；页面实际引用到的上传文件复制到产物的 `/uploads/`，没被引用的不会发布。其中任何内容校验失败都会让构建失败（错误信息会写明原因），不会悄悄回到默认值。可用 `SITE_CONTENT_DIR` 指定其他文件夹（指定后不存在会报错）。内容包不含文章（文章始终来自 Notion）、Notion token 或后台 token；里面的一切都会公开，公开仓库里的文件本身也是公开的。
 
 站点资料的优先级：`SITE_PROFILE_PATH` > `site-content/site-profile.json` > 根目录 `site-profile.json`。
+
+#### 内置默认资料
+
+没有导入站点资料（也没有在后台保存过）时，网站使用 `src/content/site.ts` 和 `src/content/tags.ts` 里的内置默认值，现已是本站的资料：站点名 **SureShot Studio**、邮箱 `nodeman24@outlook.com`、中英文引言（首页大字）、标语“随笔、札记与小说 / Essays, notes and fiction”，以及标签对照 Fiction = 小说、Else / Other = 其他、Poetry = 诗歌。首页简介段落和信息栏默认**不显示**（没有占位文字）；需要时在 Node 后台填写，或在站点资料 JSON 里填写后重新部署。因此静态站不放 `site-profile.json` 也会显示正确的资料。“更多”页面不在站点资料里，仍需用内容包或修改 `src/content/more.ts`。
 
 #### 可迁移的站点资料 JSON
 

@@ -32,6 +32,7 @@ const SETTING_KEYS: readonly SettingKey[] = [
   'site_facts',
   'site_facts_zh',
   'tag_glossary',
+  'newsletter_signup',
   'NOTION_TOKEN',
   'NOTION_DATABASE_ID',
 ];
@@ -70,6 +71,22 @@ export function notionConfig(): NotionConfig {
 export function notionReady(): boolean {
   const { token, databaseId } = notionConfig();
   return Boolean(token && databaseId);
+}
+
+/**
+ * Public newsletter sign-up entries (homepage, article pages, footer, sitemap).
+ * Hidden by default; the feature itself — /subscribe, the API, confirmation
+ * and unsubscribe links, the admin module — keeps working either way.
+ *
+ * Stored `newsletter_signup` (`on` / `off`, from /admin → Settings) wins;
+ * otherwise `SHOW_NEWSLETTER_SIGNUP=1`. The static build has no saved
+ * settings, so on Netlify only the build variable counts (rebuild to apply).
+ */
+const truthy = (value: string | undefined) => /^(1|true|on|yes)$/i.test((value ?? '').trim());
+const signupDefault = () => (truthy(readEnv('SHOW_NEWSLETTER_SIGNUP')) ? 'on' : 'off');
+export function newsletterSignupVisible(): boolean {
+  const stored = settingsRepository.get('newsletter_signup');
+  return (stored === 'on' || stored === 'off' ? stored : signupDefault()) === 'on';
 }
 
 export interface SiteProfile {
@@ -147,6 +164,7 @@ export function adminSettings(): { values: SettingValues & { hasToken: boolean }
     site_facts: settingsRepository.get('site_facts') || defaultFactsText('en'),
     site_facts_zh: settingsRepository.get('site_facts_zh') || defaultFactsText('zh-CN'),
     tag_glossary: resolveSetting('tag_glossary') ?? '',
+    newsletter_signup: newsletterSignupVisible() ? 'on' : 'off',
     NOTION_TOKEN: mask(notion.token),
     NOTION_DATABASE_ID: notion.databaseId ?? '',
   };
@@ -222,6 +240,11 @@ export function updateSettings(patch: Record<string, unknown>): void {
           settingsRepository.remove(key);
           settingsRepository.remove('NOTION_DB_WRITING');
         }
+      } else if (key === 'newsletter_signup') {
+        // Only `on` / `off`; saving the environment's own default stores nothing.
+        const next = truthy(value) ? 'on' : 'off';
+        if (next === signupDefault()) settingsRepository.remove(key);
+        else settingsRepository.set(key, next);
       } else {
         // Saving the form untouched must not freeze defaults as overrides.
         const fallback = SITE_DEFAULTS[key];

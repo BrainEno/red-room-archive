@@ -299,6 +299,8 @@ export type SettingKey =
   | 'site_facts'
   | 'site_facts_zh'
   | 'tag_glossary'
+  /** `on` / `off`: show the newsletter sign-up on public pages (home, articles, footer). */
+  | 'newsletter_signup'
   | 'NOTION_TOKEN'
   | 'NOTION_DATABASE_ID';
 

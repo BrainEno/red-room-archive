@@ -8,7 +8,7 @@ import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
 import { ARCHIVE_PATH, TOPICS_PATH } from '../../shared/routes.ts';
 
 export interface Props {
-  site: { locale: Locale; name: string; url: string; email: string };
+  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean };
   total: number;
   years: { year: string; articles: ArticleSummary[] }[];
 }
@@ -18,7 +18,7 @@ const t = messages(locale);
 const to = (path: string) => localePath(path, locale);
 const anchor = (year: string) => (year ? `y${year}` : 'undated');
 ---
-<Page title={`${t.archive.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={t.archive.intro(total)} current={ARCHIVE_PATH}>
+<Page title={`${t.archive.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} locale={locale} description={t.archive.intro(total)} current={ARCHIVE_PATH}>
   <section class="prose listing archive">
     <p class="article-label">{site.name} / {t.archive.title}</p>
     <h1>{t.archive.title}</h1>

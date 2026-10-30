@@ -260,7 +260,10 @@ try {
   await writeFile(path.join(dest, 'static-search.json'), JSON.stringify(search));
   await cp(path.join(root, 'scripts/static-search.js'), path.join(dest, 'static-search.js'));
   await writeFile(path.join(dest, 'rss.xml'), await (await get('/rss.xml')).text());
-  const urls = routes.filter((r) => r !== '/search' && !r.includes('/page/') && !r.startsWith('/newsletter/')).flatMap((r) => LANGS.map((lang) => `<url><loc>${xml(siteUrl + localized(r, lang))}</loc></url>`));
+  // /subscribe is always built (direct links keep working) but listed only when the
+  // public sign-up entries are on: SHOW_NEWSLETTER_SIGNUP (the build has no saved settings).
+  const signupListed = /^(1|true|on|yes)$/i.test((process.env.SHOW_NEWSLETTER_SIGNUP ?? '').trim());
+  const urls = routes.filter((r) => r !== '/search' && !r.includes('/page/') && !r.startsWith('/newsletter/') && (signupListed || r !== '/subscribe')).flatMap((r) => LANGS.map((lang) => `<url><loc>${xml(siteUrl + localized(r, lang))}</loc></url>`));
   await writeFile(path.join(dest, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`);
   await writeFile(path.join(dest, 'robots.txt'), previewDemo ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nDisallow: /admin\nDisallow: /api/\nSitemap: ${siteUrl}/sitemap.xml\n`);
   // Same security headers as the Node server (server/http/security.ts), copied

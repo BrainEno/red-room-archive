@@ -11,7 +11,7 @@ import { ARTICLES_PATH, SUBSCRIBE_PATH, topicPath } from '../../shared/routes.ts
 import { absoluteUrl, articleLd, breadcrumbLd } from '../../shared/structured-data.ts';
 
 export interface Props {
-  site: { locale: Locale; name: string; url: string; email: string };
+  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean };
   article: ArticleDetail;
   bodyMissing: boolean;
 }
@@ -44,7 +44,7 @@ const jsonLd = site.url
     ]
   : [];
 ---
-<Page title={`${article.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={article.excerpt || site.name} image={article.cover} imageAlt={article.title} current={ARTICLES_PATH} type="article" published={isoDatetime(article.date)} modified={article.updated} tags={article.tags} jsonLd={jsonLd}>
+<Page title={`${article.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} locale={locale} description={article.excerpt || site.name} image={article.cover} imageAlt={article.title} current={ARTICLES_PATH} type="article" published={isoDatetime(article.date)} modified={article.updated} tags={article.tags} jsonLd={jsonLd}>
   <div class="article-wrap">
     <article class="prose" lang={lang}>
       <p class="kicker" lang={locale}><a href={localePath(ARTICLES_PATH, locale)}>{t.articles.title}</a></p>
@@ -81,12 +81,14 @@ const jsonLd = site.url
       </aside>
     )}
   </div>
-  <aside class="letters-aside" aria-labelledby="letters-aside-h" lang={locale}>
-    <p class="letters-kicker">{t.newsletter.kicker}</p>
-    <h2 id="letters-aside-h">{t.newsletter.inlineHeading}</h2>
-    <NewsletterForm locale={locale} source="article" />
-    <p class="letters-more"><a href={localePath(SUBSCRIBE_PATH, locale)}>{t.newsletter.details} →</a></p>
-  </aside>
+  {site.newsletterSignup && (
+    <aside class="letters-aside" aria-labelledby="letters-aside-h" lang={locale}>
+      <p class="letters-kicker">{t.newsletter.kicker}</p>
+      <h2 id="letters-aside-h">{t.newsletter.inlineHeading}</h2>
+      <NewsletterForm locale={locale} source="article" />
+      <p class="letters-more"><a href={localePath(SUBSCRIBE_PATH, locale)}>{t.newsletter.details} →</a></p>
+    </aside>
+  )}
   <PrevNext locale={locale} previous={article.previous ?? undefined} next={article.next ?? undefined} />
   <script>import '../scripts/site/article-enhance.ts';</script>
   <script>import '../scripts/site/newsletter.ts';</script>

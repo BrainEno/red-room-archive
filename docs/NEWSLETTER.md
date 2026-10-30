@@ -115,14 +115,14 @@ newsletter_rate_limits(key PRIMARY KEY, window_start, count)  -- key 为 HMAC
 | `NEWSLETTER_SECRET` | ✔ | 至少 32 个字符的随机串（`openssl rand -base64 48`）。用于加密 Blobs 文档、生成退订链接和限流键。**丢失 = 名单无法解密。请离线备份。** |
 | `NEWSLETTER_EMAIL_PROVIDER` | ✔ | `resend` 或 `brevo` |
 | `NEWSLETTER_EMAIL_API_KEY` | ✔ | 提供商 API key（只给发信权限即可） |
-| `NEWSLETTER_FROM` | ✔ | `Red Room Archive <letters@你的域名>`，域名须已在提供商验证 |
+| `NEWSLETTER_FROM` | ✔ | `SureShot Studio <letters@你的域名>`，域名须已在提供商验证 |
 | `SITE_URL` | ✔ | 站点源（如 `https://archive.example`）。Netlify 上未设置时使用内置的 `URL`。用于邮件链接和同站校验。 |
 | `ADMIN_TOKEN` | 后台 | 与 Node 站点相同的后台 token；静态站后台用它管理订阅。 |
 | `NEWSLETTER_REPLY_TO` |  | 回复地址 |
 | `NEWSLETTER_DAILY_LIMIT` |  | 每天（UTC）最多发几封，默认 90（Resend 免费层每天 100） |
 | `NEWSLETTER_MONTHLY_LIMIT` |  | 每月（UTC 自然月）最多发几封，默认 2800（Resend 免费层每月 3,000） |
 | `NEWSLETTER_TOKEN_TTL_HOURS` |  | 确认链接有效期，默认 48 |
-| `NEWSLETTER_SITE_NAME` |  | 邮件里的站点名，默认 `Red Room Archive` |
+| `NEWSLETTER_SITE_NAME` |  | 邮件里的站点名，默认用站点名（内置为 `SureShot Studio`） |
 
 缺少任何一个必填变量，订阅都会保持关闭（503），后台会列出缺少的变量名（不显示值）。
 
@@ -149,6 +149,26 @@ Resend 免费层：**每天 100 封**（按 UTC 自然日，UTC 午夜重置）�
 4. 打开 `https://站点/admin`，用 `ADMIN_TOKEN` 登录——静态站后台只显示“订阅”模块。
 
 详见 [DEPLOYMENT.md](DEPLOYMENT.md)。
+
+## 显示 / 隐藏订阅入口
+
+**默认隐藏。**公开页面上的入口——首页信息栏的“通过邮件接收新文章”、文章末尾的订阅框、页脚的“邮件订阅”链接，以及 sitemap 里的 `/subscribe`——只有开启后才出现。隐藏只是不展示入口，功能本身不变：
+
+- `/subscribe` 页面仍然存在（不进 sitemap，带 `noindex`），可以直接把地址发给想订阅的人；
+- 确认、退订链接，`/api/newsletter/*`，后台“订阅”模块（名单、CSV）照常可用；
+- 是否能真正订阅仍取决于上面的邮件服务变量；入口开关不影响数据。
+
+重新开启：
+
+| 站点 | 怎么开 | 何时生效 |
+| --- | --- | --- |
+| Node 站点 | `/admin → 设置 → 邮件订阅`，勾选“在公开页面显示订阅入口”，保存 | 立即（下一次页面请求） |
+| Netlify 静态站 | Site configuration → Environment variables 添加 `SHOW_NEWSLETTER_SIGNUP=1`（Scope 选 **Builds**，Context 选 Production），然后 **Deploys → Trigger deploy** | 重新部署后 |
+
+- 值 `1` / `true` / `on` / `yes` 表示开启，删除变量或设为其他值即关闭（同样需要重新部署）。它不是密钥，**不要**勾选 “Contains secret values”。
+- Node 站点上后台的选择优先于 `SHOW_NEWSLETTER_SIGNUP`；变量只作为没有保存过选择时的默认值。保存的值与默认值相同时不会单独存储，之后改变量仍然有效。
+- 静态站没有可保存的设置，后台的这个开关只存在于 Node 站点；静态站后台“订阅”模块顶部会提示用哪个变量。
+- 开关不在站点资料 JSON / 内容包里，迁移站点时需要重新设置。
 
 ## 后台
 

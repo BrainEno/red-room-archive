@@ -138,7 +138,7 @@ test('admin speaks Chinese: saved choice, translated shell, grouped settings, un
   await list.getByRole('tab', { name: '设置' }).click();
   await expect(page).toHaveURL(/#settings$/);
   const nav = page.getByRole('navigation', { name: '设置分组' });
-  await expect(nav.getByRole('link')).toHaveText(['站点', '首页文案', '主题', 'Notion', '备份与静态部署']);
+  await expect(nav.getByRole('link')).toHaveText(['站点', '首页文案', '主题', '邮件订阅', 'Notion', '备份与静态部署']);
   await expect(page.locator('#sf-state')).toHaveText('所有修改已保存');
   await page.getByRole('textbox', { name: '标语 — 中文' }).fill('测试标语');
   await expect(page.locator('#sf-state')).toHaveText('有未保存的修改');
