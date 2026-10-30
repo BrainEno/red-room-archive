@@ -23,7 +23,7 @@
 .row2.tight { margin: 0; }
 .badge { display: inline-block; margin-left: 6px; padding: 0 6px; font-size: 11px; font-weight: 600; border: 1px solid var(--red); color: var(--accent-soft); vertical-align: middle; }
 /* Wide tabular data stays readable and scrollable without expanding the page. */
-.admin .table-scroll { max-width: 100%; overflow-x: auto; }
+.admin .table-scroll { position: relative; max-width: 100%; overflow-x: auto; } /* relative: absolutely positioned .sr labels stay inside the scroller */
 .admin .table-scroll:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 .admin .table-scroll .grid { min-width: 560px; }
 /* articles + schema check */
@@ -143,3 +143,15 @@
   .ov-check button { grid-column: 2; justify-self: start; }
   .ov-actions .me-spacer { display: none; }
 }
+/* newsletter (nl-*) */
+.nl-static { margin: -12px 0 24px; max-width: 70ch; }
+.ov-head #nl-delivery { margin: 10px 0 14px; }
+.ov-head #nl-delivery.warn { opacity: 1; color: #ffc56b; }
+.nl-filter { margin-top: 22px; }
+.admin .nl-filter input[type=search] { flex: 1 1 220px; width: auto; min-width: 0; }
+.admin .table-scroll .nl-table { min-width: 860px; }
+.nl-email { word-break: break-all; }
+.nl-status { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+.nl-active { color: #9fe3a5; } .nl-pending { color: #ffc56b; } .nl-unsubscribed { opacity: .6; }
+.admin .nl-table button { padding: 2px 8px; font-size: 13px; white-space: nowrap; }
+.nl-pager { justify-content: space-between; }

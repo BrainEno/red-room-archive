@@ -59,12 +59,12 @@ test('SSR admin login and tabs fit small screens', async ({ page }) => {
   await expect(page.locator('[data-tab="More"]')).toBeVisible();
   await expect(page.locator('[data-panel="Overview"] .ov-stats')).toBeVisible();
   await noHorizontalOverflow(page);
-  for (const tab of ['Overview', 'Articles', 'More', 'Settings', 'Files']) {
+  for (const tab of ['Overview', 'Articles', 'More', 'Newsletter', 'Settings', 'Files']) {
     await page.locator(`[data-tab="${tab}"]`).click();
     await expect(page.locator(`[data-panel="${tab}"]`)).toBeVisible();
     if (tab === 'Articles') {
-      await expect(page.locator('.table-scroll')).toBeVisible();
-      await expect(page.locator('.table-scroll')).toHaveAttribute('tabindex', '0');
+      await expect(page.locator('[data-panel="Articles"] .table-scroll')).toBeVisible();
+      await expect(page.locator('[data-panel="Articles"] .table-scroll')).toHaveAttribute('tabindex', '0');
     }
     if (tab === 'More') {
       await page.locator('.me-card summary').first().click();

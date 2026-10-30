@@ -15,6 +15,14 @@ import type {
   MoreDocument,
   MoreDocumentResponse,
   MoreResponse,
+  NewsletterAvailability,
+  NewsletterConfirmResponse,
+  NewsletterListResponse,
+  NewsletterResendResponse,
+  NewsletterStatus,
+  NewsletterSubscribeRequest,
+  NewsletterSubscribeResponse,
+  NewsletterUnsubscribeResponse,
   NotionSchemaResponse,
   WebhookStatusResponse,
   OverviewResponse,
@@ -166,6 +174,19 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     search: (query: string, limit = 20) => request<SearchResponse>(`/api/search${q({ q: query, limit })}`),
+
+    /** Served by the Node server or, on the static deployment, by the Netlify Function. */
+    newsletter: {
+      status: () => request<NewsletterAvailability>('/api/newsletter/status'),
+      subscribe: (body: NewsletterSubscribeRequest) =>
+        request<NewsletterSubscribeResponse>('/api/newsletter/subscribe', { method: 'POST', json: body }),
+      confirm: (token: string) => request<NewsletterConfirmResponse>('/api/newsletter/confirm', { method: 'POST', json: { token } }),
+      unsubscribe: (token: string) => request<NewsletterUnsubscribeResponse>('/api/newsletter/unsubscribe', { method: 'POST', json: { token } }),
+      list: (query: { q?: string; status?: NewsletterStatus | ''; limit?: number; offset?: number } = {}) =>
+        request<NewsletterListResponse>(`/api/newsletter/admin/subscribers${q(query)}`),
+      exportCsv: (query: { q?: string; status?: NewsletterStatus | '' } = {}) => download(`/api/newsletter/admin/export${q(query)}`),
+      resend: (id: number) => request<NewsletterResendResponse>(`/api/newsletter/admin/subscribers/${id}/resend`, { method: 'POST' }),
+    },
   };
 }
 

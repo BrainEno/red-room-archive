@@ -5,7 +5,7 @@
 import { escapeHtml } from '../core/text.ts';
 import type { ArticleSummary, TagCount } from '../shared/contracts.ts';
 import { DEFAULT_LOCALE, LOCALES, localizedPath } from '../shared/i18n.ts';
-import { ARCHIVE_PATH, ARTICLES_PATH, MORE_PATH, TOPICS_PATH, topicPath } from '../shared/routes.ts';
+import { ARCHIVE_PATH, ARTICLES_PATH, MORE_PATH, SUBSCRIBE_PATH, TOPICS_PATH, topicPath } from '../shared/routes.ts';
 
 const xml = escapeHtml;
 
@@ -51,6 +51,7 @@ export function sitemap(input: { origin: string; articles: ArticleSummary[]; tag
     { loc: TOPICS_PATH },
     { loc: ARCHIVE_PATH, lastmod: articles[0]?.updated },
     { loc: MORE_PATH },
+    { loc: SUBSCRIBE_PATH },
     ...tags.map((tag) => ({ loc: topicPath(tag.slug) })), // one URL per topic, whatever language it is written in
     ...articles.map((article) => ({ loc: article.href, lastmod: article.updated || article.date })),
   ];

@@ -47,7 +47,10 @@ test('static snapshot exports only published Notion content, media and bilingual
     } catch { res.writeHead(500); res.end(); }
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening'); base = `http://127.0.0.1:${server.address().port}`;
-  const env = { NETLIFY: 'true', CONTEXT: 'production', SITE_URL: 'https://archive.test', NOTION_TOKEN: 'never-publish-this-secret', NOTION_DATABASE_ID: DB, NOTION_API_BASE: `${base}/v1`, STATIC_DEMO: '' };
+  const env = { NETLIFY: 'true', CONTEXT: 'production', SITE_URL: 'https://archive.test', NOTION_TOKEN: 'never-publish-this-secret', NOTION_DATABASE_ID: DB, NOTION_API_BASE: `${base}/v1`, STATIC_DEMO: '',
+    // Newsletter credentials as they would exist on Netlify (for the function only).
+    NEWSLETTER_SECRET: 'newsletter-secret-never-in-static-dist-0123456789', NEWSLETTER_EMAIL_PROVIDER: 'resend',
+    NEWSLETTER_EMAIL_API_KEY: 're_never_in_static_dist_key', NEWSLETTER_FROM: 'Letters <letters@archive.test>' };
   try {
     const result = await run(env); assert.equal(result.code, 0, result.output);
     const read = (file) => readFile(path.join('static-dist', file), 'utf8');
@@ -92,7 +95,30 @@ test('static snapshot exports only published Notion content, media and bilingual
     const index = await read('static-search.json');
     assert.match(index, /Unique searchable text/); assert.doesNotMatch(index, /never-publish-this-secret|SECRET child page content/);
     await assert.rejects(access('static-dist/articles/draft/index.html'));
-    await assert.rejects(access('static-dist/admin/index.html'));
+    // Newsletter: static shells only. The data lives behind the Netlify Function
+    // (Blobs); no subscriber data, database or secret is published.
+    for (const file of ['subscribe/index.html', 'zh-CN/subscribe/index.html', 'newsletter/confirm/index.html', 'zh-CN/newsletter/confirm/index.html', 'newsletter/unsubscribe/index.html', 'zh-CN/newsletter/unsubscribe/index.html']) {
+      const html = await read(file);
+      assert.match(html, /data-newsletter-(form|link)/, file);
+      if (file.includes('newsletter/')) assert.match(html, /name="robots" content="noindex/, `${file}: token pages are not indexed`);
+    }
+    assert.match(await read('zh-CN/subscribe/index.html'), /确认/);
+    assert.match(await read('articles/first-light/index.html'), /data-source="article"/);
+    assert.match(await read('index.html'), /href="\/subscribe"/);
+    const sitemapXml = await read('sitemap.xml');
+    assert.match(sitemapXml, /archive\.test\/subscribe</); assert.doesNotMatch(sitemapXml, /newsletter\//);
+    const adminShell = await read('admin/index.html');
+    assert.match(adminShell, /id="app"/); assert.doesNotMatch(adminShell, /[\w.+-]+@[\w-]+\.[a-z]{2,}|subscriber_id|token_hash/i);
+    const staticHeaders = await read('_headers');
+    assert.match(staticHeaders, /^\/admin\n {2}Cache-Control: no-store$/m);
+    assert.match(staticHeaders, /^\/newsletter\/\*\n {2}Referrer-Policy: no-referrer$/m);
+    const { readdir } = await import('node:fs/promises');
+    const files = (await readdir('static-dist', { recursive: true, withFileTypes: true })).filter((entry) => entry.isFile());
+    assert.ok(!files.some((entry) => /\.(db|sqlite3?)$|subscribers-.*\.json$/i.test(entry.name)), 'no database or subscriber document');
+    for (const entry of files) {
+      const content = await readFile(path.join(entry.parentPath, entry.name));
+      for (const secret of ['newsletter-secret-never-in-static-dist', 're_never_in_static_dist_key', 'never-publish-this-secret']) assert.ok(!content.includes(secret), `${entry.name} contains a secret`);
+    }
     // Configured previews use the actual Notion mock rather than falling back to demo.
     const preview = await run({ ...env, CONTEXT: 'deploy-preview' });
     assert.equal(preview.code, 0, preview.output);
@@ -168,7 +194,7 @@ test('a portable profile is applied on each static rebuild and rejected safely w
       assert.match(zh, /中文迁移简介/);
       assert.match(await readFile('static-dist/rss.xml', 'utf8'), /Portable Archive/);
       await assert.rejects(access('static-dist/site-profile.json'));
-      await assert.rejects(access('static-dist/admin/index.html'));
+      assert.doesNotMatch(await readFile('static-dist/admin/index.html', 'utf8'), /Portable description|中文迁移简介/, 'the admin shell carries no site data');
       assert.match(await readFile('static-dist/profile-editor.html', 'utf8'), /does not log you in/);
     }
     profile.settings.NOTION_TOKEN = 'never-accept-me';

@@ -17,6 +17,11 @@ export const SEARCH_PATH = '/search';
 /** Self-published books, excerpts and contact details (content/more.ts). */
 export const MORE_PATH = '/more';
 
+/** Newsletter: the sign-up page and the two pages linked from emails (token in the #fragment). */
+export const SUBSCRIBE_PATH = '/subscribe';
+export const NEWSLETTER_CONFIRM_PATH = '/newsletter/confirm';
+export const NEWSLETTER_UNSUBSCRIBE_PATH = '/newsletter/unsubscribe';
+
 export const articlePath = (slug: string) => `${ARTICLES_PATH}/${encodeURIComponent(slug)}`;
 
 /** `/articles`, `/articles/page/2`, … */

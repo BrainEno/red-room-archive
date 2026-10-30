@@ -42,6 +42,9 @@ export const payloadTooLarge = (message = 'request body too large') =>
 export const rateLimited = (message = 'too many failed attempts, try again later') =>
   new AppError(429, 'rate_limited', message);
 
+export const gone = (message: string, details?: Record<string, unknown>) =>
+  new AppError(410, 'gone', message, details);
+
 export const upstreamError = (message: string, details?: Record<string, unknown>) =>
   new AppError(502, 'upstream_error', message, details);
 

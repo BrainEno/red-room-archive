@@ -2,11 +2,12 @@
 import Page from '../layouts/Page.astro';
 import PrevNext from '../components/PrevNext.astro';
 import ReadAloud from '../components/ReadAloud.astro';
+import NewsletterForm from '../components/NewsletterForm.astro';
 import { messages } from '../i18n.ts';
 import { formatDate, isoDatetime } from '../../core/text.ts';
 import type { ArticleDetail } from '../../shared/contracts.ts';
 import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
-import { ARTICLES_PATH, topicPath } from '../../shared/routes.ts';
+import { ARTICLES_PATH, SUBSCRIBE_PATH, topicPath } from '../../shared/routes.ts';
 import { absoluteUrl, articleLd, breadcrumbLd } from '../../shared/structured-data.ts';
 
 export interface Props {
@@ -80,6 +81,13 @@ const jsonLd = site.url
       </aside>
     )}
   </div>
+  <aside class="letters-aside" aria-labelledby="letters-aside-h" lang={locale}>
+    <p class="letters-kicker">{t.newsletter.kicker}</p>
+    <h2 id="letters-aside-h">{t.newsletter.inlineHeading}</h2>
+    <NewsletterForm locale={locale} source="article" />
+    <p class="letters-more"><a href={localePath(SUBSCRIBE_PATH, locale)}>{t.newsletter.details} →</a></p>
+  </aside>
   <PrevNext locale={locale} previous={article.previous ?? undefined} next={article.next ?? undefined} />
   <script>import '../scripts/site/article-enhance.ts';</script>
+  <script>import '../scripts/site/newsletter.ts';</script>
 </Page>
