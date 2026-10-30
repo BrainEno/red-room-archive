@@ -1,14 +1,32 @@
 /**
- * Article pages: block formulas wider than the column scroll sideways; make
- * those scroll areas reachable by keyboard (WCAG 2.1.1).
+ * Article pages: code blocks, wide formulas and tables scroll sideways when
+ * they do not fit the column. Scroll areas must be reachable by keyboard
+ * (WCAG 2.1.1), so those that actually overflow become focusable — re-checked
+ * when the viewport changes, so narrow screens get it and wide ones do not.
  */
-for (const equation of document.querySelectorAll<HTMLElement>('.article-body .equation')) {
-  if (equation.scrollWidth > equation.clientWidth + 1) {
-    equation.tabIndex = 0;
-    equation.setAttribute('role', 'group');
-    equation.setAttribute('aria-label', equation.querySelector('annotation')?.textContent?.slice(0, 200) || 'formula');
+const SCROLLERS = '.article-body pre, .article-body .equation, .article-body .table-wrap';
+
+function markScrollable() {
+  for (const area of document.querySelectorAll<HTMLElement>(SCROLLERS)) {
+    const scrolls = area.scrollWidth > area.clientWidth + 1;
+    if (scrolls && area.tabIndex < 0) {
+      area.tabIndex = 0;
+      area.dataset.scrollFocus = '';
+    } else if (!scrolls && area.dataset.scrollFocus !== undefined) {
+      area.removeAttribute('tabindex');
+      delete area.dataset.scrollFocus;
+    }
   }
 }
+markScrollable();
+if ('ResizeObserver' in window) {
+  let frame = 0;
+  new ResizeObserver(() => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(markScrollable);
+  }).observe(document.documentElement);
+}
+document.fonts?.ready.then(markScrollable);
 
 /**
  * Article pages: a “Copy” button on every code block. Labels come from the

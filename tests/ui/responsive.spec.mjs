@@ -180,6 +180,7 @@ test('long content wraps and code and tables scroll within the article', async (
   await noHorizontalOverflow(page);
   const pre = body.locator('pre').last();
   expect(await pre.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  await expect(pre, 'a scrolling code block is reachable by keyboard').toHaveAttribute('tabindex', '0');
   const table = body.locator('.table-wrap');
   await expect(table).toBeVisible();
   expect(await table.evaluate((el) => el.clientWidth <= document.documentElement.clientWidth)).toBe(true);
