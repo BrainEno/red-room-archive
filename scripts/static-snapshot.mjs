@@ -13,7 +13,9 @@ const root = process.cwd();
 // The UI harness has its own disposable output and never overwrites a user's snapshot.
 const dest = path.join(root, process.env.UI_TEST_SNAPSHOT === '1' ? '.ui-test-snapshot' : 'static-dist');
 const temp = await mkdtemp(path.join(tmpdir(), 'red-room-static-'));
-const siteUrl = (process.env.SITE_URL || '').replace(/\/+$/, '');
+// Netlify's URL is the primary site address, including on deploy previews.
+// A deliberate SITE_URL always wins, including when it is invalid.
+const siteUrl = (process.env.SITE_URL || (process.env.NETLIFY === 'true' ? process.env.URL : '') || '').replace(/\/+$/, '');
 const demo = process.env.STATIC_DEMO === '1';
 const token = process.env.NOTION_TOKEN || process.env.NOTION_API_SECRET;
 const database = process.env.NOTION_DATABASE_ID || process.env.DATABASE_ID || process.env.NOTION_DB_WRITING;
@@ -79,7 +81,7 @@ try {
   // Remove previous output before any failure so it cannot be mistaken for a new build.
   await rm(dest, { recursive: true, force: true });
   let origin;
-  try { origin = new URL(siteUrl); } catch { throw new Error('Set SITE_URL to the public site origin before building.'); }
+  try { origin = new URL(siteUrl); } catch { throw new Error('Set SITE_URL to the public site origin before building (on Netlify, the built-in URL is used when SITE_URL is unset).'); }
   if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('SITE_URL must be a plain HTTP(S) origin without credentials or a path.');
   if ((!token || !database) && !demo) throw new Error('Set NOTION_TOKEN and NOTION_DATABASE_ID, or explicitly set STATIC_DEMO=1 for a demo.');
   if (demo && (token || database)) throw new Error('STATIC_DEMO cannot be combined with Notion credentials.');

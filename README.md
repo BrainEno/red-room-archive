@@ -224,14 +224,15 @@ Notion 全量重新同步、修改 Notion token/数据库都**不会**清除“�
 
 `npm run build:static` 在**构建时**读取 Notion，导出可直接托管的 `static-dist/`；它不是 SSR 的无服务器适配器。已有 Node 模式不受影响。
 
-1. 在 Netlify 或 Cloudflare 的构建环境中设置 `SITE_URL`（公开站点的完整 origin，例如 `https://archive.example`）、`NOTION_TOKEN` 和 `NOTION_DATABASE_ID`。token 是服务端构建密钥，不要提交或放在 `PUBLIC_` 变量中；使用独立的只读 Notion integration 并仅授权需要发布的数据库。
+1. 在平台的构建环境中设置 `NOTION_TOKEN` 和 `NOTION_DATABASE_ID`。Netlify 未设置 `SITE_URL` 时，静态构建自动使用 Netlify 内置的 `URL`（站点主地址）；Cloudflare 和其他环境必须设置 `SITE_URL`。如需指定自定义域名，可显式设置 `SITE_URL`（公开站点的完整 origin，例如 `https://archive.example`），它优先于 Netlify 的 `URL`。此地址用于 canonical、RSS、sitemap 等，必须是不含路径的 HTTP(S) origin；设置自定义域名或地址改变后需重新构建。token 是服务端构建密钥，不要提交或放在 `PUBLIC_` 变量中；使用独立的只读 Notion integration 并仅授权需要发布的数据库。
 2. 数据库必须有可识别的标题列和 Published 列（checkbox、status/select 或 formula），构建会拒绝缺少发布列的数据库，避免将全部页面意外公开。先在 Notion 确认草稿未发布，再触发构建。
 3. Netlify 自动读取仓库的 `netlify.toml`。Cloudflare Workers 的 **Static Assets** 或 Cloudflare Pages 选择 Git 仓库后，将构建命令设为 `npm run build:static`、输出目录设为 `static-dist`、Node 版本设为 **22.23.4**（可用构建环境变量 `NODE_VERSION`）。不需要绑定 D1/R2 或安装 Astro Workers adapter。
-4. 更新、撤回或定时发布文章后，**必须重新构建并部署**（可手动触发平台构建或由你自行配置安全的构建钩子）；撤回后旧部署、浏览器/CDN 缓存可能仍留有内容，敏感内容不应发布。Notion 不可用、正文/媒体获取失败或发布列缺失时构建失败，不发布不完整的新快照。
+4. Netlify 的 Deploy Preview 和分支部署默认也使用站点主地址 `URL`，而不是临时预览地址；要使用其他 canonical 地址可按构建上下文设置 `SITE_URL`。检查 Notion 构建密钥的环境作用域与目标上下文，避免把私有密钥用于不受信任的预览构建。
+5. 更新、撤回或定时发布文章后，**必须重新构建并部署**（可手动触发平台构建或由你自行配置安全的构建钩子）；撤回后旧部署、浏览器/CDN 缓存可能仍留有内容，敏感内容不应发布。Notion 不可用、正文/媒体获取失败或发布列缺失时构建失败，不发布不完整的新快照。
 
 静态版有中英文页面（英文根路径、中文 `/zh-CN/`）、文章、标签/分页、RSS、sitemap、浏览器搜索和朗读；搜索需要 JavaScript。公开文章正文会进入下载到浏览器的搜索索引。Notion 上传的图片和常见音视频/PDF 在构建时复制到公开产物，外链媒体仍依赖外部地址；不支持的媒体类型会使构建失败。构建过程使用隔离的临时 SQLite，不复制数据库或 token。仅生成公开站点，**没有 `/admin`、管理 API、上传或实时同步**；后台保存的设置、More 内容和上传不会自动带入，静态版使用代码内的站点/More 默认内容。语言切换使用静态路径，不支持原 SSR 的 cookie 自动协商或 `?lang=` 地址；旧的动态标签查询和旧博客重定向也不会自动生效。
 
-注意：静态构建的临时数据库不会跨构建保留；**Date 留空的文章每次构建都会使用当次构建日期**，请在 Notion 填写 Date 以保持日期稳定。构建期间修改或撤回文章可能造成快照不一致，应等待更改完成后重新构建。只想预览演示内容时可显式设置 `STATIC_DEMO=1`（不能同时设置 Notion 凭据）和 `SITE_URL`。本地命令示例：
+注意：静态构建的临时数据库不会跨构建保留；**Date 留空的文章每次构建都会使用当次构建日期**，请在 Notion 填写 Date 以保持日期稳定。构建期间修改或撤回文章可能造成快照不一致，应等待更改完成后重新构建。只想预览演示内容时可显式设置 `STATIC_DEMO=1`（不能同时设置 Notion 凭据）；非 Netlify 环境仍需设置 `SITE_URL`。缺少 Notion 配置不会自动切换成演示内容，以免误部署。本地命令示例：
 
 ```bash
 SITE_URL=https://archive.example NOTION_TOKEN=... NOTION_DATABASE_ID=... npm run build:static
