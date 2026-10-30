@@ -79,3 +79,18 @@ test('focused or hovered links retain text contrast', async ({ page }) => {
     expect(results.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) }))).toEqual([]);
   }
 });
+
+test('admin reports a failed login and permits retry', async ({ page }) => {
+  await page.route('**/api/auth', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Service temporarily unavailable. Please try again.' }) }));
+  await page.goto('/admin');
+  await page.locator('#tk').fill('ui-test-only');
+  await page.locator('#lg button').click();
+  await expect(page.getByRole('alert')).toHaveText('Service temporarily unavailable. Please try again.');
+  await expect(page.locator('#tk')).toBeVisible();
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(results.violations).toEqual([]);
+  await page.unroute('**/api/auth');
+  await page.locator('#tk').fill('ui-test-only');
+  await page.locator('#lg button').click();
+  await expect(page.getByRole('tab', { name: 'Articles' })).toBeVisible();
+});

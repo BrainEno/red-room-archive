@@ -17,7 +17,7 @@ Node 22.23.4+ is required. On Linux install a CJK system font (e.g. `fonts-noto-
 ## Scope and evidence
 
 - CI runs Chromium at 320, 390, 720, 768 and 1440 CSS pixels, Firefox and WebKit at 390 and 1440, in both SSR/static and English/Chinese. These are emulated viewports; Playwright WebKit is not shipping Safari and Firefox emulation is not a phone.
-- Tests cover search including empty results, contents, admin tabs and disclosures, keyboard focus, long text, speech controls (mock speech), reduced motion and no-WebGL/no-JS homepage fallback. Axe checks a selection of public/admin states against WCAG 2 A/AA and 2.1 A/AA rules, including detectable contrast; axe cannot verify every contrast case, dynamic scene or screen reader workflow.
+- Tests cover search including empty results, mocked failed login and retry, contents, admin tabs and disclosures, keyboard focus, long text, speech controls (mock speech), reduced motion and no-WebGL/no-JS homepage fallback. Axe checks a selection of public/admin states against WCAG 2 A/AA and 2.1 A/AA rules, including detectable contrast; axe cannot verify every contrast case, dynamic scene or screen reader workflow.
 - On failure Playwright keeps screenshots and traces in `test-results/`; CI uploads diagnostics. These can contain test data and should be treated as potentially sensitive if fixtures change.
 - Not a substitute for actual Safari, physical devices, screen readers, 200%/400% zoom, real audio, a full accessibility audit or a production deployment test. Automated geometry can miss clipping, overlap, contrast and aesthetic regressions.
 

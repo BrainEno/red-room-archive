@@ -4,7 +4,7 @@ const chromiumLaunch = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
   ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH, args: ['--no-sandbox'] } } : {};
 
 // CSS viewport emulation, not physical-device certification. The browser binary
-// can be overridden for restricted/local environments; CI installs Chromium.
+// can be overridden for restricted/local environments; CI installs the relevant Playwright browser.
 export default defineConfig({
   testDir: './tests/ui',
   timeout: 60_000,
