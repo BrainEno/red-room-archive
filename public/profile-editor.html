@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Offline site profile editor</title>
+<style>
+:root{color-scheme:dark;font:16px/1.55 system-ui,sans-serif;background:#0a0506;color:#f1eee6}body{max-width:780px;margin:0 auto;padding:24px}a{color:#e7a395}label{display:block;margin:16px 0}input,textarea,button{font:inherit;color:inherit;background:#1c1415;border:1px solid #aaa;padding:10px;box-sizing:border-box}input,textarea{display:block;width:100%;margin-top:6px}button{cursor:pointer;margin:4px}button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid #e7a395;outline-offset:3px}.notice{border-left:3px solid #e7a395;padding-left:14px}.actions{display:flex;flex-wrap:wrap;gap:8px}.error{color:#ffb3a5}
+</style>
+</head>
+<body><main>
+<a href="/">← Site</a><h1>Offline site profile editor</h1>
+<p class="notice">This tool only edits a local file in your browser. It does not log you in, save to the website, or make live changes. Do not enter passwords, tokens or private information: these fields become public when you deploy.</p>
+<p>Import an existing profile or fill the fields below. Blank fields use site defaults. Export <code>site-profile.json</code>, put it in the repository root, and rebuild on Netlify or Cloudflare. Keep a backup of the file. Notion credentials must be configured separately.</p>
+<form id="profile-form">
+<label>Site name<input name="site_name"></label>
+<label>Contact email<input name="site_email" type="email"></label>
+<label>Description — English<textarea name="site_about" rows="3"></textarea></label>
+<label>Homepage intro — English<textarea name="site_intro" rows="3"></textarea></label>
+<label>Description — 简体中文<textarea name="site_about_zh" rows="3"></textarea></label>
+<label>Homepage intro — 简体中文<textarea name="site_intro_zh" rows="3"></textarea></label>
+<label>Homepage tagline — English<input name="site_tagline"></label>
+<label>Homepage tagline — 简体中文<input name="site_tagline_zh"></label>
+<label>Tag pairs — one per line<textarea name="tag_glossary" rows="3"></textarea></label>
+<div class="actions"><button type="submit">Export site-profile.json</button><label>Import JSON <input id="import" type="file" accept=".json,application/json"></label></div>
+</form><p id="message" role="status" aria-live="polite"></p>
+</main><script type="module" src="/profile-editor.js"></script></body></html>

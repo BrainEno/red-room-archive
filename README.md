@@ -158,7 +158,7 @@ Notion 和 GitHub 联动、发布自动化的调研见 [docs/NOTION-GITHUB.md](d
 输入 `ADMIN_TOKEN` 登录（只存在当前标签页的 sessionStorage；请用 HTTPS 部署）。
 
 - **Articles**：已发布文章一览；**Sync now** / **Sync + fetch bodies**（同时预取所有正文，让搜索覆盖全文）/ **Full resync**（清空正文和图片缓存后重新同步）；单篇 **Refresh** 重新拉取正文。
-- **Settings**：站点名称/邮箱；简介（首页、meta description、RSS）、首页引言与标语，英文、中文各一份（中文留空就用内置中文文案，不会回退到英文）；中英标签对照（Tag pairs）；Notion token 与数据库（优先于 `.env`）；**Check columns** 显示字段映射与警告。
+- **Settings**：站点名称/邮箱；简介（首页、meta description、RSS）、首页引言与标语，英文、中文各一份（中文留空就用内置中文文案，不会回退到英文）；中英标签对照（Tag pairs）；Notion token 与数据库（优先于 `.env`）；**Settings** 显示 Notion 配置是否存在（包括从环境变量读取），但这不代表连接有效；**Check columns** 实际验证权限与字段映射。**Export site profile** 导出已保存的非机密站点文字和标签对照；**Import site profile** 验证后立即替换这些字段，不修改 Notion 配置。导入会丢弃尚未保存的表单编辑。
 - **More**：编辑 `/more` 页面（出版物、联系方式、二维码，中英并排），见上文。
 - **Files**：上传音频/视频/图片/PDF；上传 `.glb` 并选择 “Statue model” 可替换首页雕像；“更多”页面用到的文件标 on /more。
 
@@ -220,6 +220,27 @@ SQLite 还包含后台保存的站点设置和 Notion token（未加密），备
 Notion 全量重新同步、修改 Notion token/数据库都**不会**清除“更多”页面。文件重命名先建立新名称再提交 More 引用，失败保留原文件；中途崩溃可能留下两个同内容名称或隐藏的 `.part` 文件，可停服并确认引用后手动清理；上传目录所在文件系统必须支持同目录硬链接。
 从旧版本升级：数据库会自动迁移；旧的 `items` / `posts` / `post_revisions` 表原样保留但不再使用，确认不需要后可以手动删除。
 
+#### Node 站点的完整迁移（与公开资料 JSON 不同）
+
+站点资料 JSON 只包含公开文字；完整迁移还需要 SQLite 数据库和**整个**上传目录，包括 More 的封面/二维码、文件和 `venus.glb`。先停止源站所有 Node 实例并确认没有写入；在源站项目目录（已安装依赖）用 SQLite 备份 API 生成一致的单文件快照，再复制上传目录。以下是 Linux/macOS 示例，替换路径后运行；备份目录的父目录必须事先存在且受保护：
+
+```sh
+set -eu
+umask 077
+backup=/secure/location/red-room-backup-unique   # 新目录，不能已存在
+mkdir "$backup"
+DB_PATH=/absolute/path/archive.db BACKUP_DB="$backup/archive.db" node --input-type=module <<'NODE'
+import Database from 'better-sqlite3';
+const db = new Database(process.env.DB_PATH, { readonly: true, fileMustExist: true });
+try { await db.backup(process.env.BACKUP_DB); } finally { db.close(); }
+NODE
+cp -a /absolute/path/uploads "$backup/uploads"
+```
+
+复制整个备份到目标 Node 主机上的私有目录，在**目标服务尚未启动且目标路径为空**时，将 `archive.db` 和 `uploads` 分别放到目标的 `DB_PATH` 和 `UPLOAD_DIR`，在目标的安全环境中配置 `ADMIN_TOKEN`、`SITE_URL` 和所需 Notion 环境变量，再启动并检查设置、More、文件及文章；验证后再切流和保留旧站回滚。`DB_PATH`/`UPLOAD_DIR` 不一定在默认目录，须按源站配置替换；没有上传目录时应检查是否另设了 `UPLOAD_DIR`。仅在源站完全停止后备份文件与数据库，避免两者版本不一致。文章缓存和 Notion 媒体缓存可重新同步；空 Date 的首次发现日期在数据库中。迁移时数据库若发生 Notion 来源变化，文章缓存会重置，空 Date 的日期记录不会清除。
+
+**数据库可能包含明文 Notion token 和私有信息**；这不是上面不含密钥的 JSON 导出。备份与传输需限制权限、使用可信的加密方式并妥善保存密钥，绝不能提交到 Git、静态发布目录或发送给他人。`.env` 与平台环境变量不在这份备份里，应在目标安全重设；保留旧站并实际测试恢复后才能确认迁移成功。此方法仅适用于有持久磁盘的 Node 动态部署，无法直接恢复到静态 Netlify/Cloudflare。
+
 ### 静态部署：Netlify / Cloudflare
 
 `npm run build:static` 在**构建时**读取 Notion，导出可直接托管的 `static-dist/`；它不是 SSR 的无服务器适配器。已有 Node 模式不受影响。
@@ -227,12 +248,20 @@ Notion 全量重新同步、修改 Notion token/数据库都**不会**清除“�
 1. 在平台的构建环境中设置 `NOTION_TOKEN` 和 `NOTION_DATABASE_ID`。Netlify 未设置 `SITE_URL` 时，静态构建自动使用 Netlify 内置的 `URL`（站点主地址）；Cloudflare 和其他环境必须设置 `SITE_URL`。如需指定自定义域名，可显式设置 `SITE_URL`（公开站点的完整 origin，例如 `https://archive.example`），它优先于 Netlify 的 `URL`。此地址用于 canonical、RSS、sitemap 等，必须是不含路径的 HTTP(S) origin；设置自定义域名或地址改变后需重新构建。token 是服务端构建密钥，不要提交或放在 `PUBLIC_` 变量中；使用独立的只读 Notion integration 并仅授权需要发布的数据库。
 2. 数据库必须有可识别的标题列和 Published 列（checkbox、status/select 或 formula），构建会拒绝缺少发布列的数据库，避免将全部页面意外公开。先在 Notion 确认草稿未发布，再触发构建。
 3. Netlify 自动读取仓库的 `netlify.toml`。Cloudflare Workers 的 **Static Assets** 或 Cloudflare Pages 选择 Git 仓库后，将构建命令设为 `npm run build:static`、输出目录设为 `static-dist`、Node 版本设为 **22.23.4**（可用构建环境变量 `NODE_VERSION`）。不需要绑定 D1/R2 或安装 Astro Workers adapter。
-4. Netlify 的 Deploy Preview 和分支部署默认也使用站点主地址 `URL`，而不是临时预览地址；要使用其他 canonical 地址可按构建上下文设置 `SITE_URL`。检查 Notion 构建密钥的环境作用域与目标上下文，避免把私有密钥用于不受信任的预览构建。
+4. Netlify 的 Deploy Preview 和分支部署默认也使用站点主地址 `URL`，而不是临时预览地址；要使用其他 canonical 地址可按构建上下文设置 `SITE_URL`。Deploy Preview 若两个 Notion 变量都未提供，会生成明显标注 **DEMO PREVIEW**、禁止索引的演示站点；只设置其中一个仍会失败，设置 `STATIC_DEMO=0` 可关闭预览回退。有完整凭据时预览构建真实文章。生产环境不会因缺少凭据自动使用演示内容。检查 Notion 密钥的构建作用域和上下文，**不要向不可信的 PR/预览构建提供生产凭据**；即使生成演示内容，也无法阻止 PR 自己的构建脚本读取已注入的密钥。
 5. 更新、撤回或定时发布文章后，**必须重新构建并部署**（可手动触发平台构建或由你自行配置安全的构建钩子）；撤回后旧部署、浏览器/CDN 缓存可能仍留有内容，敏感内容不应发布。Notion 不可用、正文/媒体获取失败或发布列缺失时构建失败，不发布不完整的新快照。
 
-静态版有中英文页面（英文根路径、中文 `/zh-CN/`）、文章、标签/分页、RSS、sitemap、浏览器搜索和朗读；搜索需要 JavaScript。公开文章正文会进入下载到浏览器的搜索索引。Notion 上传的图片和常见音视频/PDF 在构建时复制到公开产物，外链媒体仍依赖外部地址；不支持的媒体类型会使构建失败。构建过程使用隔离的临时 SQLite，不复制数据库或 token。仅生成公开站点，**没有 `/admin`、管理 API、上传或实时同步**；后台保存的设置、More 内容和上传不会自动带入，静态版使用代码内的站点/More 默认内容。语言切换使用静态路径，不支持原 SSR 的 cookie 自动协商或 `?lang=` 地址；旧的动态标签查询和旧博客重定向也不会自动生效。
+#### 可迁移的站点资料 JSON
 
-注意：静态构建的临时数据库不会跨构建保留；**Date 留空的文章每次构建都会使用当次构建日期**，请在 Notion 填写 Date 以保持日期稳定。构建期间修改或撤回文章可能造成快照不一致，应等待更改完成后重新构建。只想预览演示内容时可显式设置 `STATIC_DEMO=1`（不能同时设置 Notion 凭据）；非 Netlify 环境仍需设置 `SITE_URL`。缺少 Notion 配置不会自动切换成演示内容，以免误部署。本地命令示例：
+动态 Node 版 `/admin → Settings → Export site profile` 下载 `site-profile.json`（导出的是上次保存的值，不含 Notion token、数据库 ID、后台 token、More 内容或上传文件）。在另一 Node 版的 Settings 选择 **Import site profile** 可直接保存，空字段回退到目标环境变量或内置默认值；Notion 凭据仍须在目标环境安全配置。
+
+静态 Netlify/Cloudflare **没有在线后台**。可访问 `/profile-editor.html` 在浏览器本地导入、编辑和下载相同格式的 JSON；它不会保存到网站。将导出的 `site-profile.json` 放到 Git 仓库根目录（不是 `public/`），提交后触发部署；构建时自动导入到隔离的临时数据库，每次构建都会读取。迁移时将同一文件带到新站点仓库根目录，再分别设置平台构建所需的 `SITE_URL`（Netlify 可自动检测）、Notion token 和数据库 ID。也可通过构建环境变量 `SITE_PROFILE_PATH` 指定相对于仓库根目录的其他文件路径，建议同时设置 `SITE_PROFILE_PATH=site-profile.json`，这样文件意外缺失时会让构建失败，而不是悄悄回到默认值；指定文件格式错误也会让构建失败。文件本身不会被复制到站点产物，但字段内容会显示在公开页面/RSS 中；不要放任何密码或私人内容，公开仓库中根目录文件本身也是公开的。备份原文件；更改 JSON 后仍须重新构建，不能实时更新。
+
+该 JSON 仅覆盖网站名、联系邮箱、中英文简介/引言/标语和标签对照，**不包含** More 内容、文章、上传文件、雕像模型或任何凭据，不是完整站点备份。More 的已有 JSON 不包含图片文件；Node 动态版仍应同时备份数据库与上传目录。静态部署目前也不会导入这些资料。
+
+静态版有中英文页面（英文根路径、中文 `/zh-CN/`）、文章、标签/分页、RSS、sitemap、浏览器搜索和朗读；搜索需要 JavaScript。公开文章正文会进入下载到浏览器的搜索索引。Notion 上传的图片和常见音视频/PDF 在构建时复制到公开产物，外链媒体仍依赖外部地址；不支持的媒体类型会使构建失败。构建过程使用隔离的临时 SQLite，不复制数据库或 token。仅生成公开站点，**没有 `/admin`、管理 API、上传或实时同步**；后台保存的设置、More 内容和上传不会自动带入；站点资料可通过上述 JSON 显式导入，未导入时使用默认值，More 仍使用代码内默认内容。语言切换使用静态路径，不支持原 SSR 的 cookie 自动协商或 `?lang=` 地址；旧的动态标签查询和旧博客重定向也不会自动生效。
+
+注意：静态构建的临时数据库不会跨构建保留；**Date 留空的文章每次构建都会使用当次构建日期**，请在 Notion 填写 Date 以保持日期稳定。构建期间修改或撤回文章可能造成快照不一致，应等待更改完成后重新构建。只想预览演示内容时可显式设置 `STATIC_DEMO=1`（不能同时设置 Notion 凭据）；非 Netlify 环境仍需设置 `SITE_URL`。生产构建及普通本地构建缺少 Notion 配置不会自动切换成演示内容，以免误部署；Netlify Deploy Preview 的无凭据演示回退见上文。本地命令示例：
 
 ```bash
 SITE_URL=https://archive.example NOTION_TOKEN=... NOTION_DATABASE_ID=... npm run build:static

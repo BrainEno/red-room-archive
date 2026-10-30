@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-for (const route of ['/articles?lang=en', '/articles/connect-notion?lang=zh-CN', '/search?lang=en', '/search?q=no-such-article&lang=en', '/more?lang=zh-CN', '/admin', 'http://127.0.0.1:4179/zh-CN/articles']) {
+for (const route of ['/articles?lang=en', '/articles/connect-notion?lang=zh-CN', '/search?lang=en', '/search?q=no-such-article&lang=en', '/more?lang=zh-CN', '/admin', 'http://127.0.0.1:4179/zh-CN/articles', 'http://127.0.0.1:4179/profile-editor.html']) {
   test(`automated accessibility scan: ${route}`, async ({ page }) => {
     await page.goto(route);
     if (route === '/admin') await expect(page.locator('#tk')).toBeVisible();
@@ -93,4 +93,25 @@ test('admin reports a failed login and permits retry', async ({ page }) => {
   await page.locator('#tk').fill('ui-test-only');
   await page.locator('#lg button').click();
   await expect(page.getByRole('tab', { name: 'Articles' })).toBeVisible();
+});
+
+test('admin distinguishes configured Notion settings from a verified connection', async ({ page }) => {
+  await page.route('**/api/settings', async route => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const response = await route.fetch();
+    const data = await response.json();
+    data.status.notion = true;
+    data.values.hasToken = true;
+    data.values.NOTION_TOKEN = '••••1234';
+    data.values.NOTION_DATABASE_ID = '0123456789abcdef0123456789abcdef';
+    await route.fulfill({ response, json: data });
+  });
+  await page.goto('/admin');
+  await page.locator('#tk').fill('ui-test-only');
+  await page.locator('#lg button').click();
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  await expect(page.locator('#notion-config-status')).toContainText('Notion settings are configured');
+  await expect(page.locator('#notion-config-status')).toContainText('not yet verified');
+  await expect(page.locator('input[name="NOTION_TOKEN"]')).toHaveAttribute('placeholder', /configured/);
+  await expect(page.locator('input[name="NOTION_TOKEN"]')).toHaveValue('');
 });

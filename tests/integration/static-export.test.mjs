@@ -3,13 +3,15 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { readFile, access } from 'node:fs/promises';
+import { readFile, access, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { makeProfile, PROFILE_KEYS } from '../../public/profile-format.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { API, DB, FILES, ID, compact, createNotionMock } from '../fixtures/notion-mock.mjs';
 
 async function run(env) {
-  const child = spawn(process.execPath, ['scripts/static-snapshot.mjs'], { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['scripts/static-snapshot.mjs'], { env: { ...process.env, SITE_PROFILE_PATH: '', ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = ''; child.stdout.on('data', (d) => { output += d; }); child.stderr.on('data', (d) => { output += d; });
   const [code] = await once(child, 'exit');
   return { code, output };
@@ -46,7 +48,7 @@ test('static snapshot exports only published Notion content, media and bilingual
     } catch { res.writeHead(500); res.end(); }
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening'); base = `http://127.0.0.1:${server.address().port}`;
-  const env = { SITE_URL: 'https://archive.test', NOTION_TOKEN: 'never-publish-this-secret', NOTION_DATABASE_ID: DB, NOTION_API_BASE: `${base}/v1`, STATIC_DEMO: '' };
+  const env = { NETLIFY: 'true', CONTEXT: 'production', SITE_URL: 'https://archive.test', NOTION_TOKEN: 'never-publish-this-secret', NOTION_DATABASE_ID: DB, NOTION_API_BASE: `${base}/v1`, STATIC_DEMO: '' };
   try {
     const result = await run(env); assert.equal(result.code, 0, result.output);
     const read = (file) => readFile(path.join('static-dist', file), 'utf8');
@@ -62,13 +64,23 @@ test('static snapshot exports only published Notion content, media and bilingual
     const topic = (key) => 't-' + createHash('sha256').update(key).digest('hex');
     assert.match(await read(`topics/${topic('fiction')}/page/2/index.html`), /article-entry/);
     assert.match(await read(`topics/${topic('../unsafe')}/index.html`), /Extra 0/);
-    assert.match(await read('index.html'), /id="home"/);
+    const home = await read('index.html');
+    assert.match(home, /id="home"/);
+    assert.match(home, /href="\/articles\/extra-0"/);
+    assert.match(home, /Extra 0/);
+    assert.doesNotMatch(home, /data-demo-preview|href="\/articles\/connect-notion"|href="\/articles\/draft"/);
     const rss = await read('rss.xml'); assert.equal((rss.match(/<item>/g) || []).length, 25);
     assert.match(await read('sitemap.xml'), /\/articles\/extra-0/);
     const index = await read('static-search.json');
     assert.match(index, /Unique searchable text/); assert.doesNotMatch(index, /never-publish-this-secret|SECRET child page content/);
     await assert.rejects(access('static-dist/articles/draft/index.html'));
     await assert.rejects(access('static-dist/admin/index.html'));
+    // Configured previews use the actual Notion mock rather than falling back to demo.
+    const preview = await run({ ...env, CONTEXT: 'deploy-preview' });
+    assert.equal(preview.code, 0, preview.output);
+    assert.match(await read('index.html'), /href="\/articles\/extra-0"/);
+    assert.doesNotMatch(await read('index.html'), /data-demo-preview|href="\/articles\/connect-notion"/);
+    assert.match(await read('articles/first-light/index.html'), /light through the curtain/);
     // A deeply nested article must abort the snapshot, not publish a partial body.
     const originalBlocks = mock.state.blocks[compact(ID.first)];
     mock.state.blocks[compact(ID.first)] = [{ id: 'depth0', type: 'toggle', has_children: true, toggle: { rich_text: [] } }];
@@ -119,4 +131,56 @@ test('Netlify falls back to its primary URL without weakening static build valid
   result = await run({ ...env, STATIC_DEMO: '' });
   assert.notEqual(result.code, 0); assert.match(result.output, /Set NOTION_TOKEN and NOTION_DATABASE_ID/);
   await assert.rejects(access('static-dist/index.html'));
+});
+
+test('a portable profile is applied on each static rebuild and rejected safely when invalid', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'rra-profile-'));
+  const profilePath = path.join(dir, 'site-profile.json');
+  const profile = makeProfile(Object.fromEntries(PROFILE_KEYS.map((key) => [key, ''])));
+  Object.assign(profile.settings, { site_name: 'Portable Archive', site_about: 'Portable description', site_intro_zh: '中文迁移简介', site_email: 'portable@example.test' });
+  const env = { SITE_URL: 'https://portable.test', STATIC_DEMO: '1', SITE_PROFILE_PATH: profilePath,
+    NOTION_TOKEN: '', NOTION_API_SECRET: '', NOTION_DATABASE_ID: '', DATABASE_ID: '', NOTION_DB_WRITING: '' };
+  try {
+    await writeFile(profilePath, JSON.stringify(profile));
+    for (let n = 0; n < 2; n++) {
+      const result = await run(env); assert.equal(result.code, 0, result.output);
+      const en = await readFile('static-dist/index.html', 'utf8');
+      const zh = await readFile('static-dist/zh-CN/index.html', 'utf8');
+      assert.match(en, /Portable Archive/); assert.match(en, /Portable description/);
+      assert.match(zh, /中文迁移简介/);
+      assert.match(await readFile('static-dist/rss.xml', 'utf8'), /Portable Archive/);
+      await assert.rejects(access('static-dist/site-profile.json'));
+      await assert.rejects(access('static-dist/admin/index.html'));
+      assert.match(await readFile('static-dist/profile-editor.html', 'utf8'), /does not log you in/);
+    }
+    profile.settings.NOTION_TOKEN = 'never-accept-me';
+    await writeFile(profilePath, JSON.stringify(profile));
+    const invalid = await run(env); assert.notEqual(invalid.code, 0); assert.match(invalid.output, /supported public fields/);
+    await assert.rejects(access('static-dist/index.html'));
+    const missing = await run({ ...env, SITE_PROFILE_PATH: path.join(dir, 'missing.json') });
+    assert.notEqual(missing.code, 0); assert.match(missing.output, /Cannot load site profile/);
+    await assert.rejects(access('static-dist/index.html'));
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+
+test('Netlify preview without Notion credentials is an explicitly marked demo; production and partial config fail', async () => {
+  const env = { NETLIFY: 'true', CONTEXT: 'deploy-preview', URL: 'https://archive.netlify.app', SITE_URL: '',
+    STATIC_DEMO: '', NOTION_TOKEN: '', NOTION_API_SECRET: '', NOTION_DATABASE_ID: '', DATABASE_ID: '', NOTION_DB_WRITING: '' };
+  const preview = await run(env);
+  assert.equal(preview.code, 0, preview.output);
+  assert.match(preview.output, /generating labelled demo content/);
+  const home = await readFile('static-dist/index.html', 'utf8');
+  assert.match(home, /data-demo-preview/);
+  assert.match(home, /DEMO PREVIEW/);
+  assert.match(home, /name="robots" content="noindex,nofollow"/);
+  assert.match(home, /href="\/articles\/connect-notion"/);
+  assert.match(await readFile('static-dist/404.html', 'utf8'), /data-demo-preview/);
+  assert.match(await readFile('static-dist/robots.txt', 'utf8'), /Disallow: \/$/m);
+  for (const patch of [{ CONTEXT: 'production' }, { NOTION_TOKEN: 'only-token' }, { NOTION_DATABASE_ID: DB }, { STATIC_DEMO: '0' }, { NETLIFY: '', SITE_URL: 'https://archive.test' }]) {
+    const result = await run({ ...env, ...patch });
+    assert.notEqual(result.code, 0);
+    assert.match(result.output, /Set NOTION_TOKEN and NOTION_DATABASE_ID/);
+    await assert.rejects(access('static-dist/index.html'));
+  }
 });

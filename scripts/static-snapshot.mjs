@@ -3,11 +3,12 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
-import { mkdtemp, mkdir, cp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, cp, rm, writeFile, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
-import { parse, serialize } from 'parse5';
+import { parse, parseFragment, serialize } from 'parse5';
+import { validateProfile, PROFILE_MAX_BYTES } from '../public/profile-format.js';
 
 const root = process.cwd();
 // The UI harness has its own disposable output and never overwrites a user's snapshot.
@@ -16,9 +17,14 @@ const temp = await mkdtemp(path.join(tmpdir(), 'red-room-static-'));
 // Netlify's URL is the primary site address, including on deploy previews.
 // A deliberate SITE_URL always wins, including when it is invalid.
 const siteUrl = (process.env.SITE_URL || (process.env.NETLIFY === 'true' ? process.env.URL : '') || '').replace(/\/+$/, '');
-const demo = process.env.STATIC_DEMO === '1';
 const token = process.env.NOTION_TOKEN || process.env.NOTION_API_SECRET;
 const database = process.env.NOTION_DATABASE_ID || process.env.DATABASE_ID || process.env.NOTION_DB_WRITING;
+// Only a Netlify Deploy Preview with *neither* credential may fall back to a
+// clearly labelled demo. Production, other contexts, and partial credentials
+// still fail closed. STATIC_DEMO=0 can explicitly disable this preview fallback.
+const previewDemo = process.env.NETLIFY === 'true' && process.env.CONTEXT === 'deploy-preview' &&
+  !token && !database && process.env.STATIC_DEMO !== '0';
+const demo = process.env.STATIC_DEMO === '1' || previewDemo;
 const secret = randomBytes(32).toString('hex');
 const reservation = createServer();
 reservation.listen(0, '127.0.0.1');
@@ -54,6 +60,19 @@ const getAttr = (node, key) => node.attrs?.find((a) => a.name === key)?.value;
 const setAttr = (node, key, value) => { const a = node.attrs?.find((x) => x.name === key); if (a) a.value = value; else node.attrs?.push({ name: key, value }); };
 const walk = (node, fn) => { fn(node); for (const child of node.childNodes || []) walk(child, fn); };
 const textContent = (node) => (node.nodeName === '#text' ? node.value : (node.childNodes || []).map(textContent).join(' '));
+const markDemoPreview = (doc) => {
+  if (!previewDemo) return;
+  walk(doc, (node) => {
+    if (node.tagName === 'head') {
+      const meta = parseFragment('<meta name="robots" content="noindex,nofollow">').childNodes[0];
+      meta.parentNode = node; node.childNodes.push(meta);
+    }
+    if (node.tagName === 'body') {
+      const notice = parseFragment('<div role="status" data-demo-preview style="position:fixed;bottom:0;right:0;z-index:2147483647;background:#fff;color:#111;padding:8px 12px;font:600 14px/1.4 sans-serif;max-width:100%;box-sizing:border-box">DEMO PREVIEW · Notion not configured / 演示预览 · 未连接 Notion</div>').childNodes[0];
+      notice.parentNode = node; node.childNodes.push(notice);
+    }
+  });
+};
 const write = async (url, content) => {
   const pathname = decodeURIComponent(new URL(url, base).pathname);
   const target = path.resolve(dest, '.' + pathname, 'index.html');
@@ -85,6 +104,21 @@ try {
   if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('SITE_URL must be a plain HTTP(S) origin without credentials or a path.');
   if ((!token || !database) && !demo) throw new Error('Set NOTION_TOKEN and NOTION_DATABASE_ID, or explicitly set STATIC_DEMO=1 for a demo.');
   if (demo && (token || database)) throw new Error('STATIC_DEMO cannot be combined with Notion credentials.');
+  if (previewDemo) console.warn('Netlify Deploy Preview: no Notion credentials; generating labelled demo content, not production articles.');
+  // The root file is build input, not a published asset. An explicitly configured
+  // path must exist; never silently ship defaults after a failed import.
+  const profileName = process.env.SITE_PROFILE_PATH || (process.env.UI_TEST_SNAPSHOT === '1' ? '' : 'site-profile.json');
+  const profilePath = profileName ? path.resolve(root, profileName) : '';
+  let profile;
+  try {
+    if (profilePath) {
+      const info = await stat(profilePath);
+      if (!info.isFile() || info.size > PROFILE_MAX_BYTES) throw new Error('Site profile must be a file of at most 128 KiB');
+      profile = validateProfile(JSON.parse(await readFile(profilePath, 'utf8')));
+    }
+  } catch (error) {
+    if (error.code !== 'ENOENT' || process.env.SITE_PROFILE_PATH) throw new Error(`Cannot load site profile: ${error.message}`);
+  }
   child = spawn(process.execPath, [path.join(root, 'dist/server/entry.mjs')], {
     cwd: temp, env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), ADMIN_TOKEN: secret,
       DB_PATH: path.join(temp, 'snapshot.db'), UPLOAD_DIR: path.join(temp, 'uploads'), MEDIA_CACHE_DIR: path.join(temp, 'media'), SYNC_TTL_SECONDS: '31536000',
@@ -97,6 +131,10 @@ try {
     child.stdout.on('data', data); child.stderr.on('data', data);
     child.once('exit', (code) => { clearTimeout(timer); reject(new Error(`Snapshot server exited: ${code}\n${log}`)); });
   });
+  if (profile) {
+    const response = await fetch(base + '/api/settings/profile', { method: 'POST', headers: { ...admin, 'Content-Type': 'application/json' }, body: JSON.stringify(profile) });
+    if (!response.ok) throw new Error(`Site profile import failed (${response.status}); no snapshot published.`);
+  }
   if (!demo) {
     const schema = await (await get('/api/notion/schema', admin)).json();
     if (!schema.mapping?.published?.property || !schema.mapping?.title?.property) throw new Error('A recognized Published column and title column are required for safe static publishing.');
@@ -130,6 +168,7 @@ try {
     for (const route of routes) {
       const sourceUrl = new URL(route.source, base); sourceUrl.searchParams.set('lang', lang);
       const doc = parse(await (await get(sourceUrl.pathname + sourceUrl.search)).text());
+      markDemoPreview(doc);
       const changes = [];
       let articleBody;
       walk(doc, (node) => {
@@ -173,13 +212,15 @@ try {
   }
   const missing = await fetch(base + '/404?lang=en');
   if (missing.status !== 404) throw new Error('Expected the 404 page to return 404.');
-  await writeFile(path.join(dest, '404.html'), await missing.text());
+  const missingDoc = parse(await missing.text());
+  markDemoPreview(missingDoc);
+  await writeFile(path.join(dest, '404.html'), serialize(missingDoc));
   await writeFile(path.join(dest, 'static-search.json'), JSON.stringify(search));
   await cp(path.join(root, 'scripts/static-search.js'), path.join(dest, 'static-search.js'));
   await writeFile(path.join(dest, 'rss.xml'), await (await get('/rss.xml')).text());
   const urls = routes.filter((r) => r.target !== '/search' && !r.target.includes('/page/')).flatMap((r) => ['en', 'zh-CN'].map((lang) => `<url><loc>${xml(siteUrl + langPrefix(lang) + r.target)}</loc></url>`));
   await writeFile(path.join(dest, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`);
-  await writeFile(path.join(dest, 'robots.txt'), `User-agent: *\nDisallow: /admin\nDisallow: /api/\nSitemap: ${siteUrl}/sitemap.xml\n`);
+  await writeFile(path.join(dest, 'robots.txt'), previewDemo ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nDisallow: /admin\nDisallow: /api/\nSitemap: ${siteUrl}/sitemap.xml\n`);
   await writeFile(path.join(dest, '_headers'), `/media/notion/*\n  Content-Security-Policy: default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox\n  X-Content-Type-Options: nosniff\n`);
   console.log(`Static snapshot built: ${articles.length} published articles, ${media.size} media files.`);
 } catch (error) {

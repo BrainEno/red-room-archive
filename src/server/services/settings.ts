@@ -5,6 +5,7 @@
  * Public pages should read the site profile from here, never from `process.env`
  * directly, so a value edited in /admin takes effect everywhere.
  */
+import { validateProfile } from '../../../public/profile-format.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { config } from '../config.ts';
 import { readEnv } from '../../core/env.ts';
@@ -222,4 +223,18 @@ export function updateSettings(patch: Record<string, unknown>): void {
   if (notionChanged) {
     for (const listener of listeners) listener(previousGeneration);
   }
+}
+
+/** Replace only public profile fields; keep Notion credentials and caches intact. */
+export function importSiteProfile(input: unknown): void {
+  let profile;
+  try { profile = validateProfile(input); }
+  catch (error) { throw badRequest(error instanceof Error ? error.message : 'Invalid site profile'); }
+  transaction(() => {
+    for (const [key, raw] of Object.entries(profile.settings)) {
+      const value = raw.trim();
+      if (value) settingsRepository.set(key, value);
+      else settingsRepository.remove(key);
+    }
+  });
 }

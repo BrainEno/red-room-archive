@@ -367,3 +367,22 @@ test('health reports database status without secrets', async () => {
   assert.equal(health.headers.get('cache-control'), 'no-store');
   assert.doesNotMatch(JSON.stringify(health.data), /secret/);
 });
+
+test('site profile import is authenticated, public-only, atomic and preserves Notion credentials', async () => {
+  const { makeProfile } = await import('../public/profile-format.js');
+  const before = await call(admin.readSettings, { token: TOKEN });
+  const profile = makeProfile(before.data.values);
+  profile.settings.site_name = 'Migrated Archive';
+  profile.settings.site_about_zh = '迁移后的介绍';
+  assert.equal((await call(admin.writeSiteProfile, { method: 'POST', json: profile })).status, 401);
+  const injected = structuredClone(profile); injected.settings.NOTION_TOKEN = 'new-secret';
+  assert.equal((await call(admin.writeSiteProfile, { method: 'POST', token: TOKEN, json: injected })).status, 400);
+  assert.equal((await call(admin.readSettings, { token: TOKEN })).data.values.site_name, before.data.values.site_name);
+  const imported = await call(admin.writeSiteProfile, { method: 'POST', token: TOKEN, json: profile });
+  assert.equal(imported.status, 200); assert.equal(imported.data.values.site_name, 'Migrated Archive');
+  assert.equal(imported.data.values.site_about_zh, '迁移后的介绍');
+  assert.equal(imported.data.values.NOTION_TOKEN, before.data.values.NOTION_TOKEN);
+  assert.equal(imported.data.values.NOTION_DATABASE_ID, before.data.values.NOTION_DATABASE_ID);
+  assert.ok(!JSON.stringify(profile).includes('secret_env_token'));
+  assert.equal((await call(admin.writeSiteProfile, { method: 'POST', token: TOKEN, json: makeProfile(before.data.values) })).status, 200);
+});
