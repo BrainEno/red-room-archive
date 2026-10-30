@@ -10,7 +10,7 @@ import { messages } from '../i18n.ts';
 import '../styles/home.css';
 import type { ArticleSummary, TagCount } from '../../shared/contracts.ts';
 import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
-import { ARTICLES_PATH, MORE_PATH, SEARCH_PATH, TOPICS_PATH, topicPath } from '../../shared/routes.ts';
+import { ARTICLES_PATH, MORE_PATH, SEARCH_PATH, SUBSCRIBE_PATH, TOPICS_PATH, topicPath } from '../../shared/routes.ts';
 import { absoluteUrl, websiteLd } from '../../shared/structured-data.ts';
 
 export interface Props {
@@ -109,6 +109,7 @@ const jsonLd = site.url
       <a class="go" href={to(MORE_PATH)}><span class="go-t">{t.home.learnMore}</span><span class="go-a" aria-hidden="true">↗</span></a>
       <div class="reach">
         {site.email && <p><span class="k">{t.home.email}</span><a href={`mailto:${site.email}`}>{site.email}</a></p>}
+        <p class="letters-reach"><span class="k">{t.newsletter.homeKey}</span><a href={to(SUBSCRIBE_PATH)}>{t.newsletter.homeLink}</a></p>
         <p class="what">{t.home.moreTopics}</p>
         <p class="yr">© {new Date().getFullYear()} {site.name}</p>
       </div>

@@ -14,8 +14,10 @@ v2 起网站只读 Notion：没有任何创建/修改文章的接口，内容请
   | --- | --- | --- |
   | 400 | `bad_request` | 参数非法、Notion 未配置 |
   | 401 | `unauthorized` | 缺少或错误的 token（带 `WWW-Authenticate: Bearer`） |
+  | 403 | `forbidden` | 邮件订阅的公开接口收到跨站请求（`Origin` / `Sec-Fetch-Site` 不符） |
   | 404 | `not_found` | 文章不存在（未发布、定时未到也是 404） |
   | 409 | `conflict` | 上传文件名冲突，或 Notion 设置/文章在操作期间发生变化，请重试 |
+  | 410 | `gone` | 订阅确认链接已过期（`details.reason: "expired"`） |
   | 413 | `payload_too_large` | 请求体、上传文件或 Notion 文件过大 |
   | 429 | `rate_limited` | 错误 token 次数过多（10 分钟内每个桶 12 次，另有全局上限）；带转发头的请求共用一个桶，不信任转发 IP |
   | 502 | `upstream_error` | Notion 拒绝或不可达（上游细节只写服务器日志） |
@@ -126,6 +128,36 @@ interface MoreDocument {
 - 事件：必须带 `X-Notion-Signature: sha256=<hex>`（用令牌对原始请求体做 HMAC-SHA256）。缺少或不匹配 → `401`（计入 `rejected`）。
   通过后返回 `200`，`outcome` 为 `synced`（`page.*` / `database.*` / `data_source.*`：约 4 秒后同步一次）、`ignored`（如 `comment.*`）或 `duplicate`（同一事件 id 的重试）。
   第一条签名正确的事件把状态从 `pending` 改为 `active`。
+
+## 邮件订阅
+
+`/api/newsletter/*`。Node 站点由 `src/pages/api/newsletter/[...path].ts` 提供，Netlify 静态站由 `netlify/functions/newsletter.mts` 提供，两者共用 `src/server/newsletter/http.ts`，行为相同。类型见 `contracts.ts` 的 `Newsletter*`。设计说明见 [NEWSLETTER.md](NEWSLETTER.md)。
+
+所有响应 `Cache-Control: no-store`。公开的 POST 接口要求 `Content-Type: application/json`、同源 `Origin` / `Sec-Fetch-Site`（否则 `403`），请求体上限 **4 KB**（`413`）。
+
+| 方法 | 路径 | 鉴权 | 说明 | 响应 |
+| --- | --- | --- | --- | --- |
+| GET | `/api/newsletter/status` | 公开 | 是否开放订阅（不暴露配置细节） | `{ enabled }` |
+| POST | `/api/newsletter/subscribe` | 公开 | `{ email, locale?, source?, website? }`；`website` 是蜜罐，必须为空 | `202 { status: "check-inbox" }`——无论地址是新的、待确认、已订阅还是已退订都一样 |
+| POST | `/api/newsletter/confirm` | 公开（token） | `{ token }` | `{ status: "confirmed" \| "already-confirmed" }` |
+| POST | `/api/newsletter/unsubscribe` | 公开（token） | `{ token }`；幂等 | `{ status: "unsubscribed" }` |
+| POST | `/api/newsletter/unsubscribe?token=…` | 公开（token） | RFC 8058 一键退订：请求体必须是 `List-Unsubscribe=One-Click`（表单），不检查 Origin | 同上 |
+| GET | `/api/newsletter/unsubscribe?token=…` | — | 不执行退订（链接扫描器会预取），`303` 跳到 `/newsletter/unsubscribe#token=…` 由读者点击 | `303` |
+| GET | `/api/newsletter/admin/subscribers?q=&status=&limit=&offset=` | admin | 搜索（邮箱包含 `q`）、筛选、分页（`limit` ≤ 200） | `{ subscribers, total, counts, delivery }` |
+| GET | `/api/newsletter/admin/export?q=&status=` | admin | CSV（UTF-8 BOM）：`email,status,locale,source,created_at,confirmed_at,unsubscribed_at`；防公式注入 | `text/csv` 附件 |
+| POST | `/api/newsletter/admin/subscribers/:id/resend` | admin | 给待确认地址重发确认信 | `{ status: "sent" }`；不是待确认 `409`，不存在 `404` |
+
+错误：
+
+| HTTP | 何时 |
+| --- | --- |
+| 400 | 邮箱格式不对（`details.field: "email"`）；token 无效或已被新链接替换（`details.reason: "invalid"`） |
+| 410 | 确认链接过期（`details.reason: "expired"`） |
+| 429 | 限流：每客户端 10 分钟 8 次；同一地址 10 分钟内只发一封确认信、24 小时最多 5 封（超出时仍返回 202 但不发信，以免暴露地址状态） |
+| 502 | 邮件服务拒绝或不可达；`Nothing was activated`，可立即重试 |
+| 503 | 邮件未配置（`not configured … Nothing was saved`）；发信上限用完（`details.reason` 为 `daily-limit` 或 `monthly-limit`，含 Resend 返回 `daily_quota_exceeded` / `monthly_quota_exceeded` 的情况）；或存储无法解密 |
+
+admin 接口使用与其他后台接口相同的 `ADMIN_TOKEN` 和错误限流；`delivery` 为 `{ configured, provider, missing, storage, dailyLimit, monthlyLimit, sentToday, sentThisMonth }`，只列出缺少的**变量名**，从不返回值。响应里没有 token、token 哈希或任何密钥。
 
 ## 从 v1 迁移
 

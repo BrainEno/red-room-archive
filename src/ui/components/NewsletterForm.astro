@@ -1,0 +1,39 @@
+---
+/**
+ * Email sign-up (double opt-in). Progressive: the server endpoint is
+ * /api/newsletter/subscribe (Node server, or the Netlify Function on the
+ * static deployment); scripts/site/newsletter.ts submits it as JSON and
+ * reports exactly what happened — nothing is ever shown as done that wasn't.
+ */
+import { messages } from '../i18n.ts';
+import type { Locale } from '../../shared/i18n.ts';
+import '../styles/newsletter.css';
+
+export interface Props {
+  locale: Locale;
+  /** Recorded with the subscriber: which entry point was used. */
+  source: string;
+  /** `page`: large, on /subscribe. `inline`: compact, under an article. */
+  variant?: 'page' | 'inline';
+  /** Check availability on load (the /subscribe page) instead of on first focus. */
+  precheck?: boolean;
+}
+const { locale, source, variant = 'inline', precheck = false } = Astro.props;
+const t = messages(locale).newsletter;
+const id = `nl-${source.replace(/[^a-z0-9-]/gi, '')}`;
+const payload = JSON.stringify({ ...t.status, submit: t.submit, sending: t.sending });
+---
+<form class:list={['letters-form', `letters-${variant}`]} data-newsletter-form data-source={source} data-precheck={precheck ? 'load' : 'focus'} data-messages={payload} novalidate>
+  <label class="letters-label" for={`${id}-email`}>{t.label}</label>
+  <div class="letters-line">
+    <input id={`${id}-email`} name="email" type="email" inputmode="email" autocomplete="email" spellcheck="false" maxlength="254" required placeholder={t.placeholder} aria-describedby={`${id}-status ${id}-consent`} />
+    <button type="submit">{t.submit}<span aria-hidden="true"> →</span></button>
+  </div>
+  <div class="letters-trap" aria-hidden="true">
+    <label for={`${id}-website`}>{t.honeypot}</label>
+    <input id={`${id}-website`} name="website" type="text" tabindex="-1" autocomplete="off" />
+  </div>
+  <p class="letters-status" id={`${id}-status`} role="status" aria-live="polite"></p>
+  <p class="letters-consent" id={`${id}-consent`}>{t.consent}</p>
+  <noscript><p class="letters-status" data-state="error">{t.noscript}</p></noscript>
+</form>

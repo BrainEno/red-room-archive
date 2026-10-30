@@ -2,6 +2,10 @@
  * /admin entry point: session handling + tab shell.
  * The token lives only in this tab's sessionStorage.
  * Tab ids (`data-tab`, `#hash`) stay English; only their labels are translated.
+ *
+ * On the static deployment the only server code is the newsletter's Netlify
+ * Function: `/api/auth` and `/api/settings` answer 404 there, so the shell
+ * checks the token against the newsletter API and shows that tab alone.
  */
 import { ApiError, createApiClient } from '../lib/api-client.ts';
 import { $, esc } from './dom.ts';
@@ -9,6 +13,7 @@ import { errorText, lang, setLang, t, type AdminLang, type TabId } from './i18n.
 import { articlesPanel } from './panels/articles.ts';
 import { filesPanel } from './panels/files.ts';
 import { morePanel } from './panels/more.ts';
+import { newsletterPanel } from './panels/newsletter.ts';
 import { overviewPanel } from './panels/overview.ts';
 import { settingsPanel } from './panels/settings.ts';
 
@@ -61,27 +66,50 @@ function renderLogin(message = '') {
     event.preventDefault();
     const candidate = $<HTMLInputElement>('#tk').value.trim();
     try {
-      await api.auth.login(candidate);
+      await verify(candidate);
       token = candidate;
       sessionStorage.setItem(STORAGE_KEY, token);
       await boot();
     } catch (error) {
+      token = '';
       renderLogin(errorText(error));
     }
   };
 }
 
-const TABS: readonly TabId[] = ['Overview', 'Articles', 'More', 'Settings', 'Files'];
+// A static host answers a missing route with 404 (or 405 for a POST to a static path).
+const notFound = (error: unknown) => error instanceof ApiError && (error.status === 404 || error.status === 405);
+
+/** Node server: POST /api/auth. Static deployment: the newsletter API with the same token. */
+async function verify(candidate: string) {
+  try {
+    await api.auth.login(candidate);
+    return;
+  } catch (error) {
+    if (!notFound(error)) throw error;
+  }
+  token = candidate;
+  await api.newsletter.list({ limit: 1 });
+}
+
+const ALL_TABS: readonly TabId[] = ['Overview', 'Articles', 'More', 'Newsletter', 'Settings', 'Files'];
 
 async function boot() {
   if (!token) return renderLogin();
-  let settings;
+  let settings: Awaited<ReturnType<typeof api.settings.get>> | null = null;
   try {
     settings = await api.settings.get();
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) return; // onUnauthorized already showed the login
-    return renderLogin(errorText(error));
+    if (!notFound(error)) return renderLogin(errorText(error));
+    try {
+      await api.newsletter.list({ limit: 1 });
+    } catch (inner) {
+      if (inner instanceof ApiError && inner.status === 401) return;
+      return renderLogin(errorText(inner));
+    }
   }
+  const TABS: readonly TabId[] = settings ? ALL_TABS : ['Newsletter'];
 
   app.innerHTML = `
     <nav class="tabs" aria-label="${esc(t.shell.nav)}">
@@ -92,6 +120,7 @@ async function boot() {
       ${langSwitch()}
       <button type="button" id="logout" class="ghost">${esc(t.shell.signOut)}</button>
     </nav>
+    ${settings ? '' : `<p class="hint nl-static" role="note">${esc(t.shell.staticMode)}</p>`}
     ${TABS.map((tab, index) => `<section id="panel-${tab}" role="tabpanel" aria-labelledby="tab-${tab}" tabindex="0" data-panel="${tab}" ${index ? 'hidden' : ''}></section>`).join('')}`;
   wireLangSwitch();
 
@@ -129,6 +158,13 @@ async function boot() {
     };
   });
   $('#logout').onclick = () => logout();
+
+  const letters = newsletterPanel($('[data-panel=Newsletter]'), api);
+  onShow.Newsletter = () => void letters.refresh();
+  if (!settings) {
+    void letters.refresh();
+    return;
+  }
 
   const articles = articlesPanel($('[data-panel=Articles]'), api, settings.status);
   const settingsView = settingsPanel($('[data-panel=Settings]'), api, settings, (next) => {

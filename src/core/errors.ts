@@ -42,9 +42,13 @@ export const payloadTooLarge = (message = 'request body too large') =>
 export const rateLimited = (message = 'too many failed attempts, try again later') =>
   new AppError(429, 'rate_limited', message);
 
+export const gone = (message: string, details?: Record<string, unknown>) =>
+  new AppError(410, 'gone', message, details);
+
 export const upstreamError = (message: string, details?: Record<string, unknown>) =>
   new AppError(502, 'upstream_error', message, details);
 
-export const unavailable = (message: string) => new AppError(503, 'unavailable', message);
+export const unavailable = (message: string, details?: Record<string, unknown>) =>
+  new AppError(503, 'unavailable', message, details);
 
 export const internal = (message = 'internal error') => new AppError(500, 'internal', message);

@@ -157,8 +157,11 @@ try {
     }
   }
   if (hasContent) console.log(`Using ${path.relative(root, contentDir) || contentDir}/: profile ${bundledProfile ? 'yes' : 'no'}, More page ${moreDocument ? 'yes' : 'no'}, ${bundledUploads} upload(s).`);
+  // The snapshot server renders pages only. Newsletter credentials belong to the
+  // Netlify Function (server-side env), never to the build server or its output.
+  const buildEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('NEWSLETTER_')));
   child = spawn(process.execPath, [path.join(root, 'dist/server/entry.mjs')], {
-    cwd: temp, env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), ADMIN_TOKEN: secret,
+    cwd: temp, env: { ...buildEnv, HOST: '127.0.0.1', PORT: String(port), ADMIN_TOKEN: secret,
       DB_PATH: path.join(temp, 'snapshot.db'), UPLOAD_DIR: uploadDir, MEDIA_CACHE_DIR: path.join(temp, 'media'), SYNC_TTL_SECONDS: '31536000',
       NOTION_TOKEN: token || '', NOTION_DATABASE_ID: database || '', SITE_URL: siteUrl }, stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -192,7 +195,9 @@ try {
     if (!data.articles.length && articles.length < total) throw new Error('Could not enumerate all articles');
   } while (articles.length < total);
   const topics = (await api('/api/tags?lang=en')).tags;
-  const routes = ['/', '/more', '/search', '/topics', '/archive'];
+  // Newsletter pages are static shells; their form and links call /api/newsletter/*,
+  // which netlify/functions/newsletter.mts serves on the static deployment.
+  const routes = ['/', '/more', '/search', '/topics', '/archive', '/subscribe', '/newsletter/confirm', '/newsletter/unsubscribe'];
   for (let p = 1; p <= pageCount(total); p++) routes.push(p === 1 ? '/articles' : `/articles/page/${p}`);
   for (const topic of topics) {
     for (let p = 1; p <= pageCount(topic.count); p++) routes.push(`/topics/${encodeURIComponent(topic.slug)}${p > 1 ? `/page/${p}` : ''}`);
@@ -249,10 +254,13 @@ try {
   const missingDoc = parse(await missing.text());
   markDemoPreview(missingDoc);
   await writeFile(path.join(dest, '404.html'), serialize(missingDoc));
+  // The admin shell (no data, no secrets): on the static site it signs in against
+  // the newsletter function and shows only the Newsletter module.
+  await write('/admin', await (await get('/admin')).text());
   await writeFile(path.join(dest, 'static-search.json'), JSON.stringify(search));
   await cp(path.join(root, 'scripts/static-search.js'), path.join(dest, 'static-search.js'));
   await writeFile(path.join(dest, 'rss.xml'), await (await get('/rss.xml')).text());
-  const urls = routes.filter((r) => r !== '/search' && !r.includes('/page/')).flatMap((r) => LANGS.map((lang) => `<url><loc>${xml(siteUrl + localized(r, lang))}</loc></url>`));
+  const urls = routes.filter((r) => r !== '/search' && !r.includes('/page/') && !r.startsWith('/newsletter/')).flatMap((r) => LANGS.map((lang) => `<url><loc>${xml(siteUrl + localized(r, lang))}</loc></url>`));
   await writeFile(path.join(dest, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`);
   await writeFile(path.join(dest, 'robots.txt'), previewDemo ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nDisallow: /admin\nDisallow: /api/\nSitemap: ${siteUrl}/sitemap.xml\n`);
   // Same security headers as the Node server (server/http/security.ts), copied
@@ -264,8 +272,24 @@ try {
   await writeFile(path.join(dest, '_headers'), [
     '/*', ...security.map(([name, value]) => `  ${name}: ${value}`),
     '/media/notion/*', "  Content-Security-Policy: default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox",
+    '/admin', '  Cache-Control: no-store', '  X-Robots-Tag: noindex, nofollow',
+    '/admin/*', '  Cache-Control: no-store', '  X-Robots-Tag: noindex, nofollow',
+    ...['/newsletter/*', '/zh-CN/newsletter/*'].flatMap((route) => [route, '  Referrer-Policy: no-referrer', '  X-Robots-Tag: noindex']),
     '',
   ].join('\n'));
+  // Last line of defence: no server-side secret may appear anywhere in the output.
+  const secrets = [secret, token, process.env.ADMIN_TOKEN, ...Object.entries(process.env).filter(([key]) => /^NEWSLETTER_(SECRET|EMAIL_API_KEY)$/.test(key)).map(([, value]) => value)]
+    .filter((value) => typeof value === 'string' && value.length >= 12);
+  const scan = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) { await scan(file); continue; }
+      const content = await readFile(file);
+      if (secrets.some((value) => content.includes(value))) throw new Error(`A server-side secret was found in ${path.relative(dest, file)}; no snapshot published.`);
+      if (/\.(?:db|sqlite3?)(?:-wal|-shm)?$/i.test(entry.name)) throw new Error(`Database file in the snapshot: ${path.relative(dest, file)}`);
+    }
+  };
+  await scan(dest);
   console.log(`Static snapshot built: ${articles.length} published articles, ${media.size} media files, ${uploads.size} uploaded files.`);
 } catch (error) {
   await rm(dest, { recursive: true, force: true });

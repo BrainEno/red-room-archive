@@ -17,6 +17,7 @@ export type ApiErrorCode =
   | 'conflict'
   | 'payload_too_large'
   | 'rate_limited'
+  | 'gone'
   | 'upstream_error'
   | 'unavailable'
   | 'internal';
@@ -420,4 +421,90 @@ export interface UploadResponse {
   name: string;
   size: number;
   url: string;
+}
+
+/* ── Newsletter ───────────────────────────────────────────────────────
+ * Double opt-in: subscribe → confirmation email → confirm → active.
+ * Public responses never reveal whether an address is already known. */
+
+export type NewsletterStatus = 'pending' | 'active' | 'unsubscribed';
+
+/** Public: is sign-up available on this deployment? (No configuration details.) */
+export interface NewsletterAvailability {
+  enabled: boolean;
+}
+
+export interface NewsletterSubscribeRequest {
+  email: string;
+  /** Interface language of the page; selects the email language. */
+  locale?: string;
+  /** Which entry point was used (`subscribe-page`, `article`, …). Free text, capped. */
+  source?: string;
+  /** Honeypot: hidden from people, filled by naive bots. Must be empty. */
+  website?: string;
+}
+
+/** The same body whether the address is new, pending, active or unsubscribed. */
+export interface NewsletterSubscribeResponse {
+  status: 'check-inbox';
+}
+
+export interface NewsletterTokenRequest {
+  token: string;
+}
+
+export interface NewsletterConfirmResponse {
+  status: 'confirmed' | 'already-confirmed';
+}
+
+export interface NewsletterUnsubscribeResponse {
+  status: 'unsubscribed';
+}
+
+export interface NewsletterCounts {
+  total: number;
+  active: number;
+  pending: number;
+  unsubscribed: number;
+}
+
+/** Admin view of one subscriber. Tokens, hashes and secrets never leave the server. */
+export interface NewsletterSubscriber {
+  id: number;
+  email: string;
+  status: NewsletterStatus;
+  locale: string;
+  source: string;
+  createdAt: string;
+  confirmedAt: string | null;
+  unsubscribedAt: string | null;
+  /** Last delivery problem for this address (`send_failed`), cleared on success. */
+  lastError: string | null;
+  lastErrorAt: string | null;
+}
+
+export interface NewsletterDelivery {
+  /** Email provider configured and every required variable present. */
+  configured: boolean;
+  provider: string | null;
+  /** Variables that are missing (names only). */
+  missing: string[];
+  storage: 'sqlite' | 'netlify-blobs';
+  /** Emails per UTC day / calendar month (NEWSLETTER_DAILY_LIMIT / NEWSLETTER_MONTHLY_LIMIT). */
+  dailyLimit: number;
+  monthlyLimit: number;
+  /** Counted here, raised to the provider's own figures when it reports them. */
+  sentToday: number;
+  sentThisMonth: number;
+}
+
+export interface NewsletterListResponse {
+  subscribers: NewsletterSubscriber[];
+  total: number;
+  counts: NewsletterCounts;
+  delivery: NewsletterDelivery;
+}
+
+export interface NewsletterResendResponse {
+  status: 'sent';
 }

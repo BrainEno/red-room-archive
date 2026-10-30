@@ -177,6 +177,52 @@ const MIGRATIONS: ((db: DatabaseConnection) => void)[] = [
       fetched_at INTEGER NOT NULL
     )`);
   },
+  // 11 — newsletter (double opt-in). Statuses and token types are validated in
+  //      code, not with CHECK constraints, so adding one needs no table rebuild.
+  //      Only token hashes are stored; rate-limit keys are HMACs of addresses.
+  (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS newsletter_subscribers(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL,
+        normalized_email TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT '',
+        locale TEXT NOT NULL DEFAULT 'en',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        confirmed_at TEXT,
+        unsubscribed_at TEXT,
+        last_error TEXT,
+        last_error_at TEXT,
+        notice_sent_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS newsletter_subscribers_status ON newsletter_subscribers(status, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS newsletter_tokens(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        subscriber_id INTEGER NOT NULL REFERENCES newsletter_subscribers(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        token_type TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        consumed_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS newsletter_tokens_subscriber ON newsletter_tokens(subscriber_id, token_type, created_at);
+
+      -- period: a UTC day (YYYY-MM-DD) or month (YYYY-MM); daily and monthly email limits.
+      CREATE TABLE IF NOT EXISTS newsletter_send_counts(
+        period TEXT PRIMARY KEY,
+        count INTEGER NOT NULL DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS newsletter_rate_limits(
+        key TEXT PRIMARY KEY,
+        window_start INTEGER NOT NULL,
+        count INTEGER NOT NULL
+      );
+    `);
+  },
 ];
 
 let depth = 0;

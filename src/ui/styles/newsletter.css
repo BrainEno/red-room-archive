@@ -1,0 +1,70 @@
+/* Letters (newsletter): sign-up form, /subscribe, and the email-link pages.
+   Same vocabulary as the reading pages — condensed uppercase display type,
+   hairline rules, numbered rows — no boxes, no gradients. */
+.letters [hidden], .letters-form [hidden] { display: none; }
+.letters-lede { max-width: 44ch; margin: 1.4rem 0 3rem; opacity: .75; }
+
+.letters-form { margin: 0 0 1rem; }
+.letters-label { display: block; margin-bottom: .5rem; font-size: .74rem; letter-spacing: .14em; text-transform: uppercase; opacity: .6; }
+.letters-line { display: flex; align-items: baseline; gap: 1rem; border-bottom: 1px solid rgba(241,238,230,.55); transition: border-color .3s; }
+.letters-line:focus-within { border-bottom-color: var(--accent-soft); }
+.letters-line input { flex: 1; min-width: 0; padding: .35em 0; font: inherit; font-size: 1.15rem; color: var(--ink); caret-color: var(--red); background: transparent; border: 0; border-radius: 0; }
+.letters-line input::placeholder { color: rgba(241,238,230,.36); }
+.letters-line input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.letters-line input[aria-invalid="true"] { text-decoration: underline wavy var(--red); text-underline-offset: .3em; }
+.letters-line input[readonly] { opacity: .6; }
+.letters-form button, .letters-button { flex: none; padding: .45em 0; font: inherit; font-weight: 800; font-stretch: 62%; letter-spacing: .04em; text-transform: uppercase; color: var(--ink); background: none; border: 0; cursor: pointer; transition: color .3s; }
+.letters-form button span, .letters-button span { display: inline-block; transition: transform .4s var(--ease); }
+.letters-form button:hover, .letters-button:hover { color: var(--accent-soft); }
+.letters-form button:hover span, .letters-button:hover span { transform: translate(.14em, -.14em); }
+:is(.letters-form button, .letters-line input, .letters-button):disabled { opacity: .45; cursor: not-allowed; }
+.letters-form[data-state="sent"] button { display: none; }
+
+/* Honeypot: off-screen for people, still in the DOM for naive bots. */
+.letters-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+.letters-status { min-height: 1.45em; margin: .8rem 0 0; font-size: .95rem; line-height: 1.5; }
+.letters-status:empty { min-height: 0; margin: 0; }
+.letters-status[data-state="ok"] { padding-left: .8rem; border-left: 2px solid var(--red); }
+.letters-status[data-state="error"] { color: var(--accent-soft); }
+.letters-consent { margin: .7rem 0 0; font-size: .8rem; line-height: 1.5; opacity: .55; }
+
+/* /subscribe: the field is the headline's companion, so it gets display type. */
+.letters-page .letters-line input { font-size: clamp(1.35rem, 3.6vw, 2.1rem); font-weight: 600; }
+.letters-page button { font-size: clamp(1.35rem, 3.6vw, 2.1rem); }
+.letters .letters-notes-h { margin: 4.5rem 0 0; line-height: 1.4; padding-bottom: .7rem; font-size: .74rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; opacity: .6; }
+.letters .letters-notes { list-style: none; margin: 0; padding: 0; border-top: 1px solid rgba(241,238,230,.24); }
+.letters-notes li { display: grid; grid-template-columns: 2.4rem 9.5rem minmax(0, 1fr); gap: 1rem; align-items: baseline; padding: 1.1rem 0; border-bottom: 1px solid rgba(241,238,230,.24); font-size: .98rem; line-height: 1.6; }
+.letters-notes .n { font-size: .75rem; opacity: .5; font-variant-numeric: tabular-nums; }
+.letters-notes .t { font-weight: 800; font-stretch: 62%; letter-spacing: .04em; text-transform: uppercase; }
+.letters-notes .d { opacity: .75; }
+
+/* Under an article: a red hairline, a kicker and one condensed line. */
+.letters-aside { max-width: 62ch; margin: -40px auto 72px; padding: 0 20px; }
+.letters-aside > * { max-width: 100%; }
+.letters-aside::before { content: ""; display: block; width: 3.5rem; height: 2px; margin-bottom: 1.1rem; background: var(--red); }
+.letters-kicker { margin: 0 0 .4rem; font-size: .74rem; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-soft); }
+.letters-aside h2 { margin: 0 0 1.4rem; font-size: clamp(1.6rem, 4.2vw, 2.6rem); font-weight: 800; font-stretch: 62%; line-height: .95; text-transform: uppercase; overflow-wrap: anywhere; }
+.letters-more { margin: .9rem 0 0; font-size: .82rem; }
+.letters-more a { opacity: .7; text-decoration: underline; text-decoration-color: rgba(241,238,230,.4); text-underline-offset: .18em; }
+.letters-more a:hover { opacity: 1; color: var(--accent-soft); }
+.letters-aside + .prevnext { margin-top: 0; }
+
+/* Confirm / unsubscribe pages */
+.letters-act { margin: 0 0 1rem; }
+.letters-button { padding: .6em 1.1em; font-size: clamp(1.2rem, 3vw, 1.6rem); border: 1px solid rgba(241,238,230,.6); }
+.letters-button:hover { border-color: var(--accent-soft); }
+.letters-next { display: flex; flex-wrap: wrap; gap: .6rem 1.6rem; margin-top: 2rem; font-size: .95rem; }
+
+:is(.letters-label, .letters-kicker, .letters-notes-h):lang(zh) { letter-spacing: .08em; }
+.letters-aside h2:lang(zh), .letters-notes .t:lang(zh) { line-height: 1.15; letter-spacing: .01em; }
+
+@media (max-width: 720px) {
+  .letters-notes li { grid-template-columns: 2.2rem minmax(0, 1fr); gap: .3rem 1rem; }
+  .letters-notes .d { grid-column: 2; }
+  .letters-line { flex-wrap: wrap; gap: 0 1rem; }
+  .letters-line input { flex-basis: 12rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .letters-line, .letters-form button, .letters-form button span, .letters-button, .letters-button span { transition: none; }
+}

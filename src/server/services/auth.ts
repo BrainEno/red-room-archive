@@ -93,17 +93,26 @@ export function isAdmin(request: Request): boolean {
 
 /** Throws `AppError` unless the request is authenticated. */
 export function requireAdmin(request: Request, peer = ''): void {
+  requireAdminFrom(request, clientIp(request, peer));
+}
+
+/**
+ * Same check with a caller-supplied throttle key. For runtimes whose platform
+ * reports the real client address (Netlify Functions' `context.ip`); the Node
+ * server keeps using `requireAdmin`, which trusts no forwarded header.
+ */
+export function requireAdminFrom(request: Request, ip: string): void {
   const expected = adminToken();
   if (!expected) throw unavailable('ADMIN_TOKEN is not configured on the server');
-  if (isThrottled(clientIp(request, peer))) throw rateLimited();
+  if (isThrottled(ip)) throw rateLimited();
 
   const provided = bearerToken(request);
   if (!provided) throw unauthorized();
   if (!sameSecret(provided, expected)) {
-    noteFailure(clientIp(request, peer));
+    noteFailure(ip);
     throw unauthorized('invalid admin token');
   }
-  noteSuccess(clientIp(request, peer));
+  noteSuccess(ip);
 }
 
 /** Login endpoint: validates a token from the request body. */

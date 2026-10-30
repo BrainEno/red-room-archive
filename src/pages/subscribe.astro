@@ -1,0 +1,8 @@
+---
+// Route: /subscribe — email sign-up (double opt-in).
+import SubscribeView from '../ui/views/SubscribeView.astro';
+import { getSite } from '../server/queries.ts';
+
+const site = getSite(Astro.locals.locale);
+---
+<SubscribeView site={site} />

@@ -35,6 +35,8 @@ Windows PowerShell 可用 `Copy-Item .env.example .env` 创建配置文件。
 | `/archive` | 全部文章一页列完，按年份分组，顶部有年份索引 |
 | `/search?q=` | 搜索标题、标签、摘要和正文 |
 | `/more` | 自印出版物（封面、规格、选读）与联系方式（邮箱、社交账号二维码），在后台 **More** 编辑，见下文 |
+| `/subscribe` | 邮件订阅（双重确认）；文章末尾、页脚和首页信息栏都有入口，见下文“邮件订阅” |
+| `/newsletter/confirm` · `/newsletter/unsubscribe` | 确认订阅 / 退订页（来自邮件链接，不被索引） |
 | `/rss.xml` · `/sitemap.xml` · `/robots.txt` | 订阅与搜索引擎 |
 | `/media/notion/:id` | Notion 里上传的图片/文件的本地副本（见下文“图片”） |
 
@@ -205,9 +207,20 @@ Notion 和 GitHub 联动、发布自动化的调研见 [docs/NOTION-GITHUB.md](d
 - **Articles**：已发布文章一览；**Sync now** / **Sync + fetch bodies**（同时预取所有正文，让搜索覆盖全文）/ **Full resync**（清空正文和图片缓存后重新同步）；单篇 **Refresh** 重新拉取正文。
 - **Settings**：分为 **Site / Homepage copy / Topics / Notion / Backup & static sites** 五组，顶部有分组导航，底部固定的保存栏显示是否有未保存的修改（`Ctrl/⌘ + S` 也可保存；有未保存修改时离开页面会提示）。首页文案的英文、中文左右并排（窄屏上下排列）。内容：站点名称/邮箱；简介（首页、meta description、RSS）、首页引言与标语、首页信息栏（Homepage facts：每行一条 `标签: 内容`，最多 6 条；留空用内置默认，填 `-` 隐藏），英文、中文各一份（中文留空就用内置中文文案，不会回退到英文）；中英标签对照（Tag pairs）；Notion token 与数据库（优先于 `.env`）；**Settings** 显示 Notion 配置是否存在（包括从环境变量读取），但这不代表连接有效；**Check columns** 实际验证权限与字段映射。**Export site profile** 导出已保存的非机密站点文字和标签对照；**Import site profile** 验证后立即替换这些字段，不修改 Notion 配置。导入会丢弃尚未保存的表单编辑。**Download content bundle (.zip)** 下载静态部署用的内容包（见下文）。
 - **More**：编辑 `/more` 页面（出版物、联系方式、二维码，中英并排），见上文。
+- **Newsletter（订阅）**：订阅总数 / 已订阅 / 待确认 / 已退订、邮件服务状态与今日发信量；按邮箱搜索、按状态筛选；待确认地址可重发确认；**导出 CSV**（只含邮箱、状态、语言、来源和时间，不含 token、哈希或密钥）。静态 Netlify 站点的 `/admin` 也能用同一个 `ADMIN_TOKEN` 登录，但只显示这一模块。
 - **Files**：上传音频/视频/图片/PDF；上传 `.glb` 并选择 “Statue model” 可替换首页雕像（首页只请求实际存在的那一个模型：上传的或仓库内置的 `public/models/venus.glb`；建议先用 `npx gltfpack -i in.glb -o out.glb -cc` 压缩，内置模型就是这样从 11.7 MB 压到约 0.8 MB 的，三角面减半后肉眼无差别）；“更多”页面用到的文件标 on /more。
 
 网站**从不写回 Notion**（`tests/architecture.test.mjs` 会检查客户端里没有写请求）。
+
+## 邮件订阅
+
+读者在站内订阅（替代 Substack），名单属于本项目：**双重确认**（提交后只发确认信，点击邮件链接才生效）、一键退订（含 RFC 8058 邮件头）、不暴露某邮箱是否已订阅、限流与蜜罐、后台管理与 CSV 导出。
+
+- **Netlify 静态站**：`/api/newsletter/*` 由 `netlify/functions/newsletter.mts`（Netlify Function）处理，数据加密存放在 **Netlify Blobs**——都包含在 Netlify 免费套餐里，不需要新的数据库账号。
+- **Node 站点**：同一套服务，数据在 SQLite（迁移 11）。
+- **发信**：Resend（免费每天 100 封）或 Brevo（免费每天 300 封），均无需绑卡，需要验证发信域名。
+
+未配置邮件服务时，订阅表单会明确显示“尚未开放”，不保存任何数据，也不会假装发送成功。配置、数据结构、安全设计、备份与故障恢复见 **[docs/NEWSLETTER.md](docs/NEWSLETTER.md)**，上线步骤见 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**。
 
 ## 代码结构
 
@@ -243,12 +256,15 @@ src/content  站点文案、演示文章                    src/pages    路由�
 | `NOTION_API_BASE` | `https://api.notion.com/v1` | 仅用于测试或代理 |
 | `LINK_PREVIEWS` | 开 | 设为 `off` / `0` / `false` 时不抓取书签网页的标题和简介 |
 | `NOTION_WEBHOOK_TOKEN` | — | 可选。固定 Notion webhook 的验证令牌，跳过后台握手（见“Webhook 即时更新”） |
+| `NEWSLETTER_SECRET` · `NEWSLETTER_EMAIL_PROVIDER` · `NEWSLETTER_EMAIL_API_KEY` · `NEWSLETTER_FROM` | — | 邮件订阅（四个都设置才会开放）。可选 `NEWSLETTER_REPLY_TO`、`NEWSLETTER_DAILY_LIMIT`（90）、`NEWSLETTER_MONTHLY_LIMIT`（2800）、`NEWSLETTER_TOKEN_TTL_HOURS`（48）、`NEWSLETTER_SITE_NAME`。见 [docs/NEWSLETTER.md](docs/NEWSLETTER.md#2-环境变量)；静态构建不会使用也不会输出它们 |
 | `FRAME_ANCESTORS` | `'self'` | 允许哪些页面用 iframe 嵌入本站（CSP `frame-ancestors`）：如 `*`、`'none'` 或空格分隔的 `https://` 来源；格式不合法时回退默认值。静态构建写进 `_headers` |
 
 读取顺序：`process.env` → 构建时注入的 `import.meta.env` → 运行目录的 `.env` / `.env.local`。改完 `.env` 需重启进程。
 **Notion 来源变化**：有效 token、数据库 ID 或 `NOTION_API_BASE` 变化会隔离并清除旧文章缓存、重置同步状态；后台设置仍优先于环境变量。首次升级此安全机制时，旧缓存也会被清除并重新同步，若 Notion 离线可能暂时没有文章。SQLite 中保存加盐的来源指纹，不把 token 作为指纹明文保存；原先由后台保存的 Notion token 仍会以明文存入 SQLite，应保护数据库和备份。来源变化不会清除站点设置、More 或首次发现发布日期。
 
 ## 部署
+
+上线检查清单（Netlify 静态站 + 订阅函数、Node 站点、环境变量作用域）见 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**。
 
 ### Node 动态部署
 
@@ -324,7 +340,7 @@ cp -a /absolute/path/uploads "$backup/uploads"
 
 该 JSON 仅覆盖网站名、联系邮箱、中英文简介/引言/标语、首页信息栏和标签对照，**不包含** More 内容、文章、上传文件、雕像模型或任何凭据，不是完整站点备份（静态部署要带上 More 和图片请用上文的内容包）。格式版本为 2（新增首页信息栏）；旧的版本 1 文件仍可导入，信息栏视为留空（使用内置默认）。Node 动态版仍应同时备份数据库与上传目录。
 
-静态版有中英文页面（英文根路径、中文 `/zh-CN/`）、文章、标签/分页、RSS、sitemap、浏览器搜索和朗读；搜索需要 JavaScript。公开文章正文会进入下载到浏览器的搜索索引。Notion 上传的图片和常见音视频/PDF 在构建时复制到公开产物，外链媒体仍依赖外部地址；不支持的媒体类型会使构建失败。构建过程使用隔离的临时 SQLite，不复制数据库或 token。仅生成公开站点，**没有 `/admin`、管理 API、上传或实时同步**；后台保存的设置、More 内容和上传不会自动带入，需通过上述内容包（或单独的站点资料 JSON）显式导入；未导入时使用默认值，More 使用代码内示例内容。页面地址与 Node 版完全相同（同一套路径，由 SSR 直接渲染后写出）；语言切换是普通链接，静态主机上没有 cookie 记忆和 `Accept-Language` 协商，也不支持 `?lang=` 和旧查询地址/旧博客重定向。
+静态版有中英文页面（英文根路径、中文 `/zh-CN/`）、文章、标签/分页、RSS、sitemap、浏览器搜索和朗读；搜索需要 JavaScript。公开文章正文会进入下载到浏览器的搜索索引。Notion 上传的图片和常见音视频/PDF 在构建时复制到公开产物，外链媒体仍依赖外部地址；不支持的媒体类型会使构建失败。构建过程使用隔离的临时 SQLite，不复制数据库或 token。仅生成公开站点，**没有文章/设置管理 API、上传或实时同步**（`/admin` 只是一个外壳，在 Netlify 上用于管理邮件订阅，见“邮件订阅”）；后台保存的设置、More 内容和上传不会自动带入，需通过上述内容包（或单独的站点资料 JSON）显式导入；未导入时使用默认值，More 使用代码内示例内容。页面地址与 Node 版完全相同（同一套路径，由 SSR 直接渲染后写出）；语言切换是普通链接，静态主机上没有 cookie 记忆和 `Accept-Language` 协商，也不支持 `?lang=` 和旧查询地址/旧博客重定向。
 
 注意：静态构建的临时数据库不会跨构建保留；**Date 留空的文章每次构建都会使用当次构建日期**，请在 Notion 填写 Date 以保持日期稳定。构建期间修改或撤回文章可能造成快照不一致，应等待更改完成后重新构建。只想预览演示内容时可显式设置 `STATIC_DEMO=1`（不能同时设置 Notion 凭据）；非 Netlify 环境仍需设置 `SITE_URL`。生产构建及普通本地构建缺少 Notion 配置不会自动切换成演示内容，以免误部署；Netlify Deploy Preview 的无凭据演示回退见上文。本地命令示例：
 

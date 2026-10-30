@@ -1,0 +1,30 @@
+---
+import Page from '../layouts/Page.astro';
+import NewsletterForm from '../components/NewsletterForm.astro';
+import { messages } from '../i18n.ts';
+import type { Locale } from '../../shared/i18n.ts';
+import { SUBSCRIBE_PATH } from '../../shared/routes.ts';
+
+export interface Props {
+  site: { locale: Locale; name: string; url: string; email: string };
+}
+const { site } = Astro.props;
+const { locale } = site;
+const t = messages(locale).newsletter;
+const pad = (n: number) => String(n + 1).padStart(2, '0');
+---
+<Page title={`${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={t.lede} current={SUBSCRIBE_PATH}>
+  <section class="prose letters">
+    <p class="article-label">{site.name} / {t.title}</p>
+    <h1>{t.title}</h1>
+    <p class="letters-lede">{t.lede}</p>
+    <NewsletterForm locale={locale} source="subscribe-page" variant="page" precheck />
+    <h2 class="letters-notes-h">{t.details}</h2>
+    <ol class="letters-notes">
+      {t.notes.map((note, i) => (
+        <li><span class="n" aria-hidden="true">{pad(i)}</span><span class="t">{note.term}</span><span class="d">{note.text}</span></li>
+      ))}
+    </ol>
+  </section>
+  <script>import '../scripts/site/newsletter.ts';</script>
+</Page>

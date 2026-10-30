@@ -1,0 +1,8 @@
+---
+// Route: /newsletter/confirm#token=… — linked from the confirmation email.
+import NewsletterLinkView from '../../ui/views/NewsletterLinkView.astro';
+import { getSite } from '../../server/queries.ts';
+
+const site = getSite(Astro.locals.locale);
+---
+<NewsletterLinkView site={site} action="confirm" />
