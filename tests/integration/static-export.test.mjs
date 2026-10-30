@@ -85,3 +85,38 @@ test('static snapshot exports only published Notion content, media and bilingual
     await assert.rejects(access('static-dist/index.html'));
   } finally { server.close(); await once(server, 'close'); }
 });
+
+test('Netlify falls back to its primary URL without weakening static build validation', async () => {
+  const env = { NETLIFY: 'true', URL: 'https://primary.netlify.app/', DEPLOY_PRIME_URL: 'https://preview.netlify.app',
+    SITE_URL: '', STATIC_DEMO: '1', NOTION_TOKEN: '', NOTION_API_SECRET: '', NOTION_DATABASE_ID: '', DATABASE_ID: '', NOTION_DB_WRITING: '' };
+  const read = (file) => readFile(path.join('static-dist', file), 'utf8');
+
+  let result = await run(env);
+  assert.equal(result.code, 0, result.output);
+  assert.match(await read('articles/index.html'), /rel="canonical" href="https:\/\/primary\.netlify\.app\/articles"/);
+  assert.match(await read('sitemap.xml'), /https:\/\/primary\.netlify\.app\//);
+  assert.match(await read('rss.xml'), /https:\/\/primary\.netlify\.app\//);
+  assert.match(await read('robots.txt'), /Sitemap: https:\/\/primary\.netlify\.app\/sitemap\.xml/);
+  assert.doesNotMatch(await read('sitemap.xml'), /preview\.netlify\.app/);
+
+  result = await run({ ...env, SITE_URL: 'https://custom.example' });
+  assert.equal(result.code, 0, result.output);
+  assert.match(await read('sitemap.xml'), /https:\/\/custom\.example\//);
+  assert.match(await read('articles/index.html'), /rel="canonical" href="https:\/\/custom\.example\/articles"/);
+
+  result = await run({ ...env, SITE_URL: 'https://custom.example/path' });
+  assert.notEqual(result.code, 0); assert.match(result.output, /SITE_URL must be a plain HTTP\(S\) origin/);
+  await assert.rejects(access('static-dist/index.html'));
+
+  result = await run({ ...env, NETLIFY: '' });
+  assert.notEqual(result.code, 0); assert.match(result.output, /Set SITE_URL/);
+  await assert.rejects(access('static-dist/index.html'));
+
+  result = await run({ ...env, URL: '' });
+  assert.notEqual(result.code, 0); assert.match(result.output, /Set SITE_URL/);
+  await assert.rejects(access('static-dist/index.html'));
+
+  result = await run({ ...env, STATIC_DEMO: '' });
+  assert.notEqual(result.code, 0); assert.match(result.output, /Set NOTION_TOKEN and NOTION_DATABASE_ID/);
+  await assert.rejects(access('static-dist/index.html'));
+});
