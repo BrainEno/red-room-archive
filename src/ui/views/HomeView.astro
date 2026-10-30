@@ -10,7 +10,8 @@ import { messages } from '../i18n.ts';
 import '../styles/home.css';
 import type { ArticleSummary, TagCount } from '../../shared/contracts.ts';
 import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
-import { ARTICLES_PATH, MORE_PATH, TOPICS_PATH, topicPath } from '../../shared/routes.ts';
+import { ARTICLES_PATH, MORE_PATH, SEARCH_PATH, TOPICS_PATH, topicPath } from '../../shared/routes.ts';
+import { absoluteUrl, websiteLd } from '../../shared/structured-data.ts';
 
 export interface Props {
   site: {
@@ -34,8 +35,11 @@ const TOPIC_LIMIT = 12;
 const pad = (i: number) => String(i + 1).padStart(2, '0');
 const year = (date: string) => String(date).slice(0, 4);
 const nav = ['intro', 'latest', 'topics', 'more'] as const;
+const jsonLd = site.url
+  ? [websiteLd({ url: absoluteUrl(site.url, to('/')), name: site.name, description: site.about, inLanguage: locale, searchUrl: absoluteUrl(site.url, to(SEARCH_PATH)) })]
+  : [];
 ---
-<Base title={site.name} siteName={site.name} siteUrl={site.url} description={site.about} locale={locale}>
+<Base title={site.name} siteName={site.name} siteUrl={site.url} description={site.about} locale={locale} jsonLd={jsonLd}>
   <a class="skip" href="#content">{t.page.skip}</a>
   <canvas id="gl" aria-hidden="true" data-model={home.model}></canvas>
   <div class="scrim" aria-hidden="true"></div>

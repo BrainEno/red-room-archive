@@ -78,6 +78,21 @@ https://www.notion.so/workspace/0123456789abcdef0123456789abcdef?v=fffffffffffff
 3. 回到 **Articles → Sync now**。之后缓存超过 `SYNC_TTL_SECONDS`（默认 5 分钟）时，下一次访问触发后台刷新，当前请求先返回缓存；没有访问就不会自动刷新。需要立即更新可点击 **Sync now**。取消勾选后也要等下一次成功同步才会从网站移除。
 
 如果 Check columns 显示多数据源错误，目前仅支持**单数据源**数据库（Notion 2022-06-28 API）；需要先使用单数据源，或等待后续 API 升级。截图无法判断你的数据库有几个数据源。
+### Webhook 即时更新（可选）
+
+不设置 webhook 时，网站在缓存超过 `SYNC_TTL_SECONDS` 后的下一次访问才刷新。设置后，Notion 会在页面或数据库改动后约 1 分钟内（最多 5 分钟）通知网站，网站随即同步一次。
+需要公开的 HTTPS 地址，所以要先设置 `SITE_URL`；静态部署没有服务器，用不了 webhook。
+
+1. 打开 [notion.so/my-integrations](https://www.notion.so/my-integrations) → 你的集成 → **Webhooks** → **Create a subscription**。
+   URL 填后台 **设置 → Notion → Webhook** 里显示的地址（即 `https://你的域名/api/webhooks/notion`），事件至少勾选页面和数据库相关事件。
+2. Notion 会向这个地址发送一次验证令牌。刷新后台，Webhook 区域会显示 **已收到令牌** 和令牌本身，概览页也会提示；点 **复制**。
+3. 回到 Notion，点 **Verify**，粘贴令牌。之后收到第一条签名正确的事件，状态就变成 **已启用**。
+
+安全：每条事件都用这个令牌校验 `X-Notion-Signature`（原始请求体的 HMAC-SHA256，常量时间比较），签名不对一律拒绝并计数。
+启用后不再接受新的验证令牌，避免别人替换；要重新订阅时先在后台点 **重置 webhook**。也可以在服务器设置 `NOTION_WEBHOOK_TOKEN` 直接固定令牌，跳过上面的握手。
+事件只当作“有变化”的信号：网站不信任事件内容，而是像普通同步一样重新向 Notion 读取（是否发布、日期、最后编辑时间），所以乱序、重复（按事件 id 去重）或伪造的事件都不会发布任何东西。
+评论事件会被忽略。同一时间的多条事件合并为一次同步（约 4 秒防抖）。本站不会主动调用部署钩子；静态站点仍需按原方式重新构建。
+
 ### 数据库列
 
 必须有**标题列和可识别的发布列**，其余列可选。列按**名称（不区分大小写/空格）+ 类型**一起识别，所以叫 “Date” 的文本列不会被当成日期。
@@ -102,10 +117,23 @@ https://www.notion.so/workspace/0123456789abcdef0123456789abcdef?v=fffffffffffff
 
 ### 支持的 Notion 块
 
-段落、标题 1–3（含可折叠标题）、有序/无序/待办列表（可嵌套）、引用、Callout（含图标）、Toggle、分隔线、代码（语言 + 说明）、
-公式（目前显示 TeX 源码）、图片、视频（YouTube/Vimeo 嵌入或原生播放）、音频、文件、PDF、嵌入、书签、链接预览、
+段落、标题 1–3（含可折叠标题）、有序/无序/待办列表（可嵌套）、引用、Callout（含图标）、Toggle、分隔线、代码（语言 + 说明，带高亮和复制按钮）、
+公式（行内与块级）、图片、视频（YouTube/Vimeo 嵌入或原生播放）、音频、文件、PDF、嵌入、书签、链接预览、
 表格（列标题/行标题）、分栏、同步块、目录、页面链接与 @提及（只链接到已发布的文章）、文字颜色与背景色。
 `child_page` / `child_database` 不会被展开（避免把私有子页面公开）。所有文本都转义，链接只放行 http/https/mailto/tel。
+
+### 公式、代码与书签
+
+- **公式**：Notion 的行内公式和公式块在服务器端用 [Temml](https://temml.org) 转成浏览器原生的 MathML，不加载脚本、样式表或字体，符合本站的 CSP。
+  单字母变量用普通字母的斜体显示，没有数学字体的设备也看得到。不支持的命令（以及出于安全禁用的 `\href`、`\url` 等）会退回显示 TeX 源码。
+  `\color` 等需要内联样式的效果会被去掉。
+- **代码**：服务器端用 highlight.js 高亮约 30 种常用语言（JavaScript/TypeScript、Python、Go、Rust、C/C++、Java、Shell、SQL、HTML/CSS、JSON、YAML 等），
+  输出只带 class，颜色由站点样式表决定；不认识的语言（以及 Plain Text）只做转义。文章页的代码块右上角有 **复制 / Copy** 按钮（需要 JavaScript 和剪贴板权限）。
+- **书签**：重新渲染正文时，服务器读取书签网页 `<head>` 里的标题、简介和站点名（Open Graph / Twitter / `<title>`），显示在书签卡片上。
+  只取文字，**不取也不外链第三方图片**，访客的浏览器在点击之前不会访问那些网站。结果存进 SQLite：成功的保存 14 天，失败的 1 天后重试，
+  刷新失败时保留上一次的好结果。每篇文章最多同时请求 4 个网页，总共最多等 6 秒，没取到的先显示普通卡片，下次渲染时再取。
+  出站请求只允许 http/https 的默认端口，拒绝内网、回环、链路本地等非公网地址（DNS 解析结果和每一次重定向都会检查），最多读 256 KB，单次 5 秒超时。
+  不想让服务器访问外部网站时设 `LINK_PREVIEWS=off`。静态构建同样在构建时抓取；演示文章不抓取。
 
 ### 阅读与朗读
 
@@ -134,6 +162,14 @@ Notion 只有一个标签列，中英文章混写时会出现 `Fiction` 和 `小
 - 也可以直接在 Notion 里把标签写成 `Fiction / 小说`，网站会学到这一对，别的文章上单独的 `小说` 也会归进来。
 - 显示名优先用你实际用过的写法（文章标的是 `Poem` 就显示 Poem，不会改成对照表里的 Poetry）。
 - 没有对照的标签在两种语言里都按原样显示。
+
+### 分享卡片与结构化数据
+
+每个页面都有 Open Graph 和 Twitter 卡片信息。文章用自己的封面，其他页面用默认卡片 `public/og/card.jpg`（1200×630，首页霓虹招牌截图；想换就替换这个文件，尺寸保持不变）。
+文章页另有 `article:published_time` / `article:modified_time` / `article:tag`；设置了 `SITE_URL` 时，还会输出 schema.org JSON-LD：首页是 `WebSite` 和站内搜索，文章页是 `BlogPosting` 和面包屑，主题页是面包屑。
+JSON-LD 是浏览器不会执行的数据块，不受 CSP 影响，所有 `<` 都会转义。
+
+封面图加载失败（外链失效、过期）时，脚本会移除破图，列表和文章页回到无封面的纯文字版式。
 
 ## “更多”页面 `/more`
 
@@ -205,6 +241,8 @@ src/content  站点文案、演示文章                    src/pages    路由�
 | `MAX_UPLOAD_MB` | 300 | 单个上传文件上限；multipart 单文件另限 8 MiB，较大文件使用 `?name=` 原始流上传 |
 | `MAX_JSON_KB` | 256 | JSON 请求体上限 |
 | `NOTION_API_BASE` | `https://api.notion.com/v1` | 仅用于测试或代理 |
+| `LINK_PREVIEWS` | 开 | 设为 `off` / `0` / `false` 时不抓取书签网页的标题和简介 |
+| `NOTION_WEBHOOK_TOKEN` | — | 可选。固定 Notion webhook 的验证令牌，跳过后台握手（见“Webhook 即时更新”） |
 | `FRAME_ANCESTORS` | `'self'` | 允许哪些页面用 iframe 嵌入本站（CSP `frame-ancestors`）：如 `*`、`'none'` 或空格分隔的 `https://` 来源；格式不合法时回退默认值。静态构建写进 `_headers` |
 
 读取顺序：`process.env` → 构建时注入的 `import.meta.env` → 运行目录的 `.env` / `.env.local`。改完 `.env` 需重启进程。
@@ -314,5 +352,5 @@ CI（`.github/workflows/validate.yml`）运行类型检查、单元测试、构�
 
 ## 还没做
 
-公式用 KaTeX 渲染、代码高亮、书签卡片抓取标题/缩略图、Notion webhook 即时刷新、多个数据库、对象存储（R2/S3）。
+多个数据库、对象存储（R2/S3）、Notion API 新版本（`2025-09-03` 的数据源）、webhook 触发静态站点重新部署、书签缩略图（目前刻意不取第三方图片）。
 音乐与影像模块已暂时移除，需要时可以作为新的 Notion 数据库重新接入。

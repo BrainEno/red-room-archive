@@ -165,6 +165,18 @@ const MIGRATIONS: ((db: DatabaseConnection) => void)[] = [
     const columns = new Set((db.prepare('PRAGMA table_info(articles)').all() as { name: string }[]).map((c) => c.name));
     if (!columns.has('body_renderer_version')) db.exec('ALTER TABLE articles ADD COLUMN body_renderer_version INTEGER NOT NULL DEFAULT 0');
   },
+  // 10 — bookmark previews (title/description of external pages). A cache:
+  //      safe to delete, never touched by Notion source changes.
+  (db) => {
+    db.exec(`CREATE TABLE IF NOT EXISTS link_previews (
+      url TEXT PRIMARY KEY,
+      title TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      site TEXT NOT NULL DEFAULT '',
+      ok INTEGER NOT NULL DEFAULT 0,
+      fetched_at INTEGER NOT NULL
+    )`);
+  },
 ];
 
 let depth = 0;

@@ -27,6 +27,8 @@ export const config = {
   maxUploadBytes: () => number(readEnv('MAX_UPLOAD_MB'), 300) * 1024 * 1024,
   maxJsonBytes: () => number(readEnv('MAX_JSON_KB'), 256) * 1024,
   notionTimeoutMs: () => number(readEnv('NOTION_TIMEOUT_MS'), 15_000),
+  /** Bookmark previews: the server reads the title/description of bookmarked pages. `off` disables it. */
+  linkPreviews: () => !/^(0|off|false|no)$/i.test(readEnv('LINK_PREVIEWS') ?? ''),
   /** Override for tests and proxies; the real API is the default. */
   notionApiBase: () => (readEnv('NOTION_API_BASE') || 'https://api.notion.com/v1').replace(/\/+$/, ''),
 } as const;

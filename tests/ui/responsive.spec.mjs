@@ -180,6 +180,7 @@ test('long content wraps and code and tables scroll within the article', async (
   await noHorizontalOverflow(page);
   const pre = body.locator('pre').last();
   expect(await pre.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  await expect(pre, 'a scrolling code block is reachable by keyboard').toHaveAttribute('tabindex', '0');
   const table = body.locator('.table-wrap');
   await expect(table).toBeVisible();
   expect(await table.evaluate((el) => el.clientWidth <= document.documentElement.clientWidth)).toBe(true);
@@ -209,4 +210,59 @@ test('the language switcher moves between path URLs and is remembered', async ({
   await page.goto('http://127.0.0.1:4179/archive');
   await page.locator('.site-header [data-lang-switch="zh-CN"]').click();
   await expect(page).toHaveURL('http://127.0.0.1:4179/zh-CN/archive');
+});
+
+test('formulas, highlighted code with a copy button and bookmark cards render in articles', async ({ page, context, browserName }) => {
+  await page.goto('/articles/notes-on-light');
+  const body = page.locator('.article-body');
+  await expect(body.locator('.equation math[display="block"]')).toBeVisible();
+  await expect(body.locator('p math').first()).toBeVisible();
+  expect(await body.locator('math').first().evaluate((el) => el.getBoundingClientRect().width)).toBeGreaterThan(10);
+  await expect(body.locator('a.bookmark')).toHaveAttribute('href', 'https://en.wikipedia.org/wiki/Photon');
+  await noHorizontalOverflow(page);
+
+  await page.goto('/zh-CN/articles/a-room-with-red-curtains');
+  const figure = page.locator('.article-body figure.code');
+  await expect(figure.locator('.hljs-string')).toHaveText("'the red room'");
+  const copy = figure.getByRole('button', { name: '复制' });
+  await expect(copy).toBeAttached();
+  await figure.hover();
+  await expect(copy).toBeVisible();
+  if (browserName === 'chromium') {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await copy.click();
+    await expect(figure.getByRole('button', { name: '已复制' })).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("console.log('the red room');");
+  }
+  await noHorizontalOverflow(page);
+});
+
+test('a cover that fails to load falls back to the text-only layout', async ({ page }) => {
+  await page.goto('/articles');
+  const entry = await page.evaluate(async () => {
+    const item = document.createElement('div');
+    item.className = 'article-entry has-cover';
+    item.id = 'broken-cover-probe';
+    const image = document.createElement('img');
+    image.className = 'article-cover';
+    image.src = '/media/notion/00000000000000000000000000000000.png';
+    item.append(image);
+    document.querySelector('main')?.append(item);
+    await new Promise((resolve) => image.addEventListener('error', resolve, { once: true }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    return { hasCover: item.classList.contains('has-cover'), images: item.querySelectorAll('img').length };
+  });
+  expect(entry).toEqual({ hasCover: false, images: 0 });
+});
+
+test('admin shows the Notion webhook endpoint and its state', async ({ page }) => {
+  await page.goto('/admin');
+  await page.locator('#tk').fill('ui-test-only');
+  await page.locator('#lg button').click();
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  const hook = page.locator('#webhook');
+  await expect(hook.locator('#webhook-state')).toHaveAttribute('data-state', 'off');
+  await expect(hook.locator('#webhook-url')).toHaveValue('https://example.invalid/api/webhooks/notion');
+  await expect(hook.locator('#webhook-reset')).toHaveCount(0);
+  await noHorizontalOverflow(page);
 });

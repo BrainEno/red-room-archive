@@ -8,6 +8,7 @@ import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import { messages } from '../i18n.ts';
 import type { Locale } from '../../shared/i18n.ts';
+import type { JsonLd } from '../../shared/structured-data.ts';
 import '../styles/pages.css';
 
 export interface Props {
@@ -21,16 +22,22 @@ export interface Props {
   image?: string | null;
   type?: 'website' | 'article';
   noindex?: boolean;
+  imageAlt?: string;
+  published?: string;
+  modified?: string;
+  tags?: string[];
+  jsonLd?: JsonLd[];
 }
 
-const { title, siteName, locale, siteUrl, email = '', description, current, image, type, noindex } = Astro.props;
+const { title, siteName, locale, siteUrl, email = '', description, current, image, type, noindex, imageAlt, published, modified, tags, jsonLd } = Astro.props;
 const t = messages(locale);
 ---
-<Base title={title} siteName={siteName} siteUrl={siteUrl} description={description} image={image} type={type} noindex={noindex} locale={locale} bodyClass="plain">
+<Base title={title} siteName={siteName} siteUrl={siteUrl} description={description} image={image} type={type} noindex={noindex} locale={locale} imageAlt={imageAlt} published={published} modified={modified} tags={tags} jsonLd={jsonLd} bodyClass="plain">
   <a class="skip" href="#content">{t.page.skip}</a>
   <SiteHeader siteName={siteName} current={current} locale={locale} />
   <main id="content" class="page" tabindex="-1">
     <slot />
   </main>
   <SiteFooter siteName={siteName} email={email} locale={locale} />
+  <script>import '../scripts/site/cover-fallback.ts';</script>
 </Base>

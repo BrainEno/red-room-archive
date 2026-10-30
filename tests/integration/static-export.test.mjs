@@ -72,6 +72,18 @@ test('static snapshot exports only published Notion content, media and bilingual
     assert.match(switcher, /rel="canonical" href="https:\/\/archive\.test\/zh-CN\/articles\/page\/2"/);
     const home = await read('index.html');
     assert.match(home, /id="home"/);
+    // Share cards and structured data (SITE_URL is set, so URLs are absolute).
+    assert.match(home, /<meta property="og:image" content="https:\/\/archive\.test\/og\/card\.jpg">/);
+    assert.match(home, /<meta property="og:image:width" content="1200">/);
+    const ld = (html) => JSON.parse(html.match(/<script type="application\/ld\+json">([^<]*)<\/script>/)[1]);
+    assert.equal(ld(home)['@type'], 'WebSite');
+    assert.equal(ld(home).potentialAction.target.urlTemplate, 'https://archive.test/search?q={search_term_string}');
+    const graph = ld(en)['@graph'];
+    assert.deepEqual(graph.map((item) => item['@type']), ['BlogPosting', 'BreadcrumbList']);
+    assert.equal(graph[0].url, 'https://archive.test/articles/first-light');
+    assert.match(en, /<meta property="article:published_time" content="[^"]+">/);
+    assert.match(en, /<meta property="og:locale:alternate" content="zh_CN">/);
+    assert.equal(ld(await read('topics/fiction/index.html'))['@type'], 'BreadcrumbList');
     assert.match(home, /href="\/articles\/extra-0"/);
     assert.match(home, /Extra 0/);
     assert.doesNotMatch(home, /data-demo-preview|href="\/articles\/connect-notion"|href="\/articles\/draft"/);
@@ -238,7 +250,8 @@ test('Netlify preview without Notion credentials is an explicitly marked demo; p
   assert.doesNotMatch(headers.split('/media/notion/*')[0], /unsafe-inline/);
   for (const file of ['index.html', 'zh-CN/index.html', 'articles/index.html', 'search/index.html', 'more/index.html', '404.html', 'articles/connect-notion/index.html', 'profile-editor.html']) {
     const html = await readFile(path.join('static-dist', file), 'utf8');
-    assert.doesNotMatch(html, /<script(?![^>]*\ssrc=)[^>]*>\s*\S/, `${file}: inline script`);
+    // JSON-LD is a data block browsers never execute; anything else inline is forbidden.
+    assert.doesNotMatch(html, /<script(?![^>]*\ssrc=)(?![^>]*\stype="application\/ld\+json")[^>]*>\s*\S/, `${file}: inline script`);
     assert.doesNotMatch(html, /<style[\s>]/, `${file}: <style> block`);
     assert.doesNotMatch(html, /\sstyle=/, `${file}: style attribute`);
     assert.doesNotMatch(html, /\son[a-z]+=/, `${file}: event handler attribute`);

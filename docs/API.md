@@ -74,6 +74,8 @@ interface ArticleSummary {
 | GET | `/api/sync` | 同步状态 | `SyncStatusResponse` |
 | POST | `/api/sync` | 立即同步。`?full=1` 成功取回文章列表后清空正文与图片缓存；`?bodies=1` 同步后预取所有缺失正文 | `SyncResponse` |
 | GET | `/api/notion/schema` | 数据库的列、每个文章字段对应到哪一列、警告 | `NotionSchemaResponse` |
+| GET | `/api/webhooks/notion` | Webhook 状态：接收地址（需 `SITE_URL`）、`state`（`off` / `pending` / `active`）、令牌（仅 `pending` 时完整显示，之后打码；`NOTION_WEBHOOK_TOKEN` 固定的永不返回）、收到/拒绝的事件数和时间 | `WebhookStatusResponse` |
+| DELETE | `/api/webhooks/notion` | 清除保存的令牌和计数，以便重新订阅 | `WebhookStatusResponse` |
 | GET/POST | `/api/uploads` | 列表 / 上传（`?name=` 流式或 multipart；`as=model` 替换首页雕像） | `UploadListResponse` / `UploadResponse` |
 | GET/PATCH/DELETE | `/api/uploads/:name` | 信息 / 改名 / 删除。改名时“更多”页面里引用它的封面/二维码地址同步更新 | `UploadFile` / 204 |
 | GET | `/api/more/document` | “更多”页面的双语文档；`custom: false` 表示还没保存过（显示 `src/content/more.ts` 示例） | `MoreDocumentResponse` |
@@ -114,6 +116,16 @@ interface MoreDocument {
 `tag_glossary` 是多行文本，一行一组同义标签（`Fiction = 小说`），叠加在内置对照表 `src/content/tags.ts` 之上。
 `site_facts` / `site_facts_zh` 是首页信息栏：每行一条 `标签: 内容`（第一个 `:` 或 `：` 分隔，最多 6 条，标签 ≤ 40 字、内容 ≤ 200 字），格式不对返回 `400`；空 = 内置默认，`-` = 隐藏。`GET /api/site` 的 `facts` 是解析后的结果。
 `*_zh` 是中文版本；某种语言没有覆盖值时使用 `src/content/site.ts` 里该语言的内置文案（不会跨语言回退）。保存的值等于默认值时会删除该覆盖。
+
+### Notion webhook 接收端
+
+`POST /api/webhooks/notion` 由 Notion 调用，不需要 admin token，靠签名认证。请求体上限 64 KB。
+
+- `{ "verification_token": "…" }`（创建订阅时的一次性请求）：保存令牌，状态变为 `pending` → `200 { ok: true, outcome: "verification" }`。
+  已启用或令牌由环境变量固定时返回 `409`。
+- 事件：必须带 `X-Notion-Signature: sha256=<hex>`（用令牌对原始请求体做 HMAC-SHA256）。缺少或不匹配 → `401`（计入 `rejected`）。
+  通过后返回 `200`，`outcome` 为 `synced`（`page.*` / `database.*` / `data_source.*`：约 4 秒后同步一次）、`ignored`（如 `comment.*`）或 `duplicate`（同一事件 id 的重试）。
+  第一条签名正确的事件把状态从 `pending` 改为 `active`。
 
 ## 从 v1 迁移
 

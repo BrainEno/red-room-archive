@@ -8,6 +8,8 @@
  * HTML goes through `esc` / `safeUrl`, because public pages use `set:html`.
  */
 import { esc, safeUrl } from './safety.ts';
+import { highlightCode } from './highlight.ts';
+import { renderMath } from './math.ts';
 import { classifyMedia } from './media.ts';
 import { slugify } from './slug.ts';
 import { plainText, type RichTextItem } from './rich-text.ts';
@@ -26,6 +28,13 @@ export interface LinkedPage {
   title: string;
 }
 
+/** What a bookmark's page says about itself (fetched by the server, see services/link-preview.ts). */
+export interface LinkPreview {
+  title: string;
+  description: string;
+  site: string;
+}
+
 export interface RenderContext {
   /**
    * URL for a Notion-hosted file (`{ type: 'file' }`), whose signed URL
@@ -34,6 +43,8 @@ export interface RenderContext {
   fileUrl?: (owner: string) => string | null;
   /** A published article for a Notion page id, or null (link is dropped). */
   page?: (pageId: string) => LinkedPage | null;
+  /** Title/description of a bookmarked URL, when known (never fetched during rendering). */
+  bookmark?: (url: string) => LinkPreview | null;
 }
 
 export interface RenderResult {
@@ -120,7 +131,7 @@ class Renderer {
         let href: string | null = item?.href ?? item?.text?.link?.url ?? null;
 
         if (item?.type === 'equation') {
-          html = `<code class="math">${esc(item.equation?.expression ?? raw)}</code>`;
+          html = renderMath(item.equation?.expression ?? raw);
         } else if (item?.type === 'mention') {
           const mention = item.mention ?? {};
           if (mention.type === 'page' && mention.page?.id) {
@@ -180,7 +191,15 @@ class Renderer {
   private bookmark(url: unknown, caption: string) {
     const href = safeUrl(url);
     if (!href) return '';
-    return `<a class="bookmark" href="${esc(href)}"${external(href)}><span class="bookmark-title">${caption || esc(hostLabel(href))}</span><span class="bookmark-url">${esc(href)}</span></a>`;
+    const preview = this.ctx.bookmark?.(href) ?? null;
+    if (!preview?.title) {
+      return `<a class="bookmark" href="${esc(href)}"${external(href)}><span class="bookmark-title">${caption || esc(hostLabel(href))}</span><span class="bookmark-url">${esc(href)}</span></a>`;
+    }
+    // With a preview the page's own title leads; the author's caption (if any) follows as a figcaption.
+    const card = `<a class="bookmark has-preview" href="${esc(href)}"${external(href)}><span class="bookmark-title">${esc(preview.title)}</span>${
+      preview.description ? `<span class="bookmark-desc">${esc(preview.description)}</span>` : ''
+    }<span class="bookmark-url">${esc(preview.site || hostLabel(href))}</span></a>`;
+    return caption ? `<figure class="bookmark-figure">${card}<figcaption>${caption}</figcaption></figure>` : card;
   }
 
   private media(block: NotionBlock): string {
@@ -241,7 +260,7 @@ class Renderer {
     const d = block[block.type] ?? {};
     const text = this.rich(d.rich_text);
     if (block.type === 'to_do') {
-      return `<li${classAttr(d.checked ? 'done' : '', d.color)}><input type="checkbox" disabled${d.checked ? ' checked' : ''}> <span>${text}</span>${this.children(block)}</li>`;
+      return `<li${classAttr(d.checked ? 'done' : '', d.color)}><label><input type="checkbox" disabled${d.checked ? ' checked' : ''}> <span>${text}</span></label>${this.children(block)}</li>`;
     }
     return `<li${classAttr('', d.color)}>${text}${this.children(block)}</li>`;
   }
@@ -317,10 +336,13 @@ class Renderer {
         this.text.push(code);
         const caption = this.rich(d.caption);
         const label = language && language !== 'plain-text' ? ` data-lang="${esc(language)}"` : '';
-        return `<figure class="code"><pre${label}><code${language ? ` class="language-${esc(language)}"` : ''}>${esc(code)}</code></pre>${caption ? `<figcaption>${caption}</figcaption>` : ''}</figure>`;
+        return `<figure class="code"><pre${label}><code${language ? ` class="language-${esc(language)} hljs"` : ''}>${highlightCode(code, language)}</code></pre>${caption ? `<figcaption>${caption}</figcaption>` : ''}</figure>`;
       }
-      case 'equation':
-        return `<div class="equation"><code class="math">${esc(d.expression ?? '')}</code></div>`;
+      case 'equation': {
+        const math = renderMath(d.expression ?? '', true);
+        if (math) this.text.push(String(d.expression ?? ''));
+        return math ? `<div class="equation">${math}</div>` : '';
+      }
       case 'image':
       case 'video':
       case 'audio':
@@ -365,6 +387,27 @@ class Renderer {
         return '';
     }
   }
+}
+
+/**
+ * Every URL the renderer would show as a bookmark card (bookmark and
+ * link_preview blocks, embeds that are not playable media), so the caller
+ * can look up previews before rendering.
+ */
+export function bookmarkUrls(blocks: NotionBlock[] = []): string[] {
+  const found = new Set<string>();
+  const walk = (list: NotionBlock[]) => {
+    for (const block of list ?? []) {
+      const d = block?.[block?.type] ?? {};
+      if (block?.type === 'bookmark' || block?.type === 'link_preview' || (block?.type === 'embed' && classifyMedia(d.url).kind === 'link')) {
+        const href = safeUrl(d.url);
+        if (href && /^https?:/i.test(href)) found.add(href);
+      }
+      if (block?.children?.length) walk(block.children);
+    }
+  };
+  walk(blocks);
+  return [...found];
 }
 
 /** Render a block tree. Headings get stable anchors; `table_of_contents` blocks list them. */

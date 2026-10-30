@@ -1,7 +1,7 @@
 /** Browser-native article narration. No article text is sent to this server. */
 
 const BLOCKS = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'FIGURE', 'FIGCAPTION', 'PRE', 'TABLE', 'TR', 'TD', 'TH', 'SUMMARY', 'ASIDE', 'DIV']);
-const SKIP = 'nav.toc, .bookmark-url, script, style, iframe, audio, video, input, [aria-hidden="true"]';
+const SKIP = 'nav.toc, .bookmark-url, .code-copy, annotation, script, style, iframe, audio, video, input, [aria-hidden="true"]';
 
 /** Extract in document order, without repeating nested list text or the TOC. */
 export function articleSpeechText(root: Element): string {

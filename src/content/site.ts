@@ -167,6 +167,15 @@ export const demoArticles: DemoArticle[] = [
       { type: 'to_do', to_do: { checked: false, rich_text: [t('Publish it')] } },
       { type: 'divider', divider: {} },
       p(t('Red', { color: 'red' }), t(' is the colour this site remembers.')),
+      h(2, 'Formulas and links'),
+      p(
+        t('Notion equations render as native MathML — inline, like '),
+        { type: 'equation', plain_text: 'I \\propto 1/r^2', equation: { expression: 'I \\propto 1/r^2' }, annotations: {} } as unknown as ReturnType<typeof t>,
+        t(', or as a block:'),
+      ),
+      { type: 'equation', equation: { expression: 'E = h\\nu = \\frac{hc}{\\lambda}' } },
+      p(t('A bookmark becomes a card; with a real Notion database the server also reads the page title and summary.')),
+      { type: 'bookmark', bookmark: { url: 'https://en.wikipedia.org/wiki/Photon', caption: [] } },
     ],
   },
 ];

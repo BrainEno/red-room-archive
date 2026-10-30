@@ -19,6 +19,18 @@ test('speech extracts article blocks in order without duplicating nested text or
   assert.equal(articleSpeechText(body), '第一行\n第二行 强调\nOne\nNested\nTwo\nbookmark title\nA caption');
 });
 
+test('speech skips the TeX source of formulas and the code copy button', () => {
+  const tagged = (tag, cls, children) => ({
+    nodeType: 1, tagName: tag.toUpperCase(), childNodes: children,
+    matches: (selector) => selector.split(',').map((part) => part.trim()).some((part) => part === tag || part === `.${cls}`),
+  });
+  const body = element('div', [
+    element('p', [text('Energy '), tagged('math', '', [tagged('mi', '', [text('E')]), tagged('annotation', '', [text('E = mc^2')])]), text(' grows.')]),
+    element('figure', [tagged('button', 'code-copy', [text('Copy')]), element('pre', [text('const x = 1;')])]),
+  ]);
+  assert.equal(articleSpeechText(body), 'Energy E grows.\nconst x = 1;');
+});
+
 test('speech chunks preserve words and Unicode, choose content language and matching voices', () => {
   assert.deepEqual(speechChunks('One. Two. Three.\n你好，世界。', 10), ['One. Two.', 'Three.', '你好，世界。']);
   const long = '甲'.repeat(230) + '😀' + '乙'.repeat(230);

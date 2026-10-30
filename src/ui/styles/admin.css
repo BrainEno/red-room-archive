@@ -129,6 +129,10 @@
 .set-group .hint { margin: 0; }
 .set-group .me-pair { margin-bottom: 0; }
 .set-sub { margin: 10px 0 0; font-size: 14px; font-weight: 700; }
+.set-webhook { display: grid; gap: 12px; }
+.set-webhook:empty { display: none; }
+.set-webhook input[readonly] { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+#webhook-state[data-state="active"] b { color: #9fe3a5; }
 .set-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .set-bar { position: sticky; bottom: 0; z-index: 3; display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-top: 4px; padding: 12px 0; background: var(--void); border-top: 1px solid rgba(241,238,230,.25); }
 .set-bar .hint { margin-right: auto; }

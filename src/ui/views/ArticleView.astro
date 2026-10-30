@@ -7,6 +7,7 @@ import { formatDate, isoDatetime } from '../../core/text.ts';
 import type { ArticleDetail } from '../../shared/contracts.ts';
 import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
 import { ARTICLES_PATH, topicPath } from '../../shared/routes.ts';
+import { absoluteUrl, articleLd, breadcrumbLd } from '../../shared/structured-data.ts';
 
 export interface Props {
   site: { locale: Locale; name: string; url: string; email: string };
@@ -19,8 +20,30 @@ const t = messages(locale);
 const showToc = article.toc.length >= 3;
 /** The article's own language (from its title and excerpt), independent of the interface language. */
 const lang = contentLang(`${article.title} ${article.excerpt}`);
+const abs = (path: string) => absoluteUrl(site.url, localePath(path, locale));
+const jsonLd = site.url
+  ? [
+      articleLd({
+        url: abs(article.href),
+        headline: article.title,
+        description: article.excerpt,
+        image: article.cover ? absoluteUrl(site.url, article.cover) : undefined,
+        datePublished: isoDatetime(article.date),
+        dateModified: article.updated,
+        keywords: article.tags,
+        inLanguage: lang,
+        siteName: site.name,
+        homeUrl: abs('/'),
+      }),
+      breadcrumbLd([
+        { name: t.nav.home, url: abs('/') },
+        { name: t.nav.articles, url: abs(ARTICLES_PATH) },
+        { name: article.title, url: abs(article.href) },
+      ]),
+    ]
+  : [];
 ---
-<Page title={`${article.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={article.excerpt || site.name} image={article.cover} current={ARTICLES_PATH} type="article">
+<Page title={`${article.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={article.excerpt || site.name} image={article.cover} imageAlt={article.title} current={ARTICLES_PATH} type="article" published={isoDatetime(article.date)} modified={article.updated} tags={article.tags} jsonLd={jsonLd}>
   <div class="article-wrap">
     <article class="prose" lang={lang}>
       <p class="kicker" lang={locale}><a href={localePath(ARTICLES_PATH, locale)}>{t.articles.title}</a></p>
@@ -42,7 +65,7 @@ const lang = contentLang(`${article.title} ${article.excerpt}`);
           </nav>
         </details>
       )}
-      <div class:list={['article-body', { 'text-only': !article.cover }]}>
+      <div class:list={['article-body', { 'text-only': !article.cover }]} data-copy-label={t.article.copyCode} data-copied-label={t.article.copiedCode}>
         {bodyMissing
           ? <p class="body-missing" lang={locale}>{t.article.unavailable}</p>
           : <Fragment set:html={article.html} />}
@@ -58,4 +81,5 @@ const lang = contentLang(`${article.title} ${article.excerpt}`);
     )}
   </div>
   <PrevNext locale={locale} previous={article.previous ?? undefined} next={article.next ?? undefined} />
+  <script>import '../scripts/site/article-enhance.ts';</script>
 </Page>

@@ -4,10 +4,10 @@
  * One form, one Save in a sticky bar that shows whether anything is unsaved.
  */
 import { makeProfile, validateProfile, PROFILE_MAX_BYTES } from '../../../../../public/profile-format.js';
-import type { ArticleField, NotionSchemaResponse, SettingKey, SettingsResponse } from '../../../../shared/contracts.ts';
+import type { ArticleField, NotionSchemaResponse, SettingKey, SettingsResponse, WebhookStatus } from '../../../../shared/contracts.ts';
 import type { ApiClient } from '../../lib/api-client.ts';
 import { $, busy, esc, fail, pickFile, toast } from '../dom.ts';
-import { errorText, t } from '../i18n.ts';
+import { errorText, lang, t } from '../i18n.ts';
 
 export type SettingsSection = 'site' | 'home' | 'topics' | 'notion' | 'backup';
 const SECTIONS: SettingsSection[] = ['site', 'home', 'topics', 'notion', 'backup'];
@@ -53,6 +53,29 @@ function schemaHtml(schema: NotionSchemaResponse): string {
     <h4 class="set-sub">${esc(schema.database.title)}</h4>
     ${schema.warnings.length ? `<ul class="warnings">${schema.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : `<p class="ok">${esc(s.allSet)}</p>`}
     <div class="table-scroll"><table class="grid"><thead><tr><th>${esc(s.schemaCols.field)}</th><th>${esc(s.schemaCols.column)}</th><th>${esc(s.schemaCols.types)}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+/** Webhook subscription block inside the Notion group. Its fields have no `name`, so they never join the settings form. */
+function webhookHtml(hook: WebhookStatus): string {
+  const w = t.settings.webhook;
+  const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(lang) : '—');
+  const stats =
+    hook.events || hook.rejected
+      ? `<p class="hint">${esc(w.events)}: ${hook.events} · ${esc(w.lastEvent)}: ${esc(when(hook.lastEventAt))}${hook.lastType ? ` <code>${esc(hook.lastType)}</code>` : ''} · ${esc(w.rejected)}: ${hook.rejected}</p>`
+      : '';
+  return `
+    <h4 class="set-sub" id="webhook-title">${esc(w.title)}</h4>
+    <p class="hint">${esc(w.hint)}</p>
+    ${hook.url ? `<label>${esc(w.url)}<input id="webhook-url" readonly value="${esc(hook.url)}" spellcheck="false"></label>` : `<p class="hint warn">${esc(w.noUrl)}</p>`}
+    <p class="hint" id="webhook-state" data-state="${hook.state}"><b>${esc(w[hook.state])}</b>${hook.fromEnv ? ` ${esc(w.env)}` : ''}</p>
+    ${
+      hook.state === 'pending' && hook.token
+        ? `<label>${esc(w.token)}<input id="webhook-token" readonly value="${esc(hook.token)}" spellcheck="false"></label>
+           <div class="row2 tight"><button type="button" id="webhook-copy">${esc(w.copy)}</button></div>`
+        : ''
+    }
+    ${stats}
+    ${!hook.fromEnv && hook.state !== 'off' ? `<div class="row2 tight"><button type="button" id="webhook-reset">${esc(w.reset)}</button></div>` : ''}`;
 }
 
 export function settingsPanel(root: HTMLElement, api: ApiClient, initial: SettingsResponse, onSaved: (state: SettingsResponse) => void) {
@@ -110,6 +133,7 @@ export function settingsPanel(root: HTMLElement, api: ApiClient, initial: Settin
           <div class="row2 tight"><button type="button" id="chk">${esc(s.check)}</button></div>
           <p class="hint">${esc(s.notionHint)} <a href="https://github.com/BrainEno/red-room-archive/blob/main/README.md#连接-notion" target="_blank" rel="noopener noreferrer">${esc(s.guide)}</a></p>
           <div id="schema"></div>
+          <div id="webhook" class="set-webhook" aria-labelledby="webhook-title"></div>
         </fieldset>
 
         <div class="set-bar">
@@ -196,6 +220,8 @@ export function settingsPanel(root: HTMLElement, api: ApiClient, initial: Settin
       }
     };
 
+    void loadWebhook();
+
     $('#chk', root).onclick = async () => {
       const target = $('#schema', root);
       const data = new FormData(form);
@@ -214,6 +240,43 @@ export function settingsPanel(root: HTMLElement, api: ApiClient, initial: Settin
   };
 
   let dirty = () => false;
+
+  const showWebhook = (hook: WebhookStatus) => {
+    const box = root.querySelector<HTMLElement>('#webhook');
+    if (!box) return;
+    box.innerHTML = webhookHtml(hook);
+    const copy = box.querySelector<HTMLButtonElement>('#webhook-copy');
+    if (copy && hook.token) {
+      copy.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(hook.token ?? '');
+          copy.textContent = t.settings.webhook.copied;
+        } catch {
+          box.querySelector<HTMLInputElement>('#webhook-token')?.select();
+        }
+      };
+    }
+    const reset = box.querySelector<HTMLButtonElement>('#webhook-reset');
+    if (reset) {
+      reset.onclick = async () => {
+        if (!confirm(t.settings.webhook.confirmReset)) return;
+        try {
+          showWebhook((await busy(box, () => api.notion.resetWebhook())).webhook);
+          toast(t.settings.webhook.resetDone);
+        } catch (error) {
+          fail(error);
+        }
+      };
+    }
+  };
+
+  const loadWebhook = async () => {
+    try {
+      showWebhook((await api.notion.webhook()).webhook);
+    } catch {
+      /* older server or no permission: the block just stays empty */
+    }
+  };
 
   /** Scroll a group into view and focus its first field (used by the anchor nav and the Overview). */
   const reveal = (section: SettingsSection) => {

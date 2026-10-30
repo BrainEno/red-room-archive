@@ -193,8 +193,11 @@ test('covered and text-only articles render correctly in the built site', async 
     assert.match(detail, /class="article-inline-toc"/);
     assert.match(detail, /href="#first-section"/);
     assert.match(detail, /class="article-aside"/);
-    assert.doesNotMatch(detail, /<img class="cover"|property="og:image"/);
-    assert.match(detail, /name="twitter:card" content="summary"/);
+    assert.doesNotMatch(detail, /<img class="cover"/);
+    // Without a cover the share card falls back to the site's default card.
+    assert.match(detail, /property="og:image" content="https:\/\/archive\.test\/og\/card\.jpg"/);
+    assert.match(detail, /name="twitter:card" content="summary_large_image"/);
+    assert.match(detail, /<\/body><\/html>$/, 'nothing is emitted after the document');
     const coveredDetail = await get('/articles/first-light');
     assert.match(coveredDetail, /<img class="cover"/);
     assert.match(coveredDetail, /property="og:image"/);

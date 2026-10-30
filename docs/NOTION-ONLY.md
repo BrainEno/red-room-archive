@@ -34,7 +34,7 @@
   同步块、目录、页面链接、富文本注释、@提及、颜色。
 - 旧 URL：`/posts/:slug`、`/posts/tag/:tag` 301 到新地址，旧博客的外链不会失效。
 
-没有移植：AI 聊天接口（安全问题见上表）、mermaid / KaTeX / Prism / metascraper（体积大，列入“还没做”）、nx / yarn 工具链。
+没有移植：AI 聊天接口（安全问题见上表）、mermaid（体积大，列入“还没做”）；KaTeX / Prism / metascraper 的功能后来以更轻、符合 CSP 的方式补上：Temml 输出原生 MathML、highlight.js 服务器端高亮、自带受限的书签标题抓取（见 README“公式、代码与书签”）、nx / yarn 工具链。
 
 ## 本仓库因此删除的东西
 
