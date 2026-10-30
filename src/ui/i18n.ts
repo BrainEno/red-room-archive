@@ -71,6 +71,8 @@ const en = {
   article: {
     readingTime: (minutes: number) => `${minutes} min read`,
     contents: 'Contents',
+    copyCode: 'Copy',
+    copiedCode: 'Copied',
     unavailable: 'This article could not be loaded from Notion right now. Please try again in a moment.',
     previous: 'Previous',
     next: 'Next',
@@ -168,6 +170,8 @@ const zhCN: Messages = {
   article: {
     readingTime: (minutes) => `阅读约 ${minutes} 分钟`,
     contents: '目录',
+    copyCode: '复制',
+    copiedCode: '已复制',
     unavailable: '暂时无法从 Notion 读取这篇文章，请稍后再试。',
     previous: '上一篇',
     next: '下一篇',

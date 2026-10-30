@@ -13,6 +13,7 @@ import { moreDocument } from './more.ts';
 import { siteProfile } from './settings.ts';
 import { syncStatus } from './status.ts';
 import { tagIndex } from './tags.ts';
+import { webhookStatus } from './webhook.ts';
 
 /** The cached list even when Notion cannot be reached right now (the sync error is reported separately). */
 async function articles(): Promise<ArticleRow[]> {
@@ -51,6 +52,7 @@ export async function overview(): Promise<OverviewResponse> {
   if (!profile.email) checks.push({ code: 'email-missing', level: 'info' });
   if (untagged) checks.push({ code: 'untagged', level: 'info', count: untagged });
   if (!more.custom) checks.push({ code: 'more-sample', level: 'info' });
+  if (webhookStatus().state === 'pending') checks.push({ code: 'webhook-pending', level: 'warn' });
 
   return {
     status,

@@ -11,7 +11,7 @@
  *
  * While Notion is not configured the built-in demo articles are served.
  */
-import { renderBlocks, type LinkedPage, type RenderResult } from '../../core/blocks.ts';
+import { bookmarkUrls, renderBlocks, type LinkedPage, type RenderResult } from '../../core/blocks.ts';
 import { conflict, notFound, unavailable } from '../../core/errors.ts';
 import { newestFirst } from '../../core/order.ts';
 import { demoArticles } from '../../content/site.ts';
@@ -25,6 +25,7 @@ import { NotionClient } from '../notion/client.ts';
 import { toArticles } from '../notion/mapper.ts';
 import { fetchBlockTree } from '../notion/tree.ts';
 import { clearMedia, removeMedia } from '../storage/notion-media.ts';
+import { linkPreviews } from './link-preview.ts';
 import { notionConfig, notionGeneration, notionReady, onNotionChange } from './settings.ts';
 
 const compact = (id: string) => id.replace(/-/g, '').toLowerCase();
@@ -183,8 +184,9 @@ const toBody = (result: RenderResult, updated: string): ArticleBody => ({ html: 
 
 // Notion revisions do not change when the site's renderer changes. Old HTML
 // is refreshed on demand, but remains available if Notion is offline. Version 3
-// also re-fetches bodies cached by the old, potentially truncated tree walk.
-const BODY_RENDERER_VERSION = 3;
+// also re-fetches bodies cached by the old, potentially truncated tree walk;
+// version 4 adds MathML equations, highlighted code and bookmark previews.
+const BODY_RENDERER_VERSION = 4;
 
 const rendering = new Map<string, { generation: string; promise: Promise<ArticleBody> }>();
 
@@ -214,6 +216,8 @@ export async function articleBody(article: ArticleRow, options: { refresh?: bool
     try {
       const { client } = notion();
       const blocks = await fetchBlockTree(client, article.id);
+      // Looked up before the transaction: rendering itself stays synchronous.
+      const previews = await linkPreviews(bookmarkUrls(blocks));
       return transaction(() => {
         assertGeneration(current);
         const latest = articlesRepository.byId(article.id);
@@ -221,6 +225,7 @@ export async function articleBody(article: ArticleRow, options: { refresh?: bool
         const result = renderBlocks(blocks, {
           fileUrl: (blockId) => notionMediaPath(blockId),
           page: pageResolver(articlesRepository.all()),
+          bookmark: (url) => previews.get(url) ?? null,
         });
         articlesRepository.registerMedia(article.id, result.files.map(compact));
         const body = toBody(result, article.updated);

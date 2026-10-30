@@ -7,6 +7,10 @@ import '@fontsource-variable/archivo/wdth.css';
 import '../styles/base.css';
 import '../styles/cjk.css';
 import { DEFAULT_LOCALE, LOCALES, localizedPath, type Locale } from '../../shared/i18n.ts';
+import { serializeJsonLd, type JsonLd } from '../../shared/structured-data.ts';
+
+/** Default share card (public/og/card.jpg) for pages without a cover of their own. */
+const DEFAULT_CARD = { src: '/og/card.jpg', width: 1200, height: 630 };
 
 export interface Props {
   title: string;
@@ -19,9 +23,32 @@ export interface Props {
   image?: string | null;
   type?: 'website' | 'article';
   locale?: Locale;
+  /** Alt text of the share image (defaults to the site name for the default card). */
+  imageAlt?: string;
+  /** Articles: publish date, last edit (ISO) and topics, for `article:*` meta. */
+  published?: string;
+  modified?: string;
+  tags?: string[];
+  /** schema.org objects; rendered only when siteUrl is set (URLs must be absolute). */
+  jsonLd?: JsonLd[];
 }
 
-const { title, description = '', siteUrl = '', siteName = '', bodyClass = '', noindex = false, image = null, type = 'website', locale = DEFAULT_LOCALE } = Astro.props;
+const {
+  title,
+  description = '',
+  siteUrl = '',
+  siteName = '',
+  bodyClass = '',
+  noindex = false,
+  image = null,
+  type = 'website',
+  locale = DEFAULT_LOCALE,
+  imageAlt,
+  published,
+  modified,
+  tags = [],
+  jsonLd = [],
+} = Astro.props;
 
 /** This page in a given language: the default language has the clean URL, others their prefix (`/zh-CN/…`). */
 const neutralPath = Astro.locals.path ?? Astro.url.pathname;
@@ -30,7 +57,11 @@ const localized = (code: Locale) => {
   return new URL(localizedPath(neutralPath, code), siteUrl).toString();
 };
 const canonical = localized(locale);
-const ogImage = image && siteUrl ? new URL(image, siteUrl).toString() : image;
+const card = image ? { src: image, width: 0, height: 0 } : noindex ? null : DEFAULT_CARD;
+const ogImage = card && siteUrl ? new URL(card.src, siteUrl).toString() : (card?.src ?? null);
+const ogImageAlt = image ? imageAlt || title : siteName || title;
+const otherLocales = LOCALES.filter((code) => code !== locale);
+const structured = siteUrl && jsonLd.length ? serializeJsonLd(jsonLd) : '';
 ---
 <!doctype html>
 <html lang={locale}>
@@ -48,7 +79,17 @@ const ogImage = image && siteUrl ? new URL(image, siteUrl).toString() : image;
   {description && <meta property="og:description" content={description} />}
   {canonical && <meta property="og:url" content={canonical} />}
   {ogImage && <meta property="og:image" content={ogImage} />}
+  {ogImage && card?.width ? <meta property="og:image:width" content={String(card.width)} /> : null}
+  {ogImage && card?.height ? <meta property="og:image:height" content={String(card.height)} /> : null}
+  {ogImage && <meta property="og:image:alt" content={ogImageAlt} />}
+  {type === 'article' && published && <meta property="article:published_time" content={published} />}
+  {type === 'article' && modified && <meta property="article:modified_time" content={modified} />}
+  {type === 'article' && tags.map((tag) => <meta property="article:tag" content={tag} />)}
   <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
+  <meta name="twitter:title" content={title} />
+  {description && <meta name="twitter:description" content={description} />}
+  {ogImage && <meta name="twitter:image" content={ogImage} />}
+  {ogImage && <meta name="twitter:image:alt" content={ogImageAlt} />}
   <link rel="alternate" type="application/rss+xml" title={`${siteName || 'Articles'} — RSS`} href="/rss.xml" />
   {/* Chinese display cut (scripts/fonts/build-display-sc.py): ~30 KB of @font-face rules, loaded without
        blocking render (media="print" until scripts/site/async-css.ts switches it, no inline handler so the CSP
@@ -58,6 +99,8 @@ const ogImage = image && siteUrl ? new URL(image, siteUrl).toString() : image;
   {canonical && !noindex && LOCALES.map((code) => <link rel="alternate" hreflang={code} href={localized(code)} />)}
   {canonical && !noindex && <link rel="alternate" hreflang="x-default" href={localized(DEFAULT_LOCALE)} />}
   <meta property="og:locale" content={locale.replace('-', '_')} />
+  {!noindex && otherLocales.map((code) => <meta property="og:locale:alternate" content={code.replace('-', '_')} />)}
+  {structured && <script type="application/ld+json" set:html={structured} />}
 </head>
 <body class={bodyClass}><slot />
   <script>

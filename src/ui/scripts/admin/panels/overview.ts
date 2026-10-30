@@ -22,6 +22,7 @@ const FIXES: Partial<Record<OverviewCheck['code'], Fix>> = {
   'bodies-partial': { label: t.overview.fix.bodies, tab: 'Articles', sync: { bodies: true } },
   'email-missing': { label: t.overview.fix.site, tab: 'Settings', section: 'site' },
   'more-sample': { label: t.overview.fix.more, tab: 'More' },
+  'webhook-pending': { label: t.overview.fix.notion, tab: 'Settings', section: 'notion' },
 };
 
 export interface OverviewHooks {

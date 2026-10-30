@@ -261,6 +261,29 @@ export interface SyncStatusResponse {
   status: SyncStatus;
 }
 
+/** Notion webhook subscription (/admin → Settings → Notion). */
+export interface WebhookStatus {
+  /** Full public URL to give Notion ('' until SITE_URL is set). */
+  url: string;
+  path: string;
+  /** off = no token yet · pending = token received, waiting for the first signed event · active = verified. */
+  state: 'off' | 'pending' | 'active';
+  /** The token is pinned by NOTION_WEBHOOK_TOKEN. */
+  fromEnv: boolean;
+  /** Full token while pending (to paste into Notion); afterwards only a masked tail. */
+  token: string | null;
+  tokenAt: string | null;
+  events: number;
+  lastEventAt: string | null;
+  lastType: string | null;
+  rejected: number;
+  lastRejectedAt: string | null;
+}
+
+export interface WebhookStatusResponse {
+  webhook: WebhookStatus;
+}
+
 /* ── Admin: settings / sync / schema ────────────────────────────────── */
 
 export type SettingKey =
@@ -300,7 +323,8 @@ export type OverviewCheckCode =
   | 'site-url-missing'
   | 'email-missing'
   | 'untagged'
-  | 'more-sample';
+  | 'more-sample'
+  | 'webhook-pending';
 
 export interface OverviewCheck {
   code: OverviewCheckCode;

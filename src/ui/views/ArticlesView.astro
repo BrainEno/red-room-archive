@@ -6,6 +6,7 @@ import { messages } from '../i18n.ts';
 import type { ArticleSummary, TagCount } from '../../shared/contracts.ts';
 import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
 import { ARCHIVE_PATH, ARTICLES_PATH, TOPICS_PATH, articlesPagePath, topicPath } from '../../shared/routes.ts';
+import { absoluteUrl, breadcrumbLd } from '../../shared/structured-data.ts';
 
 export interface Props {
   site: { locale: Locale; name: string; url: string; email: string; articlesIntro: string };
@@ -22,8 +23,14 @@ const t = messages(locale).articles;
 const to = (path: string) => localePath(path, locale);
 const pageHref = (p: number) => to(tag ? topicPath(tag.slug, p) : articlesPagePath(p));
 const heading = tag ? `#${tag.name}` : t.title;
+const nav = messages(locale).nav;
+const abs = (path: string) => absoluteUrl(site.url, localePath(path, locale));
+const jsonLd =
+  site.url && tag
+    ? [breadcrumbLd([{ name: nav.home, url: abs('/') }, { name: nav.topicsLink, url: abs(TOPICS_PATH) }, { name: tag.name, url: abs(topicPath(tag.slug)) }])]
+    : [];
 ---
-<Page title={`${tag ? `${heading} — ` : ''}${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={site.articlesIntro} current={tag ? TOPICS_PATH : ARTICLES_PATH} noindex={page > 1}>
+<Page title={`${tag ? `${heading} — ` : ''}${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={site.articlesIntro} current={tag ? TOPICS_PATH : ARTICLES_PATH} noindex={page > 1} jsonLd={jsonLd}>
   <section class="prose listing">
     <p class="article-label">{site.name} / {t.title}</p>
     <h1 lang={tag ? contentLang(tag.name) : undefined}>{heading}</h1>

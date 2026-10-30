@@ -163,13 +163,14 @@
 .prose .toggle-heading > summary { list-style-position: outside; }
 .prose .toggle-heading > summary > :is(h2, h3, h4) { display: inline; margin: 0; }
 .prose ul.todo { list-style: none; padding-left: 0; }
-.prose ul.todo li.done > span { opacity: .55; text-decoration: line-through; }
+.prose ul.todo li.done > label > span { opacity: .55; text-decoration: line-through; }
 .prose .callout { display: flex; gap: .8rem; align-items: flex-start; }
 .prose .callout-icon { flex: none; width: 1.4em; height: 1.4em; line-height: 1.4; font-size: 1.15em; margin: 0; }
 .prose .callout-body > :last-child { margin-bottom: 0; }
 .prose figure.code pre { margin: 0; position: relative; }
 .prose figure.code pre[data-lang]::before { content: attr(data-lang); position: absolute; top: 4px; right: 10px; font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; opacity: .45; }
-.prose .equation { margin: 1.5em 0; overflow-x: auto; text-align: center; }
+.prose .equation { margin: 1.2em 0; padding: .3em 0; overflow-x: auto; overflow-y: hidden; text-align: center; }
+.prose .equation:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .prose code.math { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .prose .embed { position: relative; aspect-ratio: 16 / 9; background: #000; }
 .prose .embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
@@ -178,6 +179,33 @@
 .prose .bookmark:hover { border-color: var(--red); color: inherit; }
 .prose .bookmark-title { font-weight: 650; }
 .prose .bookmark-url { font-size: .8rem; opacity: .55; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* bookmark with a server-fetched preview (title + description, no third-party images) */
+.prose .bookmark-desc { font-size: .9rem; line-height: 1.5; opacity: .72; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.prose .bookmark.has-preview { gap: 4px; }
+.prose .bookmark-figure { margin: 1.2em 0; }
+.prose .bookmark-figure .bookmark { margin: 0; }
+/* maths: native MathML (src/core/math.ts) — no script, stylesheet or font download */
+.prose math { font-family: 'STIX Two Math', 'Cambria Math', 'Latin Modern Math', math; font-size: 1.12em; }
+.prose math[display="block"] { margin: 0 auto; }
+.prose mtd { padding: .15em .5em; }
+.prose mi.tml-v { text-transform: none; font-style: italic; }
+/* code: highlight.js token classes (src/core/highlight.ts), colours tuned for the dark code panel */
+.prose .hljs-comment, .prose .hljs-quote { color: #9a958e; font-style: italic; }
+.prose .hljs-keyword, .prose .hljs-selector-tag, .prose .hljs-doctag, .prose .hljs-name { color: var(--accent-soft); }
+.prose .hljs-string, .prose .hljs-regexp, .prose .hljs-template-string, .prose .hljs-symbol, .prose .hljs-char.escape_ { color: #dccb9c; }
+.prose .hljs-number, .prose .hljs-literal, .prose .hljs-bullet, .prose .hljs-link { color: #f2b680; }
+.prose .hljs-title, .prose .hljs-section, .prose .hljs-selector-id, .prose .hljs-selector-class { color: var(--ink); font-weight: 650; }
+.prose .hljs-attr, .prose .hljs-attribute, .prose .hljs-variable, .prose .hljs-property, .prose .hljs-params, .prose .hljs-template-variable { color: #cdc4b8; }
+.prose .hljs-built_in, .prose .hljs-type, .prose .hljs-meta, .prose .hljs-selector-pseudo { color: #e6c7aa; }
+.prose .hljs-addition { color: #a6e3ab; } .prose .hljs-deletion { color: #ffa3a3; }
+.prose .hljs-emphasis { font-style: italic; } .prose .hljs-strong { font-weight: 700; }
+/* copy button (scripts/site/code-copy.ts) */
+.prose figure.code { position: relative; }
+.prose .code-copy { position: absolute; top: 6px; right: 8px; z-index: 1; padding: 3px 8px; font: 600 .7rem/1.4 var(--sans); letter-spacing: .06em; color: var(--ink); background: var(--void); border: 1px solid rgba(241,238,230,.3); cursor: pointer; opacity: 0; transition: opacity .2s, border-color .2s; }
+.prose figure.code:hover .code-copy, .prose .code-copy:focus-visible, .prose .code-copy[data-copied] { opacity: 1; }
+.prose .code-copy:hover { border-color: var(--ink); }
+.prose figure.code.has-copy pre[data-lang]::before { right: auto; left: 12px; }
+@media (hover: none) { .prose .code-copy { opacity: 1; } }
 .prose a.file { display: inline-flex; gap: .5em; align-items: baseline; padding: .5rem .8rem; border: 1px solid rgba(241,238,230,.25); text-decoration: none; }
 .prose a.file small { opacity: .55; }
 .prose .table-wrap { max-width: 100%; overflow-x: auto; margin: 1.5em 0; }

@@ -25,7 +25,7 @@ test('lists are grouped, nested and to-dos get checkboxes', () => {
     { type: 'to_do', to_do: { rich_text: rt('done'), checked: true } },
   ]);
   assert.match(html, /<ul><li>one<ul><li>inner<\/li><\/ul><\/li><li>two<\/li><\/ul><ol><li>three<\/li><li>four<\/li><\/ol>/);
-  assert.match(html, /<ul class="todo"><li class="done"><input type="checkbox" disabled checked> <span>done<\/span><\/li><\/ul>/);
+  assert.match(html, /<ul class="todo"><li class="done"><label><input type="checkbox" disabled checked> <span>done<\/span><\/label><\/li><\/ul>/);
 });
 
 test('rich text: annotations, colours, escaping, unsafe links', () => {
@@ -42,7 +42,7 @@ test('rich text: annotations, colours, escaping, unsafe links', () => {
   assert.doesNotMatch(html, /javascript:/i);
   assert.match(html, /<span class="nc-red_background">red<\/span>/);
   assert.doesNotMatch(html, /onload/);
-  assert.match(html, /<code class="math">E=mc\^2<\/code>/);
+  assert.match(html, /<math><semantics>.*<annotation encoding="application\/x-tex">E=mc\^2<\/annotation><\/semantics><\/math>/, 'inline equations render as MathML');
 });
 
 test('media: Notion-hosted files go through ctx.fileUrl; unsafe URLs are dropped', () => {
@@ -91,8 +91,8 @@ test('columns, callouts, toggles, toggleable headings, quotes', () => {
 
 test('code keeps its language and caption, escaped verbatim', () => {
   const html = blocksToHtml([{ type: 'code', code: { rich_text: rt('a < b'), language: 'Plain Text', caption: rt('cap') } }, { type: 'code', code: { rich_text: rt('x'), language: 'c++' } }]);
-  assert.match(html, /<figure class="code"><pre><code class="language-plain-text">a &lt; b<\/code><\/pre><figcaption>cap<\/figcaption><\/figure>/);
-  assert.match(html, /<pre data-lang="c\+\+"><code class="language-c\+\+">x<\/code><\/pre>/);
+  assert.match(html, /<figure class="code"><pre><code class="language-plain-text hljs">a &lt; b<\/code><\/pre><figcaption>cap<\/figcaption><\/figure>/);
+  assert.match(html, /<pre data-lang="c\+\+"><code class="language-c\+\+ hljs">x<\/code><\/pre>/);
 });
 
 test('page links resolve only to published articles', () => {

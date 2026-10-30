@@ -38,7 +38,7 @@ test('renderer upgrade lazily rerenders old HTML and retains it as an offline fa
   const refreshed = await articleBody(article);
   assert.match(refreshed.html, /notion-blank-line/);
   assert.doesNotMatch(refreshed.html, /Old cached body/);
-  assert.equal(articlesRepository.body(article.id, { rendererVersion: 3 }).html, refreshed.html);
+  assert.equal(articlesRepository.body(article.id, { rendererVersion: 4 }).html, refreshed.html);
 });
 
 test('failed tree fetch never replaces the same-source stale body', async () => {

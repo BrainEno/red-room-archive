@@ -16,6 +16,7 @@ import type {
   MoreDocumentResponse,
   MoreResponse,
   NotionSchemaResponse,
+  WebhookStatusResponse,
   OverviewResponse,
   SearchResponse,
   SettingsResponse,
@@ -116,6 +117,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     notion: {
       schema: () => request<NotionSchemaResponse>('/api/notion/schema'),
+      webhook: () => request<WebhookStatusResponse>('/api/webhooks/notion'),
+      resetWebhook: () => request<WebhookStatusResponse>('/api/webhooks/notion', { method: 'DELETE' }),
     },
 
     uploads: {
