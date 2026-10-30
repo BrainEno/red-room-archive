@@ -15,7 +15,10 @@ export const world = {
 const SX = 2.4;
 /** 如果你的 GLB 默认脸朝后（背对镜头），把它改成 Math.PI；侧着就改 ±Math.PI/2 */
 const MODEL_YAW = 0;
-const MODEL_URLS = ['/uploads/venus.glb', '/models/venus.glb']; // 后台上传 → 仓库内文件 → 占位雕像
+/** 服务端在 canvas[data-model] 上给出唯一地址（后台上传的 /uploads/venus.glb?v=… 或仓库内 /models/venus.glb），
+ *  不再盲目请求可能 404 的上传地址；加载失败时依次退回仓库内文件 → 占位雕像 */
+const BUNDLED_MODEL = '/models/venus.glb';
+const modelUrls = (canvas: HTMLCanvasElement) => [...new Set([canvas.dataset.model || BUNDLED_MODEL, BUNDLED_MODEL])];
 
 const FLOOR_V = `varying vec3 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`;
 const FLOOR_F = `varying vec3 vW; uniform float uT, uFade, uHover;
@@ -128,7 +131,7 @@ export function initScene(canvas: HTMLCanvasElement) {
     statue.remove(placeholder); statue.add(m);
   };
   const tryModel = (urls: string[]) => { const [u, ...rest] = urls; if (!u) return console.info('[scene] using placeholder statue'); loader.load(u, onLoad, undefined, () => tryModel(rest)); };
-  tryModel(MODEL_URLS);
+  tryModel(modelUrls(canvas));
 
   // —— 灯光：博物馆式“跟拍主光” + 红色环境底光 + 背后红边光 ——
   // 主光始终跟着镜头走（从镜头左上方打向雕像），所以无论雕像朝哪，被看到的那一面都是亮的。

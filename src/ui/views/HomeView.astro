@@ -23,7 +23,7 @@ export interface Props {
     url: string;
     facts: { key: string; value: string }[];
   };
-  home: { latest: ArticleSummary[]; featured: ArticleSummary[]; topics: TagCount[]; total: number };
+  home: { latest: ArticleSummary[]; featured: ArticleSummary[]; topics: TagCount[]; total: number; model: string };
 }
 
 const { site, home } = Astro.props;
@@ -36,11 +36,12 @@ const nav = ['intro', 'latest', 'topics', 'more'] as const;
 ---
 <Base title={site.name} siteName={site.name} siteUrl={site.url} description={site.about} locale={locale}>
   <a class="skip" href="#content">{t.page.skip}</a>
-  <canvas id="gl" aria-hidden="true"></canvas>
+  <canvas id="gl" aria-hidden="true" data-model={home.model}></canvas>
+  <div class="scrim" aria-hidden="true"></div>
   <div id="neon" class="neon"><div class="sign" aria-hidden="true"><div class="cam"><canvas></canvas></div></div></div>
   <div class="grain" aria-hidden="true"></div>
   <div class="loader"><span class="count">000</span></div>
-  <noscript><style>.loader { display: none; }</style></noscript>
+  <noscript><link rel="stylesheet" href="/noscript.css" /></noscript>
 
   <header class="bar">
     <a class="brand" href="#home">{site.name}</a>

@@ -445,3 +445,10 @@ test('content bundle: admin-only ZIP with profile, saved More page, its uploads 
   await call(more.resetMoreDocument, { method: 'DELETE', token: TOKEN });
   await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_facts: '' } });
 });
+
+test('homepage statue: the uploaded model (versioned) or the bundled one, never a guaranteed 404', async () => {
+  // The uploads test above stored venus.glb.
+  assert.match((await queries.getHome()).model, /^\/uploads\/venus\.glb\?v=\d+$/);
+  assert.equal((await call(files.remove, { method: 'DELETE', token: TOKEN, params: { name: 'venus.glb' } })).status, 204);
+  assert.equal((await queries.getHome()).model, '/models/venus.glb');
+});

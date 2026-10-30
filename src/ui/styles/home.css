@@ -75,11 +75,24 @@
 .reach .yr { grid-column: 10 / 13; text-align: right; opacity: .55; }
 #contact { position: absolute; }
 
+/* 导航下的暗幕：.bar 用 mix-blend-mode: difference，白字压在白字上会糊成一团。
+   滚过开场（招牌飞走、.brand.on）后，在导航与内容之间垫一道渐隐暗幕；
+   它必须是独立元素——放进 .bar 里会被一起做 difference 混合 */
+.scrim { position: fixed; inset: 0 0 auto; height: 104px; z-index: 39; pointer-events: none; opacity: 0; transition: opacity .6s var(--ease);
+  background: linear-gradient(180deg, rgba(10,5,6,.92) 0%, rgba(10,5,6,.7) 45%, rgba(10,5,6,0) 100%); }
+body:has(.bar .brand.on) .scrim { opacity: 1; }
+
+/* 宽屏时雕像站在右侧 4 列：列表、信息栏只占左 8 列，标签/年份不再压在雕像上 */
+@media (min-width: 1024px) {
+  .list, .facts, .more, .l .empty-note { grid-column: 1 / 9; }
+}
+
 
 @media (max-width: 720px) {
   .bar { inset: auto 0 0 0; padding-block: 14px; }
   .bar nav { grid-column: 1 / 13; justify-content: space-between; font-size: 12px; gap: 10px; }
   .bar .brand { display: none; }
+  .scrim { inset: auto 0 0; height: 88px; background: linear-gradient(0deg, rgba(10,5,6,.92) 0%, rgba(10,5,6,.7) 45%, rgba(10,5,6,0) 100%); }
   .s { padding-bottom: 72px; }
   .list { grid-column: 1 / 13; }
   .sign { width: min(96vw, 118svh); }

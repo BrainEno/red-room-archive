@@ -23,6 +23,7 @@ import { moreFor } from './services/more.ts';
 import { search } from './services/search.ts';
 import { filterByTag, tagIndex, tagLangOf, tagNamer, topicCounts } from './services/tags.ts';
 import { siteProfile } from './services/settings.ts';
+import { statueModelUrl } from './storage/uploads.ts';
 
 export type { ArticleDetail, ArticleSummary, MoreChannel, MorePublication, MoreResponse, SearchResponse, TagCount };
 
@@ -52,6 +53,8 @@ export interface HomeData {
   featured: ArticleSummary[];
   topics: TagCount[];
   total: number;
+  /** Statue model URL for the WebGL scene (uploaded or bundled). */
+  model: string;
 }
 
 const HOME_ARTICLE_LIMIT = 10;
@@ -65,6 +68,7 @@ export async function getHome(locale: Locale = DEFAULT_LOCALE): Promise<HomeData
     featured: featuredArticles(all, HOME_ARTICLE_LIMIT).map((row) => presentArticle(row, names)),
     topics: topicCounts(all, locale),
     total: all.length,
+    model: statueModelUrl(),
   };
 }
 
