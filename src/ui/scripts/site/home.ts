@@ -42,7 +42,7 @@ if (!reduce) {
   gsap.ticker.add((t) => L.raf(t * 1000));
   gsap.ticker.lagSmoothing(0);
   document.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((a) =>
-    a.addEventListener('click', (e) => { const id = a.getAttribute('href')!; if (id.length > 1) { e.preventDefault(); L.scrollTo(id, { duration: 1.6 }); } }));
+    a.addEventListener('click', (e) => { if (a.classList.contains('skip')) return; const id = a.getAttribute('href')!; if (id.length > 1) { e.preventDefault(); L.scrollTo(id, { duration: 1.6 }); } }));
   L.stop();
 }
 

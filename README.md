@@ -248,7 +248,8 @@ npm run typecheck   # tsc --noEmit
 npm run build       # 生产构建
 npm run check       # typecheck、单元测试、生产构建、SSR 与静态导出集成测试
 npm run test:render # 构建后检查有图/无图文章的 SSR 输出
-npm run test:ui     # Chromium 多视口 UI/交互回归（需先安装 Playwright 浏览器）
+npm run test:ui     # Chromium / Firefox / WebKit 多视口与无障碍回归（需先安装 Playwright 浏览器）
+npm run test:visual:candidates # 生成供审阅的演示截图（尚非像素基线）
 node tests/fixtures/notion-mock.mjs 4999 [--showcase]   # 本地假 Notion：NOTION_API_BASE=http://127.0.0.1:4999/v1；--showcase 加几篇中英文章预览排版
 ```
 

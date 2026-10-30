@@ -70,7 +70,7 @@
 .reach > :first-child { grid-column: 1 / 6; }
 .reach .k { opacity: .55; margin-right: .9em; }
 .reach a { transition: color .3s; }
-.reach a:hover { color: var(--red); }
+.reach a:hover { color: var(--accent-soft); }
 .reach .what { grid-column: 6 / 10; opacity: .55; }
 .reach .yr { grid-column: 10 / 13; text-align: right; opacity: .55; }
 #contact { position: absolute; }
@@ -95,7 +95,7 @@
 
 /* "All articles →" link under each homepage list */
 .more { grid-column: 1 / 11; justify-self: start; margin-top: 18px; font-weight: 600; opacity: .75; transition: opacity .3s, color .3s; }
-.more:hover { opacity: 1; color: var(--red); }
+.more:hover { opacity: 1; color: var(--accent-soft); }
 @media (max-width: 720px) { .more { grid-column: 1 / 13; } }
 .l .empty-note { grid-column: 1 / 11; max-width: 40ch; opacity: .7; font-size: 1.1rem; }
 @media (max-width: 720px) { .l .empty-note { grid-column: 1 / 13; } }

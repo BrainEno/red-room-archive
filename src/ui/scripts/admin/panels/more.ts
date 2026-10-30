@@ -92,9 +92,9 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
           <span class="me-num">${pad(index)}</span>
           <span class="me-mini">${p.cover && isImageUrl(p.cover) ? `<img src="${esc(p.cover)}" alt="">` : ''}</span>
           <span class="me-title">${esc(bilingualLabel(p.title, 'Untitled'))}<small>${esc(p.year)}</small></span>
-          ${controls('publications', index, doc.publications.length)}
         </summary>
         <div class="me-body">
+          ${controls('publications', index, doc.publications.length)}
           ${image('Cover', at('cover'), p.cover, 'cover')}
           <div class="me-head"><span></span><span>EN</span><span>中文</span></div>
           ${pair('Title', at('title'), p.title)}
@@ -123,9 +123,9 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
           <span class="me-num">${pad(index)}</span>
           <span class="me-mini qr">${c.qr && isImageUrl(c.qr) ? `<img src="${esc(c.qr)}" alt="">` : ''}</span>
           <span class="me-title">${esc(bilingualLabel(c.name, 'Unnamed'))}<small>${esc(c.handle)}</small></span>
-          ${controls('channels', index, doc.channels.length)}
         </summary>
         <div class="me-body">
+          ${controls('channels', index, doc.channels.length)}
           ${image('QR code', at('qr'), c.qr, 'qr')}
           <div class="me-head"><span></span><span>EN</span><span>中文</span></div>
           ${pair('Platform', at('name'), c.name, { zhPlaceholder: '微信公众号' })}
@@ -253,7 +253,7 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
   root.addEventListener('click', async (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-act]');
     if (!button) return;
-    event.preventDefault(); // buttons inside <summary> must not toggle the card
+    event.preventDefault();
     const { act, list, target } = button.dataset;
     const index = Number(button.dataset.index);
     const items = list ? (doc[list as ListKey] as { id: string }[]) : [];
@@ -265,8 +265,14 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
       render();
       root.querySelector<HTMLInputElement>(`details[data-id="${item.id}"] input[data-path$=".en"]`)?.focus();
     } else if ((act === 'up' || act === 'down') && list) {
+      const itemId = items[index]?.id;
       move(items, index, act === 'up' ? -1 : 1);
       render();
+      if (itemId) {
+        const card = [...root.querySelectorAll<HTMLDetailsElement>('details[data-id]')].find((element) => element.dataset.id === itemId);
+        const next = card?.querySelector<HTMLButtonElement>(`button[data-act="${act}"]:not(:disabled)`);
+        (next ?? card?.querySelector<HTMLElement>('summary'))?.focus();
+      }
     } else if (act === 'remove' && list) {
       const label = list === 'publications' ? bilingualLabel(doc.publications[index].title, 'this publication') : bilingualLabel(doc.channels[index].name, 'this channel');
       if (!confirm(`Remove “${label}”? (Nothing is published until you save.)`)) return;

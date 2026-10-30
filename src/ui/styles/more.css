@@ -17,8 +17,9 @@
 .mp-index { grid-column: 9 / 13; display: grid; border-top: 1px solid rgba(241,238,230,.3); }
 .mp-index a { display: grid; grid-template-columns: 2.6rem 1fr auto; padding: 10px 0; border-bottom: 1px solid rgba(241,238,230,.3); font-weight: 600;
   transition: color .3s, padding-left .45s var(--ease); }
-.mp-index a:hover, .mp-index a:focus-visible { color: var(--red); padding-left: 8px; }
+.mp-index a:hover, .mp-index a:focus-visible { color: var(--accent-soft); padding-left: 8px; }
 .mp-index .n, .mp-rule .n { font-variant-numeric: tabular-nums; opacity: .55; }
+.mp-index a:is(:hover, :focus-visible) :is(.n, sup) { opacity: 1; }
 .mp-index sup { opacity: .55; font-variant-numeric: tabular-nums; }
 
 /* ── Section rule: 01 —— LABEL —— count ──────────────────────────────── */
@@ -86,7 +87,7 @@
 .mail-block { grid-column: 1 / 7; }
 .mail-big { display: block; margin-top: 12px; font-stretch: 62%; font-weight: 800; font-size: clamp(2.1rem, 4.4vw, 4.6rem); line-height: .95; letter-spacing: -.01em;
   overflow-wrap: break-word; transition: color .3s; }
-.mail-big:hover, .mail-big:focus-visible { color: var(--red); }
+.mail-big:hover, .mail-big:focus-visible { color: var(--accent-soft); }
 .mail-block .btn { margin-top: 28px; }
 .channels { grid-column: 8 / 13; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 16px; align-content: start; }
 .channel { padding-top: 12px; border-top: 1px solid rgba(241,238,230,.3); }
@@ -97,7 +98,7 @@
 .channel .handle { margin-top: 4px; font-weight: 600; overflow-wrap: anywhere; }
 .channel .note { margin-top: 4px; font-size: .9rem; opacity: .6; }
 .channel .open { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: 600; opacity: .75; transition: opacity .3s, color .3s; }
-.channel .open:hover, .channel .open:focus-visible { opacity: 1; color: var(--red); }
+.channel .open:hover, .channel .open:focus-visible { opacity: 1; color: var(--accent-soft); }
 
 @media (max-width: 900px) {
   .mp-intro, .mp-index, .pub-body, .mail-block, .channels { grid-column: 1 / 13; }
@@ -111,5 +112,6 @@
   .pub-cover { width: 78%; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .mp-index a, .channel .open { transition: none; }
   .pub:hover .pub-cover img, .pub:hover .type-cover { transform: none; }
 }
