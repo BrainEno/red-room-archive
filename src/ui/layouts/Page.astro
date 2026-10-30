@@ -29,7 +29,7 @@ const t = messages(locale);
 <Base title={title} siteName={siteName} siteUrl={siteUrl} description={description} image={image} type={type} noindex={noindex} locale={locale} bodyClass="plain">
   <a class="skip" href="#content">{t.page.skip}</a>
   <SiteHeader siteName={siteName} current={current} locale={locale} />
-  <main id="content" class="page">
+  <main id="content" class="page" tabindex="-1">
     <slot />
   </main>
   <SiteFooter siteName={siteName} email={email} locale={locale} />

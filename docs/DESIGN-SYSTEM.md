@@ -11,7 +11,7 @@ This is a pragmatic system for the existing Red Room identity, not a redesign. T
 
 ## Interaction and layout contracts
 
-- All links, buttons, inputs, selects and disclosures need a visible keyboard focus state. Keep semantic elements, accessible names, a skip link on inner pages, and control labels; do not rely only on colour or hover. Test touch and keyboard paths.
+- All links, buttons, inputs, selects and disclosures need a visible keyboard focus state. Admin tabs use roving focus and arrow/Home/End keys; keep action buttons outside disclosure summaries. Keep semantic elements, accessible names, a skip link on inner pages, and control labels; do not rely only on colour or hover. Test touch and keyboard paths.
 - Respect `prefers-reduced-motion`; preserve legibility and access when motion or WebGL is unavailable. Browser TTS is optional and only appears when supported.
 - Allow headings, metadata, names and URLs to wrap. Use `minmax(0, 1fr)` and `min-width: 0` in grids/flex layouts. Wide tables/code scroll inside an identifiable region rather than widening the entire viewport. Do not truncate essential controls or hide whole-page horizontal overflow to make a test pass.
 - Support 320px and wider, long unbroken text, CJK/Latin mixtures, no-cover and covered articles. Keep readable measure for article body and use fluid gutters. Validate 200% zoom and real devices separately when available.

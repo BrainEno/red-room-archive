@@ -1,0 +1,81 @@
+import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+for (const route of ['/articles?lang=en', '/articles/connect-notion?lang=zh-CN', '/search?lang=en', '/search?q=no-such-article&lang=en', '/more?lang=zh-CN', '/admin', 'http://127.0.0.1:4179/zh-CN/articles']) {
+  test(`automated accessibility scan: ${route}`, async ({ page }) => {
+    await page.goto(route);
+    if (route === '/admin') await expect(page.locator('#tk')).toBeVisible();
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(results.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) }))).toEqual([]);
+  });
+}
+
+test('home and article skip links move keyboard focus to main content', async ({ page }) => {
+  for (const route of ['/?lang=en', '/articles?lang=en']) {
+    await page.goto(route);
+    if (route.startsWith('/?')) await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
+    await page.keyboard.press('Tab');
+    await expect(page.locator('.skip')).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('main')).toBeFocused();
+  }
+});
+
+test('admin tabs expose relationships and support keyboard navigation', async ({ page }) => {
+  await page.goto('/admin');
+  await page.locator('#tk').fill('ui-test-only');
+  await page.locator('#lg button').click();
+  const list = page.getByRole('tablist', { name: 'Admin sections' });
+  const articles = list.getByRole('tab', { name: 'Articles' });
+  const more = list.getByRole('tab', { name: 'More' });
+  await expect(articles).toHaveAttribute('aria-selected', 'true');
+  await expect(more).toHaveAttribute('tabindex', '-1');
+  await articles.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(more).toBeFocused();
+  await expect(more).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tabpanel', { name: 'More' })).toBeVisible();
+  await page.keyboard.press('End');
+  await expect(list.getByRole('tab', { name: 'Files' })).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(articles).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(list.getByRole('tab', { name: 'Files' })).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(articles).toBeFocused();
+  await list.getByRole('tab', { name: 'More' }).click();
+  await page.locator('.me-card summary').first().click();
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(results.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) }))).toEqual([]);
+});
+
+test('publication actions are separate from the disclosure and restore focus after moving', async ({ page }) => {
+  await page.goto('/admin');
+  await page.locator('#tk').fill('ui-test-only');
+  await page.locator('#lg button').click();
+  await page.getByRole('tab', { name: 'More' }).click();
+  const first = page.locator('.me-card').first();
+  await first.locator('summary').focus();
+  await page.keyboard.press('Enter');
+  await expect(first).toHaveAttribute('open', '');
+  await expect(first.locator('summary button')).toHaveCount(0);
+  await first.getByRole('button', { name: 'Move down' }).click();
+  const moved = page.locator('details[data-id="sample-pub-1"]');
+  await expect(moved).toHaveAttribute('open', '');
+  await expect(moved.getByRole('button', { name: 'Move down' })).toBeFocused();
+  await expect(page.locator('.me-card').nth(1)).toHaveAttribute('data-id', 'sample-pub-1');
+});
+
+test('focused or hovered links retain text contrast', async ({ page }) => {
+  for (const [route, selector] of [
+    ['/articles/connect-notion?lang=en', '.prose .kicker a'],
+    ['/more?lang=en', '.mp-index a'],
+    ['/articles?lang=en', '.site-footer a[href^="mailto:"]'],
+    ['/articles/connect-notion?lang=en', '.prevnext a'],
+  ]) {
+    await page.goto(route);
+    await page.locator(selector).first().hover();
+    const results = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
+    expect(results.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) }))).toEqual([]);
+  }
+});

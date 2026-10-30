@@ -60,21 +60,39 @@ async function boot() {
   }
 
   app.innerHTML = `
-    <nav class="tabs" role="tablist">
-      ${TABS.map((tab, index) => `<button role="tab" data-tab="${tab}" aria-selected="${index === 0}" class="${index ? '' : 'on'}">${tab}</button>`).join('')}
+    <nav class="tabs" aria-label="Admin navigation">
+      <div class="tabs-list" role="tablist" aria-label="Admin sections">
+        ${TABS.map((tab, index) => `<button id="tab-${tab}" role="tab" data-tab="${tab}" aria-controls="panel-${tab}" aria-selected="${index === 0}" tabindex="${index === 0 ? '0' : '-1'}" class="${index ? '' : 'on'}">${tab}</button>`).join('')}
+      </div>
       <a href="/" class="tabs-site">← Site</a>
       <button type="button" id="logout" class="ghost">Sign out</button>
     </nav>
-    ${TABS.map((tab, index) => `<section role="tabpanel" data-panel="${tab}" ${index ? 'hidden' : ''}></section>`).join('')}`;
+    ${TABS.map((tab, index) => `<section id="panel-${tab}" role="tabpanel" aria-labelledby="tab-${tab}" tabindex="0" data-panel="${tab}" ${index ? 'hidden' : ''}></section>`).join('')}`;
 
-  app.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((button) => {
-    button.onclick = () => {
-      app.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((other) => {
-        other.classList.toggle('on', other === button);
-        other.setAttribute('aria-selected', String(other === button));
-      });
-      app.querySelectorAll<HTMLElement>('[data-panel]').forEach((panel) => (panel.hidden = panel.dataset.panel !== button.dataset.tab));
-      history.replaceState(null, '', `#${button.dataset.tab!.toLowerCase()}`);
+  const tabs = [...app.querySelectorAll<HTMLButtonElement>('[data-tab]')];
+  const activate = (button: HTMLButtonElement) => {
+    tabs.forEach((other) => {
+      const selected = other === button;
+      other.classList.toggle('on', selected);
+      other.setAttribute('aria-selected', String(selected));
+      other.tabIndex = selected ? 0 : -1;
+    });
+    app.querySelectorAll<HTMLElement>('[data-panel]').forEach((panel) => (panel.hidden = panel.dataset.panel !== button.dataset.tab));
+    history.replaceState(null, '', `#${button.dataset.tab!.toLowerCase()}`);
+  };
+  tabs.forEach((button, index) => {
+    button.onclick = () => activate(button);
+    button.onkeydown = (event) => {
+      let target: number;
+      if (event.key === 'ArrowRight') target = (index + 1) % tabs.length;
+      else if (event.key === 'ArrowLeft') target = (index + tabs.length - 1) % tabs.length;
+      else if (event.key === 'Home') target = 0;
+      else if (event.key === 'End') target = tabs.length - 1;
+      else return;
+      event.preventDefault();
+      const next = tabs[target]!;
+      activate(next);
+      next.focus();
     };
   });
   $('#logout').onclick = () => logout();

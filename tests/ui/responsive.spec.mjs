@@ -163,3 +163,32 @@ test('home remains navigable without WebGL or JavaScript', async ({ browser, bas
     await expect(page.locator('#latest')).toBeInViewport();
   } finally { await noJs.close(); }
 });
+
+test('long content wraps and code and tables scroll within the article', async ({ page }) => {
+  await page.goto('/articles/connect-notion?lang=en');
+  const body = page.locator('.article-body');
+  await body.evaluate((node) => {
+    const paragraph = document.createElement('p');
+    paragraph.textContent = 'UnbrokenContent'.repeat(60) + ' 中文内容'.repeat(30);
+    node.append(paragraph);
+    const pre = document.createElement('pre');
+    const code = document.createElement('code');
+    code.textContent = 'x'.repeat(300);
+    pre.append(code); node.append(pre);
+  });
+  await noHorizontalOverflow(page);
+  const pre = body.locator('pre').last();
+  expect(await pre.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  const table = body.locator('.table-wrap');
+  await expect(table).toBeVisible();
+  expect(await table.evaluate((el) => el.clientWidth <= document.documentElement.clientWidth)).toBe(true);
+});
+
+test('search with no matches communicates the empty state', async ({ page }) => {
+  await page.goto('/search?lang=en');
+  await page.locator('input[name=q]').fill('no-such-article-4839');
+  await page.locator('form[role=search] button').click();
+  await expect(page.locator('[role=status]')).toContainText('0 results');
+  await expect(page.locator('.empty')).toBeVisible();
+  await noHorizontalOverflow(page);
+});

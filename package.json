@@ -13,7 +13,9 @@
     "build:static": "npm run build && node scripts/static-snapshot.mjs",
     "test:ui": "npm run build && npm run test:ui:prepare && npm run test:ui:built",
     "test:ui:prepare": "UI_TEST_SNAPSHOT=1 SITE_URL=https://example.invalid STATIC_DEMO=1 NOTION_TOKEN= NOTION_API_SECRET= NOTION_DATABASE_ID= DATABASE_ID= NOTION_DB_WRITING= node scripts/static-snapshot.mjs",
-    "test:ui:built": "playwright test"
+    "test:ui:built": "playwright test",
+    "test:visual:candidates": "playwright test --config=playwright.visual.config.mjs",
+    "test:visual:compare": "VISUAL_COMPARE=1 playwright test --config=playwright.visual.config.mjs"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.9",
@@ -25,6 +27,8 @@
     "three": "^0.171.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@docx-editor.dev/fonts-cjk": "2.33.0",
     "@fontsource-variable/noto-sans-sc": "^5.3.1",
     "@playwright/test": "^1.56.1",
     "@types/better-sqlite3": "^7.6.11",
