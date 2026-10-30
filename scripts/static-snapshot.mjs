@@ -3,7 +3,7 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
-import { mkdtemp, mkdir, cp, rm, writeFile, readFile, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, cp, rm, writeFile, readFile, readdir, stat, copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
@@ -68,7 +68,7 @@ const markDemoPreview = (doc) => {
       meta.parentNode = node; node.childNodes.push(meta);
     }
     if (node.tagName === 'body') {
-      const notice = parseFragment('<div role="status" data-demo-preview style="position:fixed;bottom:0;right:0;z-index:2147483647;background:#fff;color:#111;padding:8px 12px;font:600 14px/1.4 sans-serif;max-width:100%;box-sizing:border-box">DEMO PREVIEW · Notion not configured / 演示预览 · 未连接 Notion</div>').childNodes[0];
+      const notice = parseFragment('<div role="status" data-demo-preview>DEMO PREVIEW · Notion not configured / 演示预览 · 未连接 Notion</div>').childNodes[0];
       notice.parentNode = node; node.childNodes.push(notice);
     }
   });
@@ -96,6 +96,17 @@ const exportMedia = async (url) => {
   media.set(id, target);
   return target;
 };
+// Files uploaded in /admin (More covers, QR codes, the statue model) that a page references.
+const uploads = new Set();
+const exportUpload = async (pathname) => {
+  let name;
+  try { name = decodeURIComponent(pathname.slice('/uploads/'.length)); } catch { return; }
+  if (!name || name !== path.basename(name) || name.startsWith('.') || uploads.has(name)) return;
+  uploads.add(name);
+  const response = await get('/uploads/' + encodeURIComponent(name));
+  await mkdir(path.join(dest, 'uploads'), { recursive: true });
+  await writeFile(path.join(dest, 'uploads', name), Buffer.from(await response.arrayBuffer()));
+};
 try {
   // Remove previous output before any failure so it cannot be mistaken for a new build.
   await rm(dest, { recursive: true, force: true });
@@ -105,9 +116,20 @@ try {
   if ((!token || !database) && !demo) throw new Error('Set NOTION_TOKEN and NOTION_DATABASE_ID, or explicitly set STATIC_DEMO=1 for a demo.');
   if (demo && (token || database)) throw new Error('STATIC_DEMO cannot be combined with Notion credentials.');
   if (previewDemo) console.warn('Netlify Deploy Preview: no Notion credentials; generating labelled demo content, not production articles.');
-  // The root file is build input, not a published asset. An explicitly configured
+  // Admin-edited content for static builds: unzip the /admin content bundle
+  // into site-content/ (site-profile.json, more.json, uploads/). The UI test
+  // harness ignores a user's folder unless SITE_CONTENT_DIR is set explicitly.
+  const contentName = process.env.SITE_CONTENT_DIR || (process.env.UI_TEST_SNAPSHOT === '1' ? '' : 'site-content');
+  const contentDir = contentName ? path.resolve(root, contentName) : '';
+  const isDir = async (p) => { try { return (await stat(p)).isDirectory(); } catch { return false; } };
+  if (process.env.SITE_CONTENT_DIR && !(await isDir(contentDir))) throw new Error(`SITE_CONTENT_DIR is not a directory: ${contentDir}`);
+  const hasContent = contentDir ? await isDir(contentDir) : false;
+  const exists = async (p) => { try { return (await stat(p)).isFile(); } catch { return false; } };
+  // Profile precedence: SITE_PROFILE_PATH, site-content/site-profile.json, ./site-profile.json.
+  // The file is build input, not a published asset. An explicitly configured
   // path must exist; never silently ship defaults after a failed import.
-  const profileName = process.env.SITE_PROFILE_PATH || (process.env.UI_TEST_SNAPSHOT === '1' ? '' : 'site-profile.json');
+  const bundledProfile = hasContent && await exists(path.join(contentDir, 'site-profile.json')) ? path.join(contentDir, 'site-profile.json') : '';
+  const profileName = process.env.SITE_PROFILE_PATH || bundledProfile || (process.env.UI_TEST_SNAPSHOT === '1' ? '' : 'site-profile.json');
   const profilePath = profileName ? path.resolve(root, profileName) : '';
   let profile;
   try {
@@ -119,9 +141,32 @@ try {
   } catch (error) {
     if (error.code !== 'ENOENT' || process.env.SITE_PROFILE_PATH) throw new Error(`Cannot load site profile: ${error.message}`);
   }
+  // more.json: the bundle wrapper ({ format: 'red-room-more', document }) or a bare document.
+  let moreDocument;
+  const morePath = hasContent ? path.join(contentDir, 'more.json') : '';
+  if (morePath && await exists(morePath)) {
+    if ((await stat(morePath)).size > 8 * 1024 * 1024) throw new Error('more.json is larger than 8 MiB');
+    try {
+      const parsed = JSON.parse(await readFile(morePath, 'utf8'));
+      moreDocument = parsed && typeof parsed === 'object' && 'document' in parsed ? parsed.document : parsed;
+    } catch (error) { throw new Error(`Cannot read ${morePath}: ${error.message}`); }
+  }
+  // Uploaded files go into the snapshot server's upload directory, so the
+  // pages render exactly as on the Node server; referenced ones are exported below.
+  const uploadDir = path.join(temp, 'uploads');
+  await mkdir(uploadDir, { recursive: true });
+  let bundledUploads = 0;
+  if (hasContent && await isDir(path.join(contentDir, 'uploads'))) {
+    for (const entry of await readdir(path.join(contentDir, 'uploads'), { withFileTypes: true })) {
+      if (!entry.isFile() || entry.name.startsWith('.') || entry.name.endsWith('.part') || entry.name !== path.basename(entry.name)) continue;
+      await copyFile(path.join(contentDir, 'uploads', entry.name), path.join(uploadDir, entry.name));
+      bundledUploads++;
+    }
+  }
+  if (hasContent) console.log(`Using ${path.relative(root, contentDir) || contentDir}/: profile ${bundledProfile ? 'yes' : 'no'}, More page ${moreDocument ? 'yes' : 'no'}, ${bundledUploads} upload(s).`);
   child = spawn(process.execPath, [path.join(root, 'dist/server/entry.mjs')], {
     cwd: temp, env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), ADMIN_TOKEN: secret,
-      DB_PATH: path.join(temp, 'snapshot.db'), UPLOAD_DIR: path.join(temp, 'uploads'), MEDIA_CACHE_DIR: path.join(temp, 'media'), SYNC_TTL_SECONDS: '31536000',
+      DB_PATH: path.join(temp, 'snapshot.db'), UPLOAD_DIR: uploadDir, MEDIA_CACHE_DIR: path.join(temp, 'media'), SYNC_TTL_SECONDS: '31536000',
       NOTION_TOKEN: token || '', NOTION_DATABASE_ID: database || '', SITE_URL: siteUrl }, stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';
@@ -133,7 +178,11 @@ try {
   });
   if (profile) {
     const response = await fetch(base + '/api/settings/profile', { method: 'POST', headers: { ...admin, 'Content-Type': 'application/json' }, body: JSON.stringify(profile) });
-    if (!response.ok) throw new Error(`Site profile import failed (${response.status}); no snapshot published.`);
+    if (!response.ok) throw new Error(`Site profile import failed (${response.status}: ${(await response.json().catch(() => ({}))).error || 'unknown error'}); no snapshot published.`);
+  }
+  if (moreDocument !== undefined) {
+    const response = await fetch(base + '/api/more/document', { method: 'PUT', headers: { ...admin, 'Content-Type': 'application/json' }, body: JSON.stringify(moreDocument) });
+    if (!response.ok) throw new Error(`More page import failed (${response.status}: ${(await response.json().catch(() => ({}))).error || 'unknown error'}); no snapshot published.`);
   }
   if (!demo) {
     const schema = await (await get('/api/notion/schema', admin)).json();
@@ -176,9 +225,10 @@ try {
         const href = getAttr(node, 'href');
         const src = getAttr(node, 'src');
         if (node.tagName === 'form' && getAttr(node, 'action') === '/search') setAttr(node, 'action', langPrefix(lang) + '/search');
-        for (const [key, value] of [['href', href], ['src', src], ['content', getAttr(node, 'content')]]) {
+        for (const [key, value] of [['href', href], ['src', src], ['content', getAttr(node, 'content')], ['data-model', getAttr(node, 'data-model')]]) {
           if (!value) continue;
           let url; try { url = new URL(value, siteUrl); } catch { continue; }
+          if (url.origin === new URL(siteUrl).origin && /^\/uploads\/[^/]+$/.test(url.pathname)) changes.push(exportUpload(url.pathname));
           if (url.origin === new URL(siteUrl).origin && /^\/media\/notion\/[0-9a-f]{32}$/i.test(url.pathname)) changes.push(exportMedia(url.pathname).then((p) => setAttr(node, key, value.startsWith('http') ? siteUrl + p : p)));
         }
         if (!href || !href.startsWith('/') || href.startsWith('//')) return;
@@ -221,8 +271,18 @@ try {
   const urls = routes.filter((r) => r.target !== '/search' && !r.target.includes('/page/')).flatMap((r) => ['en', 'zh-CN'].map((lang) => `<url><loc>${xml(siteUrl + langPrefix(lang) + r.target)}</loc></url>`));
   await writeFile(path.join(dest, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`);
   await writeFile(path.join(dest, 'robots.txt'), previewDemo ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nDisallow: /admin\nDisallow: /api/\nSitemap: ${siteUrl}/sitemap.xml\n`);
-  await writeFile(path.join(dest, '_headers'), `/media/notion/*\n  Content-Security-Policy: default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox\n  X-Content-Type-Options: nosniff\n`);
-  console.log(`Static snapshot built: ${articles.length} published articles, ${media.size} media files.`);
+  // Same security headers as the Node server (server/http/security.ts), copied
+  // from what the snapshot server actually sent, so the two cannot drift apart.
+  const pageHeaders = (await get('/?lang=en')).headers;
+  const security = ['Content-Security-Policy', 'X-Content-Type-Options', 'Referrer-Policy', 'Permissions-Policy']
+    .map((name) => [name, pageHeaders.get(name)]);
+  if (security.some(([, value]) => !value)) throw new Error('The snapshot server did not send the expected security headers.');
+  await writeFile(path.join(dest, '_headers'), [
+    '/*', ...security.map(([name, value]) => `  ${name}: ${value}`),
+    '/media/notion/*', "  Content-Security-Policy: default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox",
+    '',
+  ].join('\n'));
+  console.log(`Static snapshot built: ${articles.length} published articles, ${media.size} media files, ${uploads.size} uploaded files.`);
 } catch (error) {
   await rm(dest, { recursive: true, force: true });
   throw error;

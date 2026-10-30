@@ -23,7 +23,7 @@ export interface Props {
     url: string;
     facts: { key: string; value: string }[];
   };
-  home: { latest: ArticleSummary[]; featured: ArticleSummary[]; topics: TagCount[]; total: number };
+  home: { latest: ArticleSummary[]; featured: ArticleSummary[]; topics: TagCount[]; total: number; model: string };
 }
 
 const { site, home } = Astro.props;
@@ -36,11 +36,12 @@ const nav = ['intro', 'latest', 'topics', 'more'] as const;
 ---
 <Base title={site.name} siteName={site.name} siteUrl={site.url} description={site.about} locale={locale}>
   <a class="skip" href="#content">{t.page.skip}</a>
-  <canvas id="gl" aria-hidden="true"></canvas>
+  <canvas id="gl" aria-hidden="true" data-model={home.model}></canvas>
+  <div class="scrim" aria-hidden="true"></div>
   <div id="neon" class="neon"><div class="sign" aria-hidden="true"><div class="cam"><canvas></canvas></div></div></div>
   <div class="grain" aria-hidden="true"></div>
   <div class="loader"><span class="count">000</span></div>
-  <noscript><style>.loader { display: none; }</style></noscript>
+  <noscript><link rel="stylesheet" href="/noscript.css" /></noscript>
 
   <header class="bar">
     <a class="brand" href="#home">{site.name}</a>
@@ -62,7 +63,9 @@ const nav = ['intro', 'latest', 'topics', 'more'] as const;
           <p class="site-about" lang={contentLang(site.about)}>{site.about}</p>
           <p class="lede" lang={contentLang(site.intro)}>{site.intro}</p>
         </div>
-        <dl class="facts">{site.facts.map((f) => <div><dt>{f.key}</dt><dd>{f.value}</dd></div>)}</dl>
+        {site.facts.length > 0 && (
+          <dl class="facts">{site.facts.map((f) => <div><dt lang={contentLang(f.key)}>{f.key}</dt><dd lang={contentLang(f.value)}>{f.value}</dd></div>)}</dl>
+        )}
       </div>
     </section>
 

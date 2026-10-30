@@ -72,6 +72,22 @@ export function createApiClient(options: ApiClientOptions = {}) {
     return (await response.json().catch(() => ({}))) as T;
   }
 
+  /** Authenticated binary download (same error handling as `request`). */
+  async function download(path: string): Promise<{ blob: Blob; filename: string }> {
+    const headers = new Headers();
+    const auth = token();
+    if (auth) headers.set('Authorization', `Bearer ${auth}`);
+    const response = await fetch(path, { headers });
+    if (!response.ok) {
+      const data = (await response.json().catch(() => ({}))) as Partial<ApiErrorBody>;
+      const error = new ApiError(response.status, data);
+      if (response.status === 401) options.onUnauthorized?.(error);
+      throw error;
+    }
+    const filename = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1] ?? 'download';
+    return { blob: await response.blob(), filename };
+  }
+
   const q = (params: Record<string, string | number | boolean | undefined>) => {
     const search = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) if (value !== undefined && value !== '') search.set(key, String(value));
@@ -130,6 +146,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     settings: {
       get: () => request<SettingsResponse>('/api/settings'),
+      /** ZIP of profile + More page + its uploads + statue, for static builds. */
+      contentBundle: () => download('/api/content-bundle'),
       importProfile: (profile: SiteProfileFile) => request<SettingsResponse>('/api/settings/profile', { method: 'POST', json: profile }),
       update: (values: Partial<SettingValues>) =>
         request<SettingsResponse>('/api/settings', { method: 'PATCH', json: values }),

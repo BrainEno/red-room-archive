@@ -1,0 +1,12 @@
+/* Offline site profile editor (external so the site's Content-Security-Policy applies). */
+:root{color-scheme:dark;font:16px/1.55 system-ui,sans-serif;background:#0a0506;color:#f1eee6}
+body{max-width:780px;margin:0 auto;padding:24px}
+a{color:#e7a395}
+label{display:block;margin:16px 0}
+input,textarea,button{font:inherit;color:inherit;background:#1c1415;border:1px solid #aaa;padding:10px;box-sizing:border-box}
+input,textarea{display:block;width:100%;margin-top:6px}
+button{cursor:pointer;margin:4px}
+button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid #e7a395;outline-offset:3px}
+.notice{border-left:3px solid #e7a395;padding-left:14px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.error{color:#ffb3a5}

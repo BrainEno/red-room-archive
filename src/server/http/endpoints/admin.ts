@@ -15,6 +15,7 @@ import type {
 import { describeSchema } from '../../notion/mapper.ts';
 import { notion, syncArticles, warmBodies } from '../../services/articles.ts';
 import { adminToken, authenticate, requestPeer, requireAdmin } from '../../services/auth.ts';
+import { contentBundle } from '../../services/bundle.ts';
 import { adminSettings, importSiteProfile, notionReady, updateSettings } from '../../services/settings.ts';
 import { syncStatus } from '../../services/status.ts';
 import { NO_STORE, json, readJson, route, truthy } from '../respond.ts';
@@ -56,6 +57,23 @@ export const writeSiteProfile = route(async (context) => {
   requireAdmin(context.request, requestPeer(context));
   importSiteProfile(await readJson(context.request));
   return json(settingsBody(), { headers: NO_STORE });
+});
+
+/**
+ * GET /api/content-bundle — ZIP of the admin-edited content (site profile,
+ * More page, its uploads and the statue model) for static builds.
+ */
+export const downloadContentBundle = route((context) => {
+  requireAdmin(context.request, requestPeer(context));
+  const bundle = contentBundle();
+  return new Response(bundle.stream(), {
+    headers: {
+      ...NO_STORE,
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${bundle.filename}"`,
+      'X-Bundle-Uploads': String(bundle.uploads.length),
+    },
+  });
 });
 
 /* ── Sync ───────────────────────────────────────────────────────────── */

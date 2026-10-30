@@ -15,6 +15,8 @@ import { config } from '../config.ts';
 
 /** Name the 3D statue model is stored under (see ui/scripts/site/scene.ts). */
 export const MODEL_NAME = 'venus.glb';
+/** The statue shipped in public/models (meshopt-compressed with gltfpack). */
+export const BUNDLED_MODEL_URL = '/models/venus.glb';
 
 const MIME: Record<string, string> = {
   '.mp3': 'audio/mpeg',
@@ -248,3 +250,13 @@ export function servedFile(rawName: string): ServedFile | null {
 
 export const readRange = (file: string, start?: number, end?: number) =>
   Readable.toWeb(createReadStream(file, start === undefined ? undefined : { start, end })) as ReadableStream;
+
+/**
+ * The statue the homepage should load: an uploaded model (versioned by mtime
+ * so a replacement is never served from cache) or the bundled one. Deciding on
+ * the server avoids a 404 request on every visit when nothing was uploaded.
+ */
+export function statueModelUrl(): string {
+  const file = servedFile(MODEL_NAME);
+  return file ? `${publicUrl(MODEL_NAME)}?v=${file.mtime}` : BUNDLED_MODEL_URL;
+}

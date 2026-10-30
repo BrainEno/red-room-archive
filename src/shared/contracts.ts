@@ -209,7 +209,9 @@ export interface SiteResponse {
   about: string;
   intro: string;
   tagline: string;
-  /** Language of `about` / `intro` / `tagline` (`?lang=en|zh-CN`, default `en`). */
+  /** Homepage facts row (empty when hidden). */
+  facts: { key: string; value: string }[];
+  /** Language of `about` / `intro` / `tagline` / `facts` (`?lang=en|zh-CN`, default `en`). */
   locale: 'en' | 'zh-CN';
   notionConfigured: boolean;
   /** True while the built-in demo articles are shown (Notion not configured). */
@@ -260,6 +262,8 @@ export type SettingKey =
   | 'site_intro_zh'
   | 'site_tagline'
   | 'site_tagline_zh'
+  | 'site_facts'
+  | 'site_facts_zh'
   | 'tag_glossary'
   | 'NOTION_TOKEN'
   | 'NOTION_DATABASE_ID';

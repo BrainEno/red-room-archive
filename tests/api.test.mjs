@@ -386,3 +386,69 @@ test('site profile import is authenticated, public-only, atomic and preserves No
   assert.ok(!JSON.stringify(profile).includes('secret_env_token'));
   assert.equal((await call(admin.writeSiteProfile, { method: 'POST', token: TOKEN, json: makeProfile(before.data.values) })).status, 200);
 });
+
+test('homepage facts: editable per language, "-" hides, invalid text is rejected', async () => {
+  const defaults = queries.getSite('en').facts;
+  assert.ok(defaults.length > 0, 'built-in facts by default');
+  const initial = await call(admin.readSettings, { token: TOKEN });
+  assert.match(initial.data.values.site_facts, /^Based in: /, 'admin shows the defaults as editable text');
+  assert.match(initial.data.values.site_facts_zh, /^所在：/);
+
+  const saved = await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_facts: 'Based in: Taipei\r\nOpen: 10:00–18:00', site_facts_zh: '-' } });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(queries.getSite('en').facts, [{ key: 'Based in', value: 'Taipei' }, { key: 'Open', value: '10:00–18:00' }]);
+  assert.deepEqual(queries.getSite('zh-CN').facts, [], '"-" hides the row');
+  assert.deepEqual((await call(pub.site, { path: '/api/site' })).data.facts[0], { key: 'Based in', value: 'Taipei' });
+
+  const bad = await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_facts: 'no separator', site_name: 'Should not save' } });
+  assert.equal(bad.status, 400);
+  assert.match(bad.data.error, /site_facts/);
+  assert.notEqual((await call(admin.readSettings, { token: TOKEN })).data.values.site_name, 'Should not save', 'validated before any write');
+
+  // Saving the default text (or clearing) removes the override.
+  await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_facts: initial.data.values.site_facts, site_facts_zh: '' } });
+  assert.deepEqual(queries.getSite('en').facts, defaults);
+  assert.ok(queries.getSite('zh-CN').facts.length > 0);
+});
+
+test('content bundle: admin-only ZIP with profile, saved More page, its uploads and the model', async () => {
+  const { readZip } = await import('./fixtures/zip-reader.mjs');
+  const more = await import('../src/server/http/endpoints/more.ts');
+  assert.equal((await call(admin.downloadContentBundle)).status, 401);
+
+  const cover = await call(files.upload, {
+    method: 'POST', token: TOKEN, path: '/api/uploads?name=Zine%20Cover.png',
+    body: new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])]).stream(), headers: { 'content-type': 'image/png' },
+  });
+  assert.equal(cover.status, 201);
+  const document = { intro: { en: 'Hello', 'zh-CN': '' }, channels: [],
+    publications: [{ title: { en: 'Zine', 'zh-CN': '' }, cover: cover.data.url }, { title: { en: 'Remote', 'zh-CN': '' }, cover: 'https://example.com/c.jpg' }] };
+  assert.equal((await call(more.writeMoreDocument, { method: 'PUT', token: TOKEN, json: document })).status, 200);
+  await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_facts: 'Based in: Taipei' } });
+
+  const response = await call(admin.downloadContentBundle, { token: TOKEN });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'application/zip');
+  assert.match(response.headers.get('content-disposition'), /attachment; filename="red-room-content-\d{8}\.zip"/);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const zip = readZip(response.bytes);
+  assert.deepEqual([...zip.keys()].sort(), ['README.txt', 'more.json', 'site-profile.json', `uploads/${cover.data.name}`, 'uploads/venus.glb'].sort());
+
+  const profile = JSON.parse(zip.get('site-profile.json'));
+  assert.equal(profile.version, 2);
+  assert.equal(profile.settings.site_facts, 'Based in: Taipei');
+  assert.doesNotMatch(zip.get('site-profile.json').toString(), /secret_env_token|NOTION/);
+  const moreFile = JSON.parse(zip.get('more.json'));
+  assert.equal(moreFile.format, 'red-room-more');
+  assert.equal(moreFile.document.publications[0].cover, cover.data.url);
+  assert.deepEqual([...zip.get(`uploads/${cover.data.name}`)], [0x89, 0x50, 0x4e, 0x47]);
+  await call(more.resetMoreDocument, { method: 'DELETE', token: TOKEN });
+  await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_facts: '' } });
+});
+
+test('homepage statue: the uploaded model (versioned) or the bundled one, never a guaranteed 404', async () => {
+  // The uploads test above stored venus.glb.
+  assert.match((await queries.getHome()).model, /^\/uploads\/venus\.glb\?v=\d+$/);
+  assert.equal((await call(files.remove, { method: 'DELETE', token: TOKEN, params: { name: 'venus.glb' } })).status, 204);
+  assert.equal((await queries.getHome()).model, '/models/venus.glb');
+});

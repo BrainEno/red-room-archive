@@ -67,6 +67,8 @@ interface ArticleSummary {
 | POST | `/api/auth` | `{ token }` 校验登录（公开，带限流） | `AuthResponse` |
 | GET | `/api/settings` | 设置（token 打码）+ 同步状态 | `SettingsResponse` |
 | PATCH | `/api/settings` | 局部更新。空字符串清除普通设置的覆盖值；空或打码的 Notion token 表示保持不变；`NOTION_DATABASE_ID` 可传 id 或数据库链接。改变 token/数据库会清空文章缓存 | `SettingsResponse` |
+| POST | `/api/settings/profile` | 导入站点资料 JSON（`red-room-site-profile`，版本 1 或 2），只替换公开字段，不动 Notion 配置 | `SettingsResponse` |
+| GET | `/api/content-bundle` | 下载内容包 ZIP：`site-profile.json`、`more.json`（保存过才有）、`uploads/`（“更多”页面引用的文件 + 雕像模型）、`README.txt`。供静态构建使用（解压到 `site-content/`） | `application/zip` |
 | GET | `/api/sync` | 同步状态 | `SyncStatusResponse` |
 | POST | `/api/sync` | 立即同步。`?full=1` 成功取回文章列表后清空正文与图片缓存；`?bodies=1` 同步后预取所有缺失正文 | `SyncResponse` |
 | GET | `/api/notion/schema` | 数据库的列、每个文章字段对应到哪一列、警告 | `NotionSchemaResponse` |
@@ -106,8 +108,9 @@ interface MoreDocument {
 校验失败返回 `400 bad_request`，`details.field` 是出错字段的路径（如 `publications.0.link`、`channels.1.qr`），后台据此定位输入框。
 `PUT` 也接受宽松写法：字符串表示两种语言相同；`excerpt` 可以是段落数组；`link` 可以是 `{ href, label }`（与 `src/content/more.ts` 的写法一致）。
 
-`SettingKey`：`site_name` `site_email` `site_about` `site_intro` `site_about_zh` `site_intro_zh` `site_tagline` `site_tagline_zh` `tag_glossary` `NOTION_TOKEN` `NOTION_DATABASE_ID`。
+`SettingKey`：`site_name` `site_email` `site_about` `site_intro` `site_about_zh` `site_intro_zh` `site_tagline` `site_tagline_zh` `site_facts` `site_facts_zh` `tag_glossary` `NOTION_TOKEN` `NOTION_DATABASE_ID`。
 `tag_glossary` 是多行文本，一行一组同义标签（`Fiction = 小说`），叠加在内置对照表 `src/content/tags.ts` 之上。
+`site_facts` / `site_facts_zh` 是首页信息栏：每行一条 `标签: 内容`（第一个 `:` 或 `：` 分隔，最多 6 条，标签 ≤ 40 字、内容 ≤ 200 字），格式不对返回 `400`；空 = 内置默认，`-` = 隐藏。`GET /api/site` 的 `facts` 是解析后的结果。
 `*_zh` 是中文版本；某种语言没有覆盖值时使用 `src/content/site.ts` 里该语言的内置文案（不会跨语言回退）。保存的值等于默认值时会删除该覆盖。
 
 ## 从 v1 迁移
