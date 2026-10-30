@@ -45,5 +45,5 @@ export async function search(query: string, limit = 20, locale: Locale = DEFAULT
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || newestFirst(a.article, b.article));
 
-  return { query: clean, total: scored.length, articles: scored.slice(0, limit).map((entry) => presentArticle(entry.article, (names) => tags.names(names, lang))) };
+  return { query: clean, total: scored.length, articles: scored.slice(0, limit).map((entry) => presentArticle(entry.article, (names) => tags.topics(names, lang))) };
 }

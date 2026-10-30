@@ -105,7 +105,8 @@ test('covered and text-only articles render correctly in the built site', async 
     assert.match(home, /中文标语/);
     const topicsZh = home.match(/<section id="topics"[\s\S]*?<\/section>/)?.[0];
     assert.ok(topicsZh);
-    assert.match(topicsZh, /<a class="row" href="\/articles"><span class="n">00<\/span><span class="t">全部<\/span>/);
+    assert.match(topicsZh, /<a class="row" href="\/zh-CN\/articles"><span class="n">00<\/span><span class="t">全部<\/span>/);
+    assert.match(topicsZh, /href="\/zh-CN\/topics\/fiction"/);
     const englishHome = await get('/?lang=en');
     assert.match(englishHome, /About in English/);
     assert.match(englishHome, /English intro/);
@@ -114,9 +115,9 @@ test('covered and text-only articles render correctly in the built site', async 
     assert.ok(topicsEn);
     assert.match(topicsEn, /<a class="row" href="\/articles"><span class="n">00<\/span><span class="t">All<\/span>/);
     assert.doesNotMatch(englishHome, /中文标语/);
-    const listing = await get('/articles?lang=zh-CN');
-    const plain = entry(listing, '/articles/text-only');
-    const covered = entry(listing, '/articles/first-light');
+    const listing = await get('/zh-CN/articles');
+    const plain = entry(listing, '/zh-CN/articles/text-only');
+    const covered = entry(listing, '/zh-CN/articles/first-light');
     assert.ok(plain && covered, 'both kinds of entry appear together');
     assert.doesNotMatch(plain, /has-cover|article-cover|<img/);
     assert.match(plain, /无图文章 &lt;notes&gt;/);
@@ -127,11 +128,59 @@ test('covered and text-only articles render correctly in the built site', async 
     assert.match(covered, /has-cover/);
     assert.match(covered, /<img class="article-cover"[^>]*alt=""/);
     assert.match(covered, /article-arrow/);
-    const minimal = entry(listing, '/articles/no-summary');
+    const minimal = entry(listing, '/zh-CN/articles/no-summary');
     assert.ok(minimal);
     assert.doesNotMatch(minimal, /article-excerpt|article-tags|article-cover/);
     assert.match(minimal, /LongUnbrokenEnglishTitle/);
     assert.match(minimal, /article-arrow/);
+    // Path-based languages and topics (src/middleware.ts, shared/i18n.ts, shared/routes.ts).
+    const raw = (url, headers = {}) => fetch(`http://127.0.0.1:${port}${url}`, { redirect: 'manual', headers });
+    const moved = async (url, location, status, headers) => {
+      const response = await raw(url, headers);
+      assert.equal(response.status, status, `${url} status`);
+      assert.equal(response.headers.get('location'), location, `${url} location`);
+      return response;
+    };
+    const chosen = await moved('/articles?lang=zh-CN', '/zh-CN/articles', 302);
+    assert.match(chosen.headers.get('set-cookie') ?? '', /^lang=zh-CN; Path=\/;/);
+    await moved('/zh-CN/search?q=x&lang=en', '/search?q=x', 302);
+    await moved('/articles', '/zh-CN/articles', 302, { Cookie: 'lang=zh-CN' });
+    await moved('/', '/zh-CN', 302, { 'Accept-Language': 'zh-TW,zh;q=0.9' });
+    assert.equal((await raw('/articles', { 'Accept-Language': 'zh-CN' })).status, 200, 'only / follows Accept-Language');
+    assert.equal((await raw('/zh-CN/articles', { Cookie: 'lang=en' })).status, 200, 'the path wins over the cookie');
+    const zhIndex = await get('/zh-CN/articles');
+    assert.match(zhIndex, /<html lang="zh-CN"/);
+    assert.match(zhIndex, /rel="canonical" href="https:\/\/archive\.test\/zh-CN\/articles"/);
+    assert.match(zhIndex, /hreflang="en" href="https:\/\/archive\.test\/articles"/);
+    assert.match(zhIndex, /href="\/articles\?lang=en" hreflang="en"/);
+    assert.match(zhIndex, /href="\/zh-CN\/topics\/fiction"/);
+    assert.match(zhIndex, /href="\/zh-CN\/topics"/);
+    assert.match(zhIndex, /href="\/zh-CN\/archive"/);
+    // Old query URLs and every name of a topic land on the one topic path.
+    await moved(`/articles?tag=${encodeURIComponent('小说')}`, `/topics/${encodeURIComponent('小说')}`, 301);
+    await moved(`/topics/${encodeURIComponent('小说')}`, '/topics/fiction', 301);
+    await moved('/zh-CN/topics/Fiction', '/zh-CN/topics/fiction', 301);
+    await moved(`/zh-CN/topics/${encodeURIComponent('小说')}`, '/zh-CN/topics/fiction', 301);
+    await moved('/zh-CN/works/first-light', '/zh-CN/articles/first-light', 301);
+    await moved('/zh-CN/articles?page=2', '/zh-CN/articles/page/2', 301);
+    await moved('/articles/page/1', '/articles', 301);
+    await moved('/zh-CN/posts/tag/fiction', '/zh-CN/topics/fiction', 301);
+    const topicPage = await get('/topics/fiction');
+    assert.ok(entry(topicPage, '/articles/text-only'), 'a 小说-tagged article is under Fiction');
+    assert.match(topicPage, /<h1[^>]*>#Fiction<\/h1>/);
+    assert.match(await get('/zh-CN/topics/fiction'), /<h1[^>]*>#小说<\/h1>/);
+    const topicIndex = await get('/topics');
+    assert.match(topicIndex, /href="\/topics\/fiction"[\s\S]*?Fiction[\s\S]*?3 articles/);
+    const archivePage = await get('/zh-CN/archive');
+    assert.match(archivePage, /id="y2020"/);
+    assert.match(archivePage, /href="\/zh-CN\/articles\/text-only"/);
+    for (const missing of ['/topics/no-such-topic', '/zh-CN/topics/essay', '/articles/page/9', '/articles/page/02', '/zh-CN/api/site', '/zh-CN/admin']) {
+      assert.equal((await raw(missing)).status, 404, missing);
+    }
+    const api = await raw('/api/tags?lang=zh-CN');
+    assert.equal(api.status, 200, 'APIs keep ?lang= and are never redirected');
+    assert.equal((await api.json()).tags[0].slug, 'fiction');
+    assert.match(await get('/zh-CN/search'), /action="\/zh-CN\/search"/);
     const search = await get('/search?q=%E6%97%A0%E5%9B%BE');
     assert.match(entry(search, '/articles/text-only'), /article-arrow/);
     const detail = await get('/articles/text-only');
@@ -183,7 +232,7 @@ test('covered and text-only articles render correctly in the built site', async 
     const emptyHome = await get('/?lang=zh-CN');
     const emptyTopics = emptyHome.match(/<section id="topics"[\s\S]*?<\/section>/)?.[0];
     assert.ok(emptyTopics);
-    assert.match(emptyTopics, /<a class="row" href="\/articles"><span class="n">00<\/span><span class="t">全部<\/span>/, 'All remains available when there are no topics');
+    assert.match(emptyTopics, /<a class="row" href="\/zh-CN\/articles"><span class="n">00<\/span><span class="t">全部<\/span>/, 'All remains available when there are no topics');
   } finally {
     if (child && child.exitCode === null) { child.kill(); await once(child, 'exit'); }
     await new Promise((resolve) => notion.close(resolve));

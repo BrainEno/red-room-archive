@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-for (const route of ['/articles?lang=en', '/articles/connect-notion?lang=zh-CN', '/search?lang=en', '/search?q=no-such-article&lang=en', '/more?lang=zh-CN', '/admin', 'http://127.0.0.1:4179/zh-CN/articles', 'http://127.0.0.1:4179/profile-editor.html']) {
+for (const route of ['/articles', '/zh-CN/articles/connect-notion', '/search', '/search?q=no-such-article', '/zh-CN/more', '/topics', '/zh-CN/archive', '/admin', 'http://127.0.0.1:4179/zh-CN/articles', 'http://127.0.0.1:4179/profile-editor.html']) {
   test(`automated accessibility scan: ${route}`, async ({ page }) => {
     await page.goto(route);
     if (route === '/admin') await expect(page.locator('#tk')).toBeVisible();
@@ -11,9 +11,9 @@ for (const route of ['/articles?lang=en', '/articles/connect-notion?lang=zh-CN',
 }
 
 test('home and article skip links move keyboard focus to main content', async ({ page }) => {
-  for (const route of ['/?lang=en', '/articles?lang=en']) {
+  for (const route of ['/', '/articles']) {
     await page.goto(route);
-    if (route.startsWith('/?')) await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
+    if (route === '/') await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
     await page.keyboard.press('Tab');
     await expect(page.locator('.skip')).toBeFocused();
     await page.keyboard.press('Enter');
@@ -68,10 +68,10 @@ test('publication actions are separate from the disclosure and restore focus aft
 
 test('focused or hovered links retain text contrast', async ({ page }) => {
   for (const [route, selector] of [
-    ['/articles/connect-notion?lang=en', '.prose .kicker a'],
-    ['/more?lang=en', '.mp-index a'],
-    ['/articles?lang=en', '.site-footer a[href^="mailto:"]'],
-    ['/articles/connect-notion?lang=en', '.prevnext a'],
+    ['/articles/connect-notion', '.prose .kicker a'],
+    ['/more', '.mp-index a'],
+    ['/articles', '.site-footer a[href^="mailto:"]'],
+    ['/articles/connect-notion', '.prevnext a'],
   ]) {
     await page.goto(route);
     await page.locator(selector).first().hover();

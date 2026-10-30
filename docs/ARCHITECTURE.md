@@ -7,7 +7,7 @@ src/
 ├── shared/      线上契约：API 类型（contracts.ts）、公开 URL 规则（routes.ts）、语言协商（i18n.ts）；零运行时依赖
 ├── core/        纯函数：Notion 块 → HTML（blocks.ts）、富文本类型、URL 安全、slug、文本与日期格式、排序（order.ts）、中英标签归并（tags.ts）、“更多”页面文档的校验与按语言取值（more.ts）、媒体识别、错误类型、.env
 ├── content/     站点文案（en / zh-CN 两份）与默认值、“更多”页面的默认示例（more.ts）、内置标签对照（tags.ts）、演示文章（Notion 块格式）
-├── middleware.ts 决定每个请求的语言（?lang → cookie → Accept-Language），写 cookie、Content-Language、Vary
+├── middleware.ts 每个请求的语言：页面看路径（/zh-CN/x rewrite 到 /x，写 locals.locale / locals.path），?lang、cookie、Accept-Language 只触发跳转；API 仍按 ?lang → cookie → Accept-Language；另写安全头、Content-Language、Vary
 ├── server/      后端（只在 Node 里运行）
 │   ├── config.ts            环境变量 → 运行配置
 │   ├── db/                  SQLite 连接 + 版本化迁移 + repository（只有 SQL）
@@ -53,7 +53,7 @@ notion/client.ts 没有 PATCH/PUT/DELETE，唯一的 POST 是 databases/:id/quer
 
 ```
 GET /articles/first-light
-  middleware.ts                             Astro.locals.locale = en | zh-CN
+  middleware.ts                             Astro.locals.locale = en（/zh-CN/articles/first-light 则 rewrite 到同一路由，locale = zh-CN）
   pages/articles/[slug].astro
   → server/queries.ts getArticle
     → services/articles.ts findArticle      ensureFresh：从未同步 → 等一次同步；过期 → 后台刷新，先返回缓存

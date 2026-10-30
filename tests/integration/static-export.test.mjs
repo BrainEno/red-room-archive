@@ -7,7 +7,6 @@ import { readFile, access, mkdtemp, mkdir, writeFile, rm } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { makeProfile, PROFILE_KEYS } from '../../public/profile-format.js';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
 import { API, DB, FILES, ID, compact, createNotionMock } from '../fixtures/notion-mock.mjs';
 
 async function run(env) {
@@ -61,9 +60,16 @@ test('static snapshot exports only published Notion content, media and bilingual
     assert.ok((await readFile(path.join('static-dist', mediaPath))).length > 100);
     assert.match(await read('zh-CN/search/index.html'), /action="\/zh-CN\/search"/);
     assert.match(await read('articles/page/2/index.html'), /article-entry/);
-    const topic = (key) => 't-' + createHash('sha256').update(key).digest('hex');
-    assert.match(await read(`topics/${topic('fiction')}/page/2/index.html`), /article-entry/);
-    assert.match(await read(`topics/${topic('../unsafe')}/index.html`), /Extra 0/);
+    assert.match(await read('topics/fiction/page/2/index.html'), /article-entry/);
+    assert.match(await read('zh-CN/topics/fiction/index.html'), /href="\/zh-CN\/topics\/fiction\/page\/2"/);
+    // Tags are arbitrary user input: the slug keeps letters and digits only.
+    assert.match(await read('topics/unsafe/index.html'), /Extra 0/);
+    assert.match(await read('topics/index.html'), /href="\/topics\/fiction"/);
+    assert.match(await read('zh-CN/archive/index.html'), /href="\/zh-CN\/articles\/extra-0"/);
+    const switcher = await read('zh-CN/articles/page/2/index.html');
+    assert.match(switcher, /href="\/articles\/page\/2" hreflang="en"/);
+    assert.doesNotMatch(switcher, /\?lang=/, 'a static host cannot remember ?lang=');
+    assert.match(switcher, /rel="canonical" href="https:\/\/archive\.test\/zh-CN\/articles\/page\/2"/);
     const home = await read('index.html');
     assert.match(home, /id="home"/);
     assert.match(home, /href="\/articles\/extra-0"/);

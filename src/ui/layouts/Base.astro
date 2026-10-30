@@ -23,10 +23,11 @@ export interface Props {
 
 const { title, description = '', siteUrl = '', siteName = '', bodyClass = '', noindex = false, image = null, type = 'website', locale = DEFAULT_LOCALE } = Astro.props;
 
-/** This page in a given language: the default language has the clean URL, others `?lang=`. */
+/** This page in a given language: the default language has the clean URL, others their prefix (`/zh-CN/…`). */
+const neutralPath = Astro.locals.path ?? Astro.url.pathname;
 const localized = (code: Locale) => {
   if (!siteUrl) return undefined;
-  return new URL(localizedPath(Astro.url.pathname, code), siteUrl).toString();
+  return new URL(localizedPath(neutralPath, code), siteUrl).toString();
 };
 const canonical = localized(locale);
 const ogImage = image && siteUrl ? new URL(image, siteUrl).toString() : image;

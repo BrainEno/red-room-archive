@@ -21,7 +21,7 @@ import { presentArticle, presentArticleDetail } from './presenters.ts';
 import { articleBody, featuredArticles, findArticle, listArticles, neighbours } from './services/articles.ts';
 import { moreFor } from './services/more.ts';
 import { search } from './services/search.ts';
-import { filterByTag, tagIndex, tagLangOf, tagNamer, topicCounts } from './services/tags.ts';
+import { tagIndex, tagLangOf, tagNamer, topicCounts } from './services/tags.ts';
 import { siteProfile } from './services/settings.ts';
 import { statueModelUrl } from './storage/uploads.ts';
 
@@ -72,35 +72,88 @@ export async function getHome(locale: Locale = DEFAULT_LOCALE): Promise<HomeData
   };
 }
 
-const ARTICLES_PAGE_SIZE = 20;
+export const ARTICLES_PAGE_SIZE = 20;
 
 export interface ArticlesPage {
   articles: ArticleSummary[];
   total: number;
   page: number;
   pages: number;
-  /** The selected topic, labelled in the page language (`?tag=小说` and `?tag=fiction` give the same topic). */
-  tag?: { key: string; name: string };
+  /** The selected topic, labelled in the page language. */
+  tag?: { key: string; slug: string; name: string };
   tags: TagCount[];
 }
 
-export async function getArticles(options: { page?: number; tag?: string; locale?: Locale } = {}): Promise<ArticlesPage> {
-  const page = Math.max(1, Math.floor(options.page ?? 1));
+const paginate = <T,>(rows: T[], page: number) => ({
+  rows: rows.slice((page - 1) * ARTICLES_PAGE_SIZE, page * ARTICLES_PAGE_SIZE),
+  pages: Math.max(1, Math.ceil(rows.length / ARTICLES_PAGE_SIZE)),
+});
+
+const pageNumber = (page: number | undefined) => Math.max(1, Math.floor(Number(page) || 1));
+
+/** `/articles`, `/articles/page/N`: every article, newest first. */
+export async function getArticles(options: { page?: number; locale?: Locale } = {}): Promise<ArticlesPage> {
+  const page = pageNumber(options.page);
   const locale = options.locale ?? DEFAULT_LOCALE;
-  const query = options.tag?.trim() || undefined;
   const all = await listArticles();
-  const filtered = filterByTag(all, query);
-  const names = tagNamer(all, locale);
   const index = tagIndex(all);
-  const topic = query ? index.group(query) : undefined;
+  const names = tagNamer(all, locale, index);
+  const { rows, pages } = paginate(all, page);
+  return { articles: rows.map((row) => presentArticle(row, names)), total: all.length, page, pages, tags: index.counts(all, tagLangOf(locale)) };
+}
+
+export type TopicPage =
+  | ({ status: 'ok' } & ArticlesPage & { tag: { key: string; slug: string; name: string } })
+  /** The slug is another name of a topic (`小说` for Fiction): redirect to the canonical one. */
+  | { status: 'redirect'; slug: string }
+  | { status: 'missing' };
+
+/** `/topics/<slug>`, `/topics/<slug>/page/N`. Unknown topics and topics without articles are missing. */
+export async function getTopic(options: { slug: string; page?: number; locale?: Locale }): Promise<TopicPage> {
+  const page = pageNumber(options.page);
+  const locale = options.locale ?? DEFAULT_LOCALE;
+  const all = await listArticles();
+  const index = tagIndex(all);
+  const found = index.bySlug(String(options.slug ?? '').trim());
+  if (!found) return { status: 'missing' };
+  const slug = index.slug(found.group);
+  const filtered = all.filter((article) => article.tags.some((tag) => index.group(tag).key === found.group.key));
+  if (!filtered.length) return { status: 'missing' };
+  if (!found.canonical) return { status: 'redirect', slug };
+  const names = tagNamer(all, locale, index);
+  const lang = tagLangOf(locale);
+  const { rows, pages } = paginate(filtered, page);
   return {
-    articles: filtered.slice((page - 1) * ARTICLES_PAGE_SIZE, page * ARTICLES_PAGE_SIZE).map((row) => presentArticle(row, names)),
+    status: 'ok',
+    articles: rows.map((row) => presentArticle(row, names)),
     total: filtered.length,
     page,
-    pages: Math.max(1, Math.ceil(filtered.length / ARTICLES_PAGE_SIZE)),
-    tag: topic ? { key: topic.key, name: index.label(topic, tagLangOf(locale)) } : undefined,
-    tags: topicCounts(all, locale),
+    pages,
+    tag: { key: found.group.key, slug, name: index.label(found.group, lang) },
+    tags: index.counts(all, lang),
   };
+}
+
+export interface ArchiveYear {
+  /** `2026`, or '' for articles without a usable date. */
+  year: string;
+  articles: ArticleSummary[];
+}
+
+/** `/archive`: every article on one page, grouped by year (newest first, as in Notion). */
+export async function getArchive(locale: Locale = DEFAULT_LOCALE): Promise<{ total: number; years: ArchiveYear[] }> {
+  const all = await listArticles();
+  const names = tagNamer(all, locale);
+  const years: ArchiveYear[] = [];
+  for (const row of all) {
+    const year = /^\d{4}/.test(row.date) ? row.date.slice(0, 4) : '';
+    let group = years.find((entry) => entry.year === year);
+    if (!group) years.push((group = { year, articles: [] }));
+    group.articles.push(presentArticle(row, names));
+  }
+  // Undated last; years in descending order even if Notion dates are mixed.
+  years.sort((a, b) => (a.year === b.year ? 0 : !a.year ? 1 : !b.year ? -1 : a.year < b.year ? 1 : -1));
+  return { total: all.length, years };
 }
 
 export interface ArticleView {
@@ -132,7 +185,7 @@ export async function getRecentArticles(limit = 50): Promise<ArticleSummary[]> {
   return all.slice(0, limit).map((row) => presentArticle(row, names));
 }
 
-/** Every topic, for the sitemap (one URL per topic, by key). */
+/** Every topic with its slug and count, most used first (/topics, the sitemap). */
 export async function getTopics(locale: Locale = DEFAULT_LOCALE): Promise<TagCount[]> {
   return topicCounts(await listArticles(), locale);
 }

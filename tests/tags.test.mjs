@@ -24,8 +24,8 @@ test('the reported bug: Fiction and 小说 are one topic, shown once per languag
   const articles = [{ tags: ['Fiction'] }, { tags: ['小说'] }, { tags: ['小说', 'Fiction'] }, { tags: ['Notion'] }];
   const index = createTagIndex([BUILTIN_TAG_GLOSSARY], articles.map((a) => a.tags));
   assert.deepEqual(index.counts(articles, 'zh'), [
-    { key: 'fiction', name: '小说', count: 3 },
-    { key: 'notion', name: 'Notion', count: 1 },
+    { key: 'fiction', slug: 'fiction', name: '小说', count: 3 },
+    { key: 'notion', slug: 'notion', name: 'Notion', count: 1 },
   ]);
   assert.deepEqual(index.counts(articles, 'en').map((t) => t.name), ['Fiction', 'Notion']);
   assert.deepEqual(index.names(['小说', 'Fiction'], 'en'), ['Fiction'], 'one name per topic on an article');
@@ -66,4 +66,26 @@ test('built-in glossary: every line parses and no name belongs to two topics', (
       seen.set(key, group.key);
     }
   }
+});
+
+test('topic slugs: one per topic, stable, collision-free; every alias resolves to it', () => {
+  const articles = [{ tags: ['Fiction'] }, { tags: ['小说'] }, { tags: ['Short Fiction'] }, { tags: ['short-fiction'] }, { tags: ['红房间'] }, { tags: ['★'] }];
+  const index = createTagIndex([BUILTIN_TAG_GLOSSARY], articles.map((a) => a.tags));
+  assert.equal(index.slug(index.group('小说')), 'fiction', 'a pair has its English key as slug');
+  assert.equal(index.slug(index.group('红房间')), '红房间', 'untranslated Chinese keeps its letters');
+  assert.match(index.slug(index.group('★')), /^t-[0-9a-f]{8}$/, 'no letters at all: a hash');
+  const a = index.slug(index.group('Short Fiction'));
+  const b = index.slug(index.group('short-fiction'));
+  assert.equal(a, 'short-fiction', 'the key that sorts first keeps the plain slug');
+  assert.match(b, /^short-fiction-[0-9a-f]{6}$/);
+  assert.deepEqual(index.bySlug('fiction'), { group: index.group('Fiction'), canonical: true });
+  assert.equal(index.bySlug('小说').group.key, 'fiction');
+  assert.equal(index.bySlug('小说').canonical, false);
+  assert.equal(index.bySlug('FICTION').canonical, false);
+  assert.equal(index.bySlug(b).group.key, 'short-fiction');
+  assert.equal(index.bySlug('nothing-here'), undefined);
+  assert.deepEqual(index.topics(['小说', 'Fiction', '红房间'], 'zh'), [{ name: '小说', slug: 'fiction' }, { name: '红房间', slug: '红房间' }]);
+  // Usage does not move slugs: the same topics with different counts keep theirs.
+  const again = createTagIndex([BUILTIN_TAG_GLOSSARY], [['short-fiction'], ['short-fiction'], ['Short Fiction'], ['Fiction']]);
+  assert.equal(again.slug(again.group('short-fiction')), b);
 });

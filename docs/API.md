@@ -33,7 +33,7 @@ v2 起网站只读 Notion：没有任何创建/修改文章的接口，内容请
 | GET | `/api/site?lang=` | 站点信息（`about`/`intro`/`tagline` 为该语言的版本，`locale` 回显实际语言）、文章数、是否演示模式 | `SiteResponse` |
 | GET | `/api/articles?tag=&limit=&offset=&lang=` | 文章列表，按日期时间倒序（只有日期的按当天 00:00 UTC；同一时刻按 Notion 创建时间，再按标题）；`tag` 接受主题的任一名称或 key（`fiction`、`Fiction`、`小说` 等价） | `ArticleListResponse` |
 | GET | `/api/articles/:slug?lang=` | 单篇（含渲染后的 `html`、`toc`、`readingMinutes`、`previous`/`next`）。`?refresh=1` 重新从 Notion 取正文，**仅管理员** | `ArticleDetail` |
-| GET | `/api/tags?lang=` | 所有主题（中英同义标签已合并）及文章数，按数量倒序；`{ key, name, count }` | `TagListResponse` |
+| GET | `/api/tags?lang=` | 所有主题（中英同义标签已合并）及文章数，按数量倒序；`{ key, slug, name, count }`，`slug` 是主题页 `/topics/<slug>` 的地址段 | `TagListResponse` |
 | GET | `/api/search?q=&limit=&lang=` | 标题、标签（含另一种语言的对照名）、摘要、已缓存正文；多个词必须都命中 | `SearchResponse` |
 | GET | `/api/more?lang=` | “更多”页面（该语言；空字段用另一种语言补上；选读已按空行分段）。与 `/more` 页面数据相同 | `MoreResponse` |
 
@@ -44,6 +44,7 @@ interface ArticleSummary {
   title: string;
   date: string;        // Notion Date 列原样（YYYY-MM-DD，或带时间和时区的 ISO），Date 留空或缺失时为首次成功同步发现公开的服务器本地日期
   tags: string[];      // 标签显示名（?lang= 的语言），每个主题一个：同时标了 Fiction 和 小说 只出现一次
+  topics: { name: string; slug: string }[]; // 与 tags 一一对应，带主题页 slug（/topics/<slug>，中文页加 /zh-CN）
   excerpt: string;
   cover: string | null; // /media/notion/<id>（Notion 上传）或外链
   rank: number;        // >0 为精选

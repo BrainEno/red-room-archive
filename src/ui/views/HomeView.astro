@@ -9,8 +9,8 @@ import LangSwitch from '../components/LangSwitch.astro';
 import { messages } from '../i18n.ts';
 import '../styles/home.css';
 import type { ArticleSummary, TagCount } from '../../shared/contracts.ts';
-import { contentLang, type Locale } from '../../shared/i18n.ts';
-import { ARTICLES_PATH, MORE_PATH, tagPath } from '../../shared/routes.ts';
+import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
+import { ARTICLES_PATH, MORE_PATH, TOPICS_PATH, topicPath } from '../../shared/routes.ts';
 
 export interface Props {
   site: {
@@ -29,6 +29,7 @@ export interface Props {
 const { site, home } = Astro.props;
 const { locale } = site;
 const t = messages(locale);
+const to = (path: string) => localePath(path, locale);
 const TOPIC_LIMIT = 12;
 const pad = (i: number) => String(i + 1).padStart(2, '0');
 const year = (date: string) => String(date).slice(0, 4);
@@ -72,36 +73,36 @@ const nav = ['intro', 'latest', 'topics', 'more'] as const;
     <section id="latest" class="s l">
       <h2 class="sec">{t.home.latest}<sup>{home.total}</sup></h2>
       <ul class="list">{home.latest.map((a, i) => (
-        <li><a class="row" href={a.href}><span class="n">{pad(i)}</span><span class="t" lang={contentLang(a.title)}>{a.title}</span><span>{a.tags[0] ?? ''}</span><span>{year(a.date)}</span><span class="r"></span></a></li>
+        <li><a class="row" href={to(a.href)}><span class="n">{pad(i)}</span><span class="t" lang={contentLang(a.title)}>{a.title}</span><span>{a.tags[0] ?? ''}</span><span>{year(a.date)}</span><span class="r"></span></a></li>
       ))}</ul>
       {home.total > 0
-        ? <a class="more" href={ARTICLES_PATH}>{t.home.allArticles}</a>
+        ? <a class="more" href={to(ARTICLES_PATH)}>{t.home.allArticles}</a>
         : <p class="empty-note">{t.home.nothingYet}</p>}
     </section>
 
     <section id="featured" class="s l">
       <h2 class="sec">{t.home.featured}<sup>{home.featured.length}</sup></h2>
       <ul class="list">{home.featured.map((a, i) => (
-        <li><a class="row" href={a.href}><span class="n">{pad(i)}</span><span class="t" lang={contentLang(a.title)}>{a.title}</span><span>{a.tags[0] ?? ''}</span><span>{year(a.date)}</span><span class="r"></span></a></li>
+        <li><a class="row" href={to(a.href)}><span class="n">{pad(i)}</span><span class="t" lang={contentLang(a.title)}>{a.title}</span><span>{a.tags[0] ?? ''}</span><span>{year(a.date)}</span><span class="r"></span></a></li>
       ))}</ul>
-      {home.featured.length === 0 && home.total > 0 && <a class="more" href={ARTICLES_PATH}>{t.home.readArchive}</a>}
+      {home.featured.length === 0 && home.total > 0 && <a class="more" href={to(ARTICLES_PATH)}>{t.home.readArchive}</a>}
     </section>
 
     <section id="topics" class="s l">
       <h2 class="sec">{t.home.topics}<sup>{home.topics.length}</sup></h2>
       <ul class="list">
-        <li><a class="row" href={ARTICLES_PATH}><span class="n">00</span><span class="t">{t.articles.all}</span><span></span><span>{home.total}</span><span class="r"></span></a></li>
+        <li><a class="row" href={to(ARTICLES_PATH)}><span class="n">00</span><span class="t">{t.articles.all}</span><span></span><span>{home.total}</span><span class="r"></span></a></li>
         {home.topics.slice(0, TOPIC_LIMIT).map((topic, i) => (
-          <li><a class="row" href={tagPath(topic.key)}><span class="n">{pad(i)}</span><span class="t" lang={contentLang(topic.name)}>{topic.name}</span><span></span><span>{topic.count}</span><span class="r"></span></a></li>
+          <li><a class="row" href={to(topicPath(topic.slug))}><span class="n">{pad(i)}</span><span class="t" lang={contentLang(topic.name)}>{topic.name}</span><span></span><span>{topic.count}</span><span class="r"></span></a></li>
         ))}
       </ul>
-      {home.topics.length > TOPIC_LIMIT && <a class="more" href={ARTICLES_PATH}>{t.home.allTopics}</a>}
+      {home.topics.length > TOPIC_LIMIT && <a class="more" href={to(TOPICS_PATH)}>{t.home.allTopics}</a>}
     </section>
 
     <section id="more" class="s finale" aria-labelledby="more-h">
       <h2 id="more-h" class="sr">{t.home.more}</h2>
       <span id="contact" aria-hidden="true"></span>{/* old /#contact links still land here */}
-      <a class="go" href={MORE_PATH}><span class="go-t">{t.home.learnMore}</span><span class="go-a" aria-hidden="true">↗</span></a>
+      <a class="go" href={to(MORE_PATH)}><span class="go-t">{t.home.learnMore}</span><span class="go-a" aria-hidden="true">↗</span></a>
       <div class="reach">
         {site.email && <p><span class="k">{t.home.email}</span><a href={`mailto:${site.email}`}>{site.email}</a></p>}
         <p class="what">{t.home.moreTopics}</p>

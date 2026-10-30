@@ -9,7 +9,7 @@
 import type { Locale } from '../shared/i18n.ts';
 
 const en = {
-  nav: { intro: 'intro', latest: 'latest', topics: 'topics', more: 'more', articles: 'Articles', search: 'Search', moreLink: 'More', home: 'Home' },
+  nav: { intro: 'intro', latest: 'latest', topics: 'topics', more: 'more', articles: 'Articles', search: 'Search', moreLink: 'More', home: 'Home', topicsLink: 'Topics', archive: 'Archive' },
   home: {
     scroll: 'Scroll',
     latest: 'Latest',
@@ -52,6 +52,21 @@ const en = {
     tagged: (count: number, tag: string) => `${count} ${count === 1 ? 'article' : 'articles'} tagged “${tag}”.`,
     noneTagged: 'No articles with this tag.',
     empty: 'Nothing published yet.',
+    allTopics: 'All topics →',
+    archive: 'Archive by year →',
+  },
+  topics: {
+    title: 'Topics',
+    intro: (topics: number, articles: number) => `${topics} ${topics === 1 ? 'topic' : 'topics'} across ${articles} ${articles === 1 ? 'article' : 'articles'}.`,
+    count: (n: number) => `${n} ${n === 1 ? 'article' : 'articles'}`,
+    empty: 'No topics yet — tag articles in Notion to group them here.',
+  },
+  archive: {
+    title: 'Archive',
+    intro: (n: number) => `All ${n} ${n === 1 ? 'article' : 'articles'}, newest first, by year.`,
+    years: 'Years',
+    undated: 'Undated',
+    count: (n: number) => `${n} ${n === 1 ? 'article' : 'articles'}`,
   },
   article: {
     readingTime: (minutes: number) => `${minutes} min read`,
@@ -91,7 +106,7 @@ const en = {
 export type Messages = typeof en;
 
 const zhCN: Messages = {
-  nav: { intro: '引言', latest: '最新', topics: '主题', more: '更多', articles: '文章', search: '搜索', moreLink: '更多', home: '首页' },
+  nav: { intro: '引言', latest: '最新', topics: '主题', more: '更多', articles: '文章', search: '搜索', moreLink: '更多', home: '首页', topicsLink: '主题', archive: '归档' },
   home: {
     scroll: '向下滚动',
     latest: '最新',
@@ -134,6 +149,21 @@ const zhCN: Messages = {
     tagged: (count, tag) => `标签“${tag}”下共有 ${count} 篇文章。`,
     noneTagged: '这个标签下还没有文章。',
     empty: '还没有发布任何文章。',
+    allTopics: '全部主题 →',
+    archive: '按年份归档 →',
+  },
+  topics: {
+    title: '主题',
+    intro: (topics, articles) => `${articles} 篇文章，共 ${topics} 个主题。`,
+    count: (n) => `${n} 篇`,
+    empty: '还没有主题——在 Notion 里给文章加上标签，它们就会出现在这里。',
+  },
+  archive: {
+    title: '归档',
+    intro: (n) => `全部 ${n} 篇文章，按年份由新到旧排列。`,
+    years: '年份',
+    undated: '未注明日期',
+    count: (n) => `${n} 篇`,
   },
   article: {
     readingTime: (minutes) => `阅读约 ${minutes} 分钟`,

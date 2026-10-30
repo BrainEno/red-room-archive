@@ -1,6 +1,7 @@
 ---
 import { messages } from '../i18n.ts';
-import type { Locale } from '../../shared/i18n.ts';
+import { localePath, type Locale } from '../../shared/i18n.ts';
+import { ARCHIVE_PATH } from '../../shared/routes.ts';
 
 export interface Props {
   siteName: string;
@@ -15,7 +16,8 @@ const year = new Date().getFullYear();
   <span>© {year} {siteName}</span>
   <nav aria-label="Footer">
     {email && <a href={`mailto:${email}`}>{email}</a>}
+    <a href={localePath(ARCHIVE_PATH, locale)}>{t.nav.archive}</a>
     <a href="/rss.xml">RSS</a>
-    <a href="/">{t.nav.home}</a>
+    <a href={localePath('/', locale)}>{t.nav.home}</a>
   </nav>
 </footer>

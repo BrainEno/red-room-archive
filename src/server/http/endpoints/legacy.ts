@@ -6,9 +6,12 @@
  *   /journal, /journal/:slug       (this site's old local journal)
  *   /posts, /posts/:slug, /posts/tag/:tag   (BrainEno/astro-notion)
  *
- * `?tag=` is carried over, everything else lands on the article index.
+ * `?tag=` and tag paths land on the topic page (any name of a topic works —
+ * the topic page redirects aliases to the canonical slug), everything else on
+ * the article index. A `/zh-CN/…` legacy URL keeps its language.
  */
 import type { APIContext } from 'astro';
+import { localePath } from '../../../shared/i18n.ts';
 import { ARTICLES_PATH, articlePath, tagPath } from '../../../shared/routes.ts';
 
 const segments = (value: string | undefined) =>
@@ -31,8 +34,16 @@ export function legacyTarget(rest: string | undefined, search: URLSearchParams):
   return tag ? tagPath(tag) : ARTICLES_PATH;
 }
 
+/** `/posts/tag/x` → `tag/x` (still percent-encoded; legacyTarget decodes). */
+const legacyRest = (path: string) => path.split('/').filter(Boolean).slice(1).join('/');
+
 export const redirectLegacy = (context: APIContext) =>
   new Response(null, {
     status: 301,
-    headers: { Location: legacyTarget(context.params.rest ?? context.params.slug, context.url.searchParams), 'Cache-Control': 'public, max-age=86400' },
+    headers: {
+      // From the neutral path, not context.params: endpoints reached through the
+      // `/zh-CN` rewrite keep the params of the original (unmatched) URL.
+      Location: localePath(legacyTarget(legacyRest(context.locals.path ?? context.url.pathname), context.url.searchParams), context.locals.locale),
+      'Cache-Control': 'public, max-age=86400',
+    },
   });

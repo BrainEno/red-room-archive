@@ -155,12 +155,12 @@ test('fetchBlockTree attaches children, follows synced blocks, skips child pages
   assert.ok(!mock.state.calls.some((c) => c.url.includes(compact(ID.child))), 'child page content is never requested');
 });
 
-test('legacy URLs map onto /articles', () => {
+test('legacy URLs map onto /articles and topic pages', () => {
   const none = new URLSearchParams();
   assert.equal(legacyTarget(undefined, none), '/articles');
   assert.equal(legacyTarget('first-light', none), '/articles/first-light');
-  assert.equal(legacyTarget('tag/%E5%B0%8F%E8%AF%B4', none), `/articles?tag=${encodeURIComponent('小说')}`);
-  assert.equal(legacyTarget(undefined, new URLSearchParams('tag=notes')), '/articles?tag=notes');
+  assert.equal(legacyTarget('tag/%E5%B0%8F%E8%AF%B4', none), `/topics/${encodeURIComponent('小说')}`);
+  assert.equal(legacyTarget(undefined, new URLSearchParams('tag=notes')), '/topics/notes');
   assert.equal(legacyTarget('a/b/c', none), '/articles');
 });
 

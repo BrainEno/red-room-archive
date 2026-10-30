@@ -1,0 +1,9 @@
+---
+// Route: /topics — every topic with its article count.
+import TopicsView from '../../ui/views/TopicsView.astro';
+import { getArticles, getSite, getTopics } from '../../server/queries.ts';
+
+const site = getSite(Astro.locals.locale);
+const [topics, { total }] = await Promise.all([getTopics(site.locale), getArticles({ locale: site.locale })]);
+---
+<TopicsView site={site} topics={topics} total={total} />

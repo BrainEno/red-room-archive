@@ -4,8 +4,8 @@ import ArticleList from '../components/ArticleList.astro';
 import Pager from '../components/Pager.astro';
 import { messages } from '../i18n.ts';
 import type { ArticleSummary, TagCount } from '../../shared/contracts.ts';
-import { contentLang, type Locale } from '../../shared/i18n.ts';
-import { ARTICLES_PATH, tagPath } from '../../shared/routes.ts';
+import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
+import { ARCHIVE_PATH, ARTICLES_PATH, TOPICS_PATH, articlesPagePath, topicPath } from '../../shared/routes.ts';
 
 export interface Props {
   site: { locale: Locale; name: string; url: string; email: string; articlesIntro: string };
@@ -13,22 +13,17 @@ export interface Props {
   page: number;
   pages: number;
   total: number;
-  tag?: { key: string; name: string };
+  tag?: { key: string; slug: string; name: string };
   tags: TagCount[];
 }
 const { site, articles, page, pages, total, tag, tags } = Astro.props;
 const { locale } = site;
 const t = messages(locale).articles;
-const query = (p: number) => {
-  const params = new URLSearchParams();
-  if (tag) params.set('tag', tag.key);
-  if (p > 1) params.set('page', String(p));
-  const text = params.toString();
-  return `${ARTICLES_PATH}${text ? `?${text}` : ''}`;
-};
+const to = (path: string) => localePath(path, locale);
+const pageHref = (p: number) => to(tag ? topicPath(tag.slug, p) : articlesPagePath(p));
 const heading = tag ? `#${tag.name}` : t.title;
 ---
-<Page title={`${tag ? `${heading} — ` : ''}${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={site.articlesIntro} current={ARTICLES_PATH} noindex={page > 1}>
+<Page title={`${tag ? `${heading} — ` : ''}${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={site.articlesIntro} current={tag ? TOPICS_PATH : ARTICLES_PATH} noindex={page > 1}>
   <section class="prose listing">
     <p class="article-label">{site.name} / {t.title}</p>
     <h1 lang={tag ? contentLang(tag.name) : undefined}>{heading}</h1>
@@ -36,14 +31,15 @@ const heading = tag ? `#${tag.name}` : t.title;
 
     {tags.length > 0 && (
       <nav class="filters" aria-label={t.tags}>
-        <a href={ARTICLES_PATH} aria-current={!tag ? 'page' : undefined}>{t.all}</a>
+        <a href={to(ARTICLES_PATH)} aria-current={!tag ? 'page' : undefined}>{t.all}</a>
         {tags.map((item) => (
-          <a href={tagPath(item.key)} aria-current={item.key === tag?.key ? 'page' : undefined} lang={contentLang(item.name)}>{item.name}<sup>{item.count}</sup></a>
+          <a href={to(topicPath(item.slug))} aria-current={item.key === tag?.key ? 'page' : undefined} lang={contentLang(item.name)}>{item.name}<sup>{item.count}</sup></a>
         ))}
       </nav>
     )}
 
     <ArticleList articles={articles} locale={locale} showExcerpt showCovers empty={tag ? t.noneTagged : t.empty} />
-    <Pager page={page} pages={pages} locale={locale} href={query} />
+    <Pager page={page} pages={pages} locale={locale} href={pageHref} />
+    <p class="listing-links"><a href={to(TOPICS_PATH)}>{t.allTopics}</a><a href={to(ARCHIVE_PATH)}>{t.archive}</a></p>
   </section>
 </Page>

@@ -1,0 +1,40 @@
+---
+/** /topics — every topic, most used first, with its article count. */
+import Page from '../layouts/Page.astro';
+import { messages } from '../i18n.ts';
+import type { TagCount } from '../../shared/contracts.ts';
+import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
+import { ARCHIVE_PATH, TOPICS_PATH, topicPath } from '../../shared/routes.ts';
+
+export interface Props {
+  site: { locale: Locale; name: string; url: string; email: string; articlesIntro: string };
+  topics: TagCount[];
+  total: number;
+}
+const { site, topics, total } = Astro.props;
+const { locale } = site;
+const t = messages(locale);
+const to = (path: string) => localePath(path, locale);
+const pad = (n: number) => String(n + 1).padStart(2, '0');
+---
+<Page title={`${t.topics.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={t.topics.intro(topics.length, total)} current={TOPICS_PATH}>
+  <section class="prose listing">
+    <p class="article-label">{site.name} / {t.topics.title}</p>
+    <h1>{t.topics.title}</h1>
+    <p class="article-intro">{topics.length ? t.topics.intro(topics.length, total) : t.topics.empty}</p>
+    {topics.length > 0 && (
+      <ol class="topic-index">
+        {topics.map((topic, i) => (
+          <li>
+            <a href={to(topicPath(topic.slug))}>
+              <span class="topic-n" aria-hidden="true">{pad(i)}</span>
+              <span class="topic-name" lang={contentLang(topic.name)}>{topic.name}</span>
+              <span class="topic-count">{t.topics.count(topic.count)}</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    )}
+    <p class="listing-links"><a href={to(ARCHIVE_PATH)}>{t.articles.archive}</a></p>
+  </section>
+</Page>

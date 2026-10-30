@@ -19,7 +19,12 @@
  * Display names prefer what the archive actually uses: if articles are tagged
  * `Poem`, the English label is `Poem` even though the glossary also knows
  * `Poetry`. Pure functions — no I/O.
+ *
+ * Every topic also has one URL slug (`/topics/<slug>`), derived from its key
+ * so it does not move when usage changes. Any other name of the topic
+ * resolves to it too (`/topics/小说` finds Fiction and redirects).
  */
+import { fnv1a, topicSlug } from '../shared/routes.ts';
 
 export type TagLang = 'en' | 'zh';
 
@@ -71,6 +76,12 @@ export function parseGlossary(text: string): TagGroup[] {
   return groups;
 }
 
+/** A topic as linked from an article: display name plus URL slug. */
+export interface TopicRef {
+  name: string;
+  slug: string;
+}
+
 export interface TagIndex {
   /** The topic a tag name (or a `?tag=` value) belongs to. */
   group(name: string): TagGroup;
@@ -78,8 +89,17 @@ export interface TagIndex {
   label(group: TagGroup, lang: TagLang): string;
   /** An article's tags as display names: one per topic, in the article's order. */
   names(tags: string[], lang: TagLang): string[];
+  /** An article's tags as links: one per topic, in the article's order. */
+  topics(tags: string[], lang: TagLang): TopicRef[];
   /** Topics with article counts, most used first. */
-  counts(articles: { tags: string[] }[], lang: TagLang): { key: string; name: string; count: number }[];
+  counts(articles: { tags: string[] }[], lang: TagLang): { key: string; slug: string; name: string; count: number }[];
+  /** The topic's URL slug — unique across the index. */
+  slug(group: TagGroup): string;
+  /**
+   * The topic a URL slug points at. `canonical` is false when the slug is
+   * another name of the topic (`小说`, `Fiction`) — redirect to `slug(group)`.
+   */
+  bySlug(slug: string): { group: TagGroup; canonical: boolean } | undefined;
   /** True when any of `tags` belongs to the same topic as `query`. */
   matches(tags: string[], query: string): boolean;
   /** Every name a topic is known by (both languages) — for search. */
@@ -169,6 +189,52 @@ export function createTagIndex(glossaries: string[], articleTags: string[][] = [
     return out;
   };
 
+  // URL slugs. Every known topic (glossary, Notion pairs, tags in use) gets
+  // the slug of its key; on a collision (`Short fiction` / `short-fiction`)
+  // the key that sorts first keeps the plain slug, the others get a suffix.
+  let slugs: { byKey: Map<string, string>; byGroup: Map<string, TagGroup>; groups: TagGroup[] } | undefined;
+  const slugTable = () => {
+    if (slugs) return slugs;
+    const groups = new Map<string, TagGroup>();
+    for (const topic of byName.values()) groups.set(topic.key, topic);
+    for (const tags of articleTags) for (const tag of tags) { const topic = group(tag); groups.set(topic.key, topic); }
+    const byKey = new Map<string, string>();
+    const byGroup = new Map<string, TagGroup>();
+    const sorted = [...groups.values()].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    for (const topic of sorted) {
+      let slug = topicSlug(topic.key);
+      if (byGroup.has(slug)) slug = `${slug}-${fnv1a(topic.key).slice(0, 6)}`;
+      byKey.set(topic.key, slug);
+      byGroup.set(slug, topic);
+    }
+    slugs = { byKey, byGroup, groups: sorted };
+    return slugs;
+  };
+  const slug = (topic: TagGroup) => slugTable().byKey.get(topic.key) ?? topicSlug(topic.key);
+
+  const bySlug = (value: string) => {
+    const table = slugTable();
+    const exact = table.byGroup.get(value);
+    if (exact) return { group: exact, canonical: true };
+    const wanted = topicSlug(value);
+    const normalized = table.byGroup.get(wanted);
+    if (normalized) return { group: normalized, canonical: false };
+    const alias = table.groups.find((topic) => [topic.key, ...topic.en, ...topic.zh].some((name) => topicSlug(name) === wanted));
+    return alias ? { group: alias, canonical: false } : undefined;
+  };
+
+  const topics = (tags: string[], lang: TagLang) => {
+    const seen = new Set<string>();
+    const out: TopicRef[] = [];
+    for (const tag of tags) {
+      const topic = group(tag);
+      if (seen.has(topic.key)) continue;
+      seen.add(topic.key);
+      out.push({ name: label(topic, lang), slug: slug(topic) });
+    }
+    return out;
+  };
+
   const counts = (articles: { tags: string[] }[], lang: TagLang) => {
     const totals = new Map<string, { topic: TagGroup; count: number }>();
     for (const article of articles) {
@@ -183,7 +249,7 @@ export function createTagIndex(glossaries: string[], articleTags: string[][] = [
       }
     }
     return [...totals.values()]
-      .map(({ topic, count }) => ({ key: topic.key, name: label(topic, lang), count }))
+      .map(({ topic, count }) => ({ key: topic.key, slug: slug(topic), name: label(topic, lang), count }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, lang === 'zh' ? 'zh-Hans-CN' : 'en'));
   };
 
@@ -194,5 +260,5 @@ export function createTagIndex(glossaries: string[], articleTags: string[][] = [
 
   const aliases = (tags: string[]) => [...new Set(tags.flatMap((tag) => [tag, ...group(tag).en, ...group(tag).zh]))];
 
-  return { group, label, names, counts, matches, aliases };
+  return { group, label, names, topics, counts, slug, bySlug, matches, aliases };
 }

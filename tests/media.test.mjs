@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { classifyMedia } from '../src/core/media.ts';
 import { formatBytes, formatDate, readingMinutes, truncate } from '../src/core/text.ts';
 import { rssFeed, robots, sitemap } from '../src/ui/feeds.ts';
-import { articlePath, notionMediaPath, tagPath } from '../src/shared/routes.ts';
+import { articlePath, articlesPagePath, notionMediaPath, tagPath, topicPath, topicSlug } from '../src/shared/routes.ts';
 
 test('classifyMedia picks native players, embeds or links', () => {
   assert.deepEqual(classifyMedia('/uploads/a.mp3'), { kind: 'audio', src: '/uploads/a.mp3' });
@@ -32,7 +32,15 @@ test('text helpers', () => {
 
 test('public URL helpers', () => {
   assert.equal(articlePath('a b'), '/articles/a%20b');
-  assert.equal(tagPath('小说'), `/articles?tag=${encodeURIComponent('小说')}`);
+  assert.equal(tagPath('小说'), `/topics/${encodeURIComponent('小说')}`);
+  assert.equal(tagPath('Short Fiction!'), '/topics/short-fiction');
+  assert.equal(topicSlug('  Ａrt & Design / 2026 '), 'art-design-2026', 'NFKC, lowercase, punctuation runs become one dash');
+  assert.match(topicSlug('★☆'), /^t-[0-9a-f]{8}$/);
+  assert.equal(topicSlug('x'.repeat(200)).length, 80);
+  assert.equal(topicPath('fiction', 3), '/topics/fiction/page/3');
+  assert.equal(topicPath('fiction', 1), '/topics/fiction');
+  assert.equal(articlesPagePath(1), '/articles');
+  assert.equal(articlesPagePath(2), '/articles/page/2');
   assert.equal(notionMediaPath('01234567-89ab-cdef-0123-456789abcdef'), '/media/notion/0123456789abcdef0123456789abcdef');
 });
 
@@ -46,9 +54,12 @@ test('rss and sitemap escape content and use absolute URLs', () => {
   assert.match(rss, /<link>https:\/\/site\.test\/articles\/a<\/link>/);
   assert.match(rss, /<pubDate>Fri, 02 Jan 2026 00:00:00 GMT<\/pubDate>/);
   assert.doesNotMatch(rss, /<enclosure/, 'unknown MIME and length are not invented');
-  const map = sitemap({ origin: 'https://site.test', articles: [article], tags: [{ key: 'x', name: 'X', count: 1 }] });
+  const map = sitemap({ origin: 'https://site.test', articles: [article], tags: [{ key: 'x', slug: 'x', name: 'X', count: 1 }] });
   assert.match(map, /<loc>https:\/\/site\.test\/articles<\/loc>/);
-  assert.match(map, /<loc>https:\/\/site\.test\/articles\?tag=x<\/loc>/);
+  assert.match(map, /<loc>https:\/\/site\.test\/topics\/x<\/loc>/);
+  assert.match(map, /<loc>https:\/\/site\.test\/zh-CN\/topics\/x<\/loc>/);
+  assert.match(map, /<loc>https:\/\/site\.test\/topics<\/loc>/);
+  assert.match(map, /<loc>https:\/\/site\.test\/archive<\/loc>/);
   assert.match(map, /<lastmod>2026-01-03<\/lastmod>/);
   assert.match(robots('https://site.test'), /Disallow: \/api\//);
 });

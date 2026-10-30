@@ -8,12 +8,11 @@ const noHorizontalOverflow = async (page) => {
 
 for (const mode of ['ssr', 'static']) {
   for (const lang of ['en', 'zh-CN']) {
-    const url = (route) => mode === 'ssr'
-      ? `${route}${route.includes('?') ? '&' : '?'}lang=${lang}`
-      : `http://127.0.0.1:4179${lang === 'zh-CN' ? '/zh-CN' : ''}${route}`;
+    // The same path URLs on the SSR server and the static snapshot.
+    const url = (route) => `${mode === 'ssr' ? '' : 'http://127.0.0.1:4179'}${lang === 'zh-CN' ? `/zh-CN${route === '/' ? '' : route}` : route}`;
 
     test(`${mode} ${lang}: public layouts fit the viewport`, async ({ page }) => {
-      for (const route of ['/', '/articles', '/articles/connect-notion', '/search', '/more']) {
+      for (const route of ['/', '/articles', '/articles/connect-notion', '/topics', '/archive', '/search', '/more']) {
         const response = await page.goto(url(route), { waitUntil: 'domcontentloaded' });
         expect(response?.status(), route).toBe(200);
         await expect(page.locator('h1').first(), route).toBeAttached();
@@ -74,7 +73,7 @@ test('SSR admin login and tabs fit small screens', async ({ page }) => {
 });
 
 test('inner pages expose keyboard focus and skip navigation', async ({ page }) => {
-  await page.goto('/articles?lang=en');
+  await page.goto('/articles');
   await page.keyboard.press('Tab');
   await expect(page.locator('.skip')).toBeFocused();
   await expect(page.locator('.skip')).toBeVisible();
@@ -83,7 +82,7 @@ test('inner pages expose keyboard focus and skip navigation', async ({ page }) =
 });
 
 test('home navigation is not blocked by the loader with reduced motion', async ({ page }) => {
-  await page.goto('/?lang=en');
+  await page.goto('/');
   expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
   await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
   const latest = page.locator('.bar a[href="#latest"]');
@@ -93,14 +92,14 @@ test('home navigation is not blocked by the loader with reduced motion', async (
 });
 
 test('long unbroken titles and site names do not expand the layout', async ({ page }) => {
-  await page.goto('/articles?lang=en');
+  await page.goto('/articles');
   await page.evaluate(() => {
     document.querySelector('.site-brand').textContent = 'Averylongunbrokenarchivename'.repeat(5);
     document.querySelector('.listing h1').textContent = 'LongUnbrokenTitle'.repeat(9);
     document.querySelector('.article-title').textContent = 'LongUnbrokenArticleTitle'.repeat(9);
   });
   await noHorizontalOverflow(page);
-  await page.goto('/?lang=en');
+  await page.goto('/');
   await page.evaluate(() => { document.querySelector('.row .t').textContent = 'LongUnbrokenArticleTitle'.repeat(9); });
   await noHorizontalOverflow(page);
 });
@@ -118,7 +117,7 @@ test('read aloud controls respond to supported and unsupported speech APIs', asy
       } });
       window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
     });
-    await page.goto('/articles/connect-notion?lang=en');
+    await page.goto('/articles/connect-notion');
     await expect(page.locator('[data-read-aloud]')).toBeVisible();
     await page.locator('[data-play]').click();
     await expect(page.locator('[data-read-aloud]')).toHaveAttribute('data-state', 'playing');
@@ -132,7 +131,7 @@ test('read aloud controls respond to supported and unsupported speech APIs', asy
   try {
     const page = await unsupported.newPage();
     await page.addInitScript(() => { Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, value: undefined }); });
-    await page.goto('/articles/connect-notion?lang=en');
+    await page.goto('/articles/connect-notion');
     await expect(page.locator('[data-read-aloud]')).toBeHidden();
   } finally { await unsupported.close(); }
 });
@@ -149,7 +148,7 @@ test('home remains navigable without WebGL or JavaScript', async ({ browser, bas
         return type.startsWith('webgl') ? null : original.call(this, type, ...args);
       };
     });
-    await page.goto('/?lang=en');
+    await page.goto('/');
     await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
     await page.locator('.bar a[href="#latest"]').click();
     await expect(page.locator('#latest')).toBeInViewport();
@@ -157,7 +156,7 @@ test('home remains navigable without WebGL or JavaScript', async ({ browser, bas
   const noJs = await browser.newContext({ ...options, javaScriptEnabled: false });
   try {
     const page = await noJs.newPage();
-    await page.goto('/?lang=en');
+    await page.goto('/');
     await expect(page.locator('.loader')).toBeHidden();
     await page.locator('.bar a[href="#latest"]').click();
     await expect(page.locator('#latest')).toBeInViewport();
@@ -165,7 +164,7 @@ test('home remains navigable without WebGL or JavaScript', async ({ browser, bas
 });
 
 test('long content wraps and code and tables scroll within the article', async ({ page }) => {
-  await page.goto('/articles/connect-notion?lang=en');
+  await page.goto('/articles/connect-notion');
   const body = page.locator('.article-body');
   await body.evaluate((node) => {
     const paragraph = document.createElement('p');
@@ -185,10 +184,27 @@ test('long content wraps and code and tables scroll within the article', async (
 });
 
 test('search with no matches communicates the empty state', async ({ page }) => {
-  await page.goto('/search?lang=en');
+  await page.goto('/search');
   await page.locator('input[name=q]').fill('no-such-article-4839');
   await page.locator('form[role=search] button').click();
   await expect(page.locator('[role=status]')).toContainText('0 results');
   await expect(page.locator('.empty')).toBeVisible();
   await noHorizontalOverflow(page);
+});
+
+test('the language switcher moves between path URLs and is remembered', async ({ page }) => {
+  await page.goto('/articles/page/1');
+  await expect(page).toHaveURL(/\/articles$/);
+  await page.locator('.site-header [data-lang-switch="zh-CN"]').click();
+  await expect(page).toHaveURL(/\/zh-CN\/articles$/);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+  await page.goto('/topics');
+  await expect(page, 'the cookie sends unprefixed pages to Chinese').toHaveURL(/\/zh-CN\/topics$/);
+  await page.locator('.site-header [data-lang-switch="en"]').click();
+  await expect(page).toHaveURL(/\/topics$/);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  // The static snapshot has no server to remember a choice: the switcher is a plain path link.
+  await page.goto('http://127.0.0.1:4179/archive');
+  await page.locator('.site-header [data-lang-switch="zh-CN"]').click();
+  await expect(page).toHaveURL('http://127.0.0.1:4179/zh-CN/archive');
 });

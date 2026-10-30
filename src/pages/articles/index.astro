@@ -1,13 +1,19 @@
 ---
-// Route: /articles?tag=&page=
+// Route: /articles (page 1). The old query URLs redirect to their paths:
+// /articles?page=2 → /articles/page/2, /articles?tag=x&page=2 → /topics/x/page/2.
 import ArticlesView from '../../ui/views/ArticlesView.astro';
 import { getArticles, getSite } from '../../server/queries.ts';
-import { ARTICLES_PATH, tagPath } from '../../shared/routes.ts';
+import { localePath } from '../../shared/i18n.ts';
+import { articlesPagePath, tagPath } from '../../shared/routes.ts';
 
 const site = getSite(Astro.locals.locale);
-const page = Number(Astro.url.searchParams.get('page')) || 1;
-const tag = Astro.url.searchParams.get('tag')?.slice(0, 200) ?? undefined;
-const data = await getArticles({ page, tag, locale: site.locale });
-if (data.page > data.pages) return Astro.redirect(data.tag ? tagPath(data.tag.key) : ARTICLES_PATH, 302);
+const params = Astro.url.searchParams;
+if (params.has('tag') || params.has('page')) {
+  const page = Math.max(1, Math.floor(Number(params.get('page')) || 1));
+  const tag = params.get('tag')?.trim().slice(0, 200);
+  const target = tag ? `${tagPath(tag)}${page > 1 ? `/page/${page}` : ''}` : articlesPagePath(page);
+  return Astro.redirect(localePath(target, site.locale), 301);
+}
+const data = await getArticles({ page: 1, locale: site.locale });
 ---
 <ArticlesView site={site} {...data} />

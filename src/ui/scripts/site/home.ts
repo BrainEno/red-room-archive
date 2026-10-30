@@ -12,7 +12,7 @@ const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySele
 history.scrollRestoration = 'manual';
 if (!location.hash) scrollTo(0, 0);
 
-// 切换语言 = 带 ?lang= 重新加载页面。点击时记下滚动位置，新页面跳过开场、回到原处，
+// 切换语言 = 跳到另一种语言的同一路径（/zh-CN/…）。点击时记下滚动位置，新页面跳过开场、回到原处，
 // 读者不会因为换语言而被送回招牌、重看一遍开场动画
 const RESUME_KEY = 'rra:resume';
 const resumeY = (() => {

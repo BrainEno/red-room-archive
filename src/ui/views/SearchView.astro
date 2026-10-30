@@ -3,7 +3,8 @@ import Page from '../layouts/Page.astro';
 import ArticleList from '../components/ArticleList.astro';
 import { messages } from '../i18n.ts';
 import type { SearchResponse } from '../../shared/contracts.ts';
-import type { Locale } from '../../shared/i18n.ts';
+import { localePath, type Locale } from '../../shared/i18n.ts';
+import { SEARCH_PATH } from '../../shared/routes.ts';
 
 export interface Props {
   site: { locale: Locale; name: string; url: string; email: string };
@@ -14,11 +15,11 @@ const { locale } = site;
 const t = messages(locale).search;
 const hasQuery = Boolean(result.query);
 ---
-<Page title={`${hasQuery ? `“${result.query}” — ` : ''}${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} current="/search" noindex>
+<Page title={`${hasQuery ? `“${result.query}” — ` : ''}${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} current={SEARCH_PATH} noindex>
   <section class="prose listing">
     <p class="article-label">{site.name} / {t.title}</p>
     <h1>{t.title}</h1>
-    <form class="search" role="search" action="/search" method="get">
+    <form class="search" role="search" action={localePath(SEARCH_PATH, locale)} method="get">
       <label class="sr" for="q">{t.label}</label>
       <input id="q" name="q" type="search" value={result.query} placeholder={t.placeholder} autofocus={!hasQuery} maxlength="120" />
       <button>{t.button}</button>
