@@ -57,7 +57,9 @@ test('SSR admin login and tabs fit small screens', async ({ page }) => {
   await page.locator('#tk').fill('ui-test-only');
   await page.locator('#lg button').click();
   await expect(page.locator('[data-tab="More"]')).toBeVisible();
-  for (const tab of ['Articles', 'More', 'Settings', 'Files']) {
+  await expect(page.locator('[data-panel="Overview"] .ov-stats')).toBeVisible();
+  await noHorizontalOverflow(page);
+  for (const tab of ['Overview', 'Articles', 'More', 'Settings', 'Files']) {
     await page.locator(`[data-tab="${tab}"]`).click();
     await expect(page.locator(`[data-panel="${tab}"]`)).toBeVisible();
     if (tab === 'Articles') {

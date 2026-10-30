@@ -30,7 +30,8 @@ ul { list-style: none; }
    condensed heavy cut instead of a square regular-width Hei. Add new
    condensed elements here. */
 .count, .bar .brand, .sec, .row .t, .go, .site-brand, .prose h1, .page-head h1, .admin h1, .admin-sec,
-.mp-head h1, .pub-title, .tc-no, .tc-title, .mail-big, .me-num { font-family: var(--display); }
+.mp-head h1, .pub-title, .tc-no, .tc-title, .mail-big, .me-num, .set-group legend, .set-legend, .ov-name,
+.ov-stat dd { font-family: var(--display); }
 
 /* EN / 中文: shared look on every page — the inactive language is dimmed, a slash between */
 .lang-switch a { opacity: .45; transition: opacity .3s; }

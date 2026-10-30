@@ -26,11 +26,13 @@ test('admin tabs expose relationships and support keyboard navigation', async ({
   await page.locator('#tk').fill('ui-test-only');
   await page.locator('#lg button').click();
   const list = page.getByRole('tablist', { name: 'Admin sections' });
+  const overview = list.getByRole('tab', { name: 'Overview' });
   const articles = list.getByRole('tab', { name: 'Articles' });
   const more = list.getByRole('tab', { name: 'More' });
-  await expect(articles).toHaveAttribute('aria-selected', 'true');
+  await expect(overview).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tabpanel', { name: 'Overview' }).locator('.ov-stats')).toBeVisible();
   await expect(more).toHaveAttribute('tabindex', '-1');
-  await articles.focus();
+  await articles.click();
   await page.keyboard.press('ArrowRight');
   await expect(more).toBeFocused();
   await expect(more).toHaveAttribute('aria-selected', 'true');
@@ -38,14 +40,19 @@ test('admin tabs expose relationships and support keyboard navigation', async ({
   await page.keyboard.press('End');
   await expect(list.getByRole('tab', { name: 'Files' })).toBeFocused();
   await page.keyboard.press('ArrowRight');
-  await expect(articles).toBeFocused();
+  await expect(overview).toBeFocused();
   await page.keyboard.press('ArrowLeft');
   await expect(list.getByRole('tab', { name: 'Files' })).toBeFocused();
   await page.keyboard.press('Home');
-  await expect(articles).toBeFocused();
+  await expect(overview).toBeFocused();
+  let results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(results.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) }))).toEqual([]);
+  await list.getByRole('tab', { name: 'Settings' }).click();
+  results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(results.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) }))).toEqual([]);
   await list.getByRole('tab', { name: 'More' }).click();
   await page.locator('.me-card summary').first().click();
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   expect(results.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) }))).toEqual([]);
 });
 
@@ -114,4 +121,35 @@ test('admin distinguishes configured Notion settings from a verified connection'
   await expect(page.locator('#notion-config-status')).toContainText('not yet verified');
   await expect(page.locator('input[name="NOTION_TOKEN"]')).toHaveAttribute('placeholder', /configured/);
   await expect(page.locator('input[name="NOTION_TOKEN"]')).toHaveValue('');
+});
+
+test('admin speaks Chinese: saved choice, translated shell, grouped settings, unsaved indicator', async ({ page }) => {
+  await page.goto('/admin');
+  await page.getByRole('button', { name: '中文', exact: true }).click();
+  await expect(page.getByRole('button', { name: '进入' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+  await page.locator('#tk').fill('ui-test-only');
+  await page.locator('#lg button').click();
+  const list = page.getByRole('tablist', { name: '后台栏目' });
+  await expect(list.getByRole('tab', { name: '概览' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('[data-panel=Overview] .ov-stats')).toContainText('文章');
+  await expect(page.locator('.ov-checks')).toContainText('尚未配置 Notion');
+  await expect(page.getByRole('button', { name: 'Notion 设置 →' })).toBeVisible();
+  await list.getByRole('tab', { name: '设置' }).click();
+  await expect(page).toHaveURL(/#settings$/);
+  const nav = page.getByRole('navigation', { name: '设置分组' });
+  await expect(nav.getByRole('link')).toHaveText(['站点', '首页文案', '主题', 'Notion', '备份与静态部署']);
+  await expect(page.locator('#sf-state')).toHaveText('所有修改已保存');
+  await page.getByRole('textbox', { name: '标语 — 中文' }).fill('测试标语');
+  await expect(page.locator('#sf-state')).toHaveText('有未保存的修改');
+  await nav.getByRole('link', { name: 'Notion' }).click();
+  await expect(page).toHaveURL(/#settings$/);
+  await expect(page.locator('#notion-config-status')).toContainText('Notion 尚未完整配置');
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(results.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) }))).toEqual([]);
+  // The choice is remembered; switching back is one click.
+  page.on('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'EN', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Overview' })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('rra.admin.lang'))).toBe('en');
 });

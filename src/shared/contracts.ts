@@ -285,6 +285,54 @@ export interface SettingsResponse {
   status: SyncStatus;
 }
 
+/* ── Admin: overview (/admin → Overview) ────────────────────────────── */
+
+/**
+ * Something the admin may want to fix or know. Codes, not sentences, so the
+ * admin shows them in its own language (src/ui/scripts/admin/i18n.ts).
+ */
+export type OverviewCheckCode =
+  | 'notion-missing'
+  | 'sync-error'
+  | 'never-synced'
+  | 'no-articles'
+  | 'bodies-partial'
+  | 'site-url-missing'
+  | 'email-missing'
+  | 'untagged'
+  | 'more-sample';
+
+export interface OverviewCheck {
+  code: OverviewCheckCode;
+  /** `warn` = the public site is affected; `info` = worth knowing. */
+  level: 'warn' | 'info';
+  /** How many things it concerns (untagged articles, uncached bodies…), when that applies. */
+  count?: number;
+}
+
+export interface OverviewResponse {
+  status: SyncStatus;
+  site: {
+    name: string;
+    email: string;
+    /** SITE_URL ('' when unset). */
+    url: string;
+  };
+  articles: {
+    total: number;
+    /** Rank > 0 (shown under Featured, at most 10 on the homepage). */
+    featured: number;
+    topics: number;
+    untagged: number;
+    latest: { title: string; href: string; date: string } | null;
+    /** Articles per year, newest year first ('' = undated). */
+    years: { year: string; count: number }[];
+  };
+  more: { custom: boolean; updated: string | null; publications: number; channels: number };
+  uploads: { count: number; bytes: number };
+  checks: OverviewCheck[];
+}
+
 export interface SyncResponse {
   ok: boolean;
   /** Published articles after the sync. */
