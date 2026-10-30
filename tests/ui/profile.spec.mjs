@@ -54,12 +54,12 @@ test('static profile editor is local-only and round-trips the public JSON', asyn
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export site-profile.json' }).click();
   expect(await readDownload(await download)).toEqual(profile('Static Archive'));
-  // Version 1 files still import; facts become empty (built-in defaults).
-  await page.locator('#import').setInputFiles(upload(legacyProfile('Legacy Archive')));
-  await expect(page.locator('input[name=site_name]')).toHaveValue('Legacy Archive');
-  await expect(page.locator('textarea[name=site_facts]')).toHaveValue('');
   const bad = profile(); bad.settings.NOTION_TOKEN = 'secret';
   await page.locator('#import').setInputFiles(upload(bad));
   await expect(page.locator('#message')).toContainText('supported public fields');
   await expect(page.locator('input[name=site_name]')).toHaveValue('Static Archive');
+  // Version 1 files still import; facts become empty (built-in defaults).
+  await page.locator('#import').setInputFiles(upload(legacyProfile('Legacy Archive')));
+  await expect(page.locator('input[name=site_name]')).toHaveValue('Legacy Archive');
+  await expect(page.locator('textarea[name=site_facts]')).toHaveValue('');
 });
