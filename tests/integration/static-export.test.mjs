@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { readFile, access, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { readFile, access, mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { makeProfile, PROFILE_KEYS } from '../../public/profile-format.js';
 import path from 'node:path';
@@ -163,6 +163,52 @@ test('a portable profile is applied on each static rebuild and rejected safely w
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+
+test('a content bundle folder supplies the profile (with facts), the More page and its uploads', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'rra-content-'));
+  const profile = makeProfile(Object.fromEntries(PROFILE_KEYS.map((key) => [key, ''])));
+  Object.assign(profile.settings, { site_name: 'Bundled Archive', site_facts: 'Based in: Kaohsiung\nOpen: 10:00–18:00', site_facts_zh: '-' });
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082', 'hex');
+  const more = { format: 'red-room-more', version: 1, document: {
+    intro: { en: 'Bundled intro paragraph', 'zh-CN': '打包的介绍' }, channels: [],
+    publications: [{ title: { en: 'Bundled Zine', 'zh-CN': '' }, cover: '/uploads/zine-cover.png' }] } };
+  const env = { SITE_URL: 'https://bundle.test', STATIC_DEMO: '1', SITE_CONTENT_DIR: dir,
+    NOTION_TOKEN: '', NOTION_API_SECRET: '', NOTION_DATABASE_ID: '', DATABASE_ID: '', NOTION_DB_WRITING: '' };
+  try {
+    await mkdir(path.join(dir, 'uploads'));
+    await writeFile(path.join(dir, 'site-profile.json'), JSON.stringify(profile));
+    await writeFile(path.join(dir, 'more.json'), JSON.stringify(more));
+    await writeFile(path.join(dir, 'uploads', 'zine-cover.png'), png);
+    await writeFile(path.join(dir, 'uploads', 'unused.png'), png);
+    const result = await run(env); assert.equal(result.code, 0, result.output);
+    assert.match(result.output, /profile yes, More page yes, 2 upload\(s\)/);
+    const home = await readFile('static-dist/index.html', 'utf8');
+    assert.match(home, /Bundled Archive/);
+    assert.match(home, /<dt[^>]*>Based in<\/dt><dd[^>]*>Kaohsiung<\/dd>/);
+    assert.match(home, /10:00–18:00/);
+    assert.doesNotMatch(await readFile('static-dist/zh-CN/index.html', 'utf8'), /class="facts"/, '"-" hides the Chinese facts');
+    const page = await readFile('static-dist/more/index.html', 'utf8');
+    assert.match(page, /Bundled Zine/); assert.match(page, /Bundled intro paragraph/);
+    assert.match(page, /src="\/uploads\/zine-cover\.png"/);
+    assert.ok((await readFile('static-dist/uploads/zine-cover.png')).equals(png), 'referenced upload is published');
+    await assert.rejects(access('static-dist/uploads/unused.png'), 'unreferenced uploads are not published');
+    await assert.rejects(access('static-dist/more.json'));
+
+    // An explicit SITE_PROFILE_PATH still wins over the bundled profile.
+    const override = makeProfile({ ...profile.settings, site_name: 'Explicit Profile' });
+    await writeFile(path.join(dir, 'explicit.json'), JSON.stringify(override));
+    const explicit = await run({ ...env, SITE_PROFILE_PATH: path.join(dir, 'explicit.json') });
+    assert.equal(explicit.code, 0, explicit.output);
+    assert.match(await readFile('static-dist/index.html', 'utf8'), /Explicit Profile/);
+
+    // Invalid bundled content fails closed with the server's reason.
+    await writeFile(path.join(dir, 'more.json'), JSON.stringify({ document: { publications: [{ cover: 'javascript:alert(1)' }] } }));
+    const bad = await run(env); assert.notEqual(bad.code, 0); assert.match(bad.output, /More page import failed \(400: .*cover/);
+    await assert.rejects(access('static-dist/index.html'));
+    const missing = await run({ ...env, SITE_CONTENT_DIR: path.join(dir, 'nope') });
+    assert.notEqual(missing.code, 0); assert.match(missing.output, /SITE_CONTENT_DIR is not a directory/);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
 
 test('Netlify preview without Notion credentials is an explicitly marked demo; production and partial config fail', async () => {
   const env = { NETLIFY: 'true', CONTEXT: 'deploy-preview', URL: 'https://archive.netlify.app', SITE_URL: '',

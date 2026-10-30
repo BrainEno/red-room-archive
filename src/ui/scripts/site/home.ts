@@ -163,7 +163,7 @@ if (!reduce) {
     { opacity: 0.08, color: '#ff3a26', textShadow: '0 0 22px rgba(255,40,20,.95)' },
     { opacity: 1, color: '#f1eee6', textShadow: '0 0 0px rgba(255,40,20,0)', ease: 'none', duration: per, stagger: gap,
       scrollTrigger: { trigger: '#intro', start: 'top 45%', end: 'top -60%', scrub: 0.5 } });
-  gsap.fromTo('.facts > div', { '--r': 0, opacity: 0 }, { '--r': 1, opacity: 1, ease: 'none', stagger: 0.3, duration: 0.6,
+  if (document.querySelector('.facts > div')) gsap.fromTo('.facts > div', { '--r': 0, opacity: 0 }, { '--r': 1, opacity: 1, ease: 'none', stagger: 0.3, duration: 0.6,
     scrollTrigger: { trigger: '#intro', start: 'top -25%', end: 'top -70%', scrub: 0.5 } });
 }
 

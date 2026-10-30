@@ -158,7 +158,7 @@ Notion 和 GitHub 联动、发布自动化的调研见 [docs/NOTION-GITHUB.md](d
 输入 `ADMIN_TOKEN` 登录（只存在当前标签页的 sessionStorage；请用 HTTPS 部署）。
 
 - **Articles**：已发布文章一览；**Sync now** / **Sync + fetch bodies**（同时预取所有正文，让搜索覆盖全文）/ **Full resync**（清空正文和图片缓存后重新同步）；单篇 **Refresh** 重新拉取正文。
-- **Settings**：站点名称/邮箱；简介（首页、meta description、RSS）、首页引言与标语，英文、中文各一份（中文留空就用内置中文文案，不会回退到英文）；中英标签对照（Tag pairs）；Notion token 与数据库（优先于 `.env`）；**Settings** 显示 Notion 配置是否存在（包括从环境变量读取），但这不代表连接有效；**Check columns** 实际验证权限与字段映射。**Export site profile** 导出已保存的非机密站点文字和标签对照；**Import site profile** 验证后立即替换这些字段，不修改 Notion 配置。导入会丢弃尚未保存的表单编辑。
+- **Settings**：站点名称/邮箱；简介（首页、meta description、RSS）、首页引言与标语、首页信息栏（Homepage facts：每行一条 `标签: 内容`，最多 6 条；留空用内置默认，填 `-` 隐藏），英文、中文各一份（中文留空就用内置中文文案，不会回退到英文）；中英标签对照（Tag pairs）；Notion token 与数据库（优先于 `.env`）；**Settings** 显示 Notion 配置是否存在（包括从环境变量读取），但这不代表连接有效；**Check columns** 实际验证权限与字段映射。**Export site profile** 导出已保存的非机密站点文字和标签对照；**Import site profile** 验证后立即替换这些字段，不修改 Notion 配置。导入会丢弃尚未保存的表单编辑。**Download content bundle (.zip)** 下载静态部署用的内容包（见下文）。
 - **More**：编辑 `/more` 页面（出版物、联系方式、二维码，中英并排），见上文。
 - **Files**：上传音频/视频/图片/PDF；上传 `.glb` 并选择 “Statue model” 可替换首页雕像；“更多”页面用到的文件标 on /more。
 
@@ -251,15 +251,30 @@ cp -a /absolute/path/uploads "$backup/uploads"
 4. Netlify 的 Deploy Preview 和分支部署默认也使用站点主地址 `URL`，而不是临时预览地址；要使用其他 canonical 地址可按构建上下文设置 `SITE_URL`。Deploy Preview 若两个 Notion 变量都未提供，会生成明显标注 **DEMO PREVIEW**、禁止索引的演示站点；只设置其中一个仍会失败，设置 `STATIC_DEMO=0` 可关闭预览回退。有完整凭据时预览构建真实文章。生产环境不会因缺少凭据自动使用演示内容。检查 Notion 密钥的构建作用域和上下文，**不要向不可信的 PR/预览构建提供生产凭据**；即使生成演示内容，也无法阻止 PR 自己的构建脚本读取已注入的密钥。
 5. 更新、撤回或定时发布文章后，**必须重新构建并部署**（可手动触发平台构建或由你自行配置安全的构建钩子）；撤回后旧部署、浏览器/CDN 缓存可能仍留有内容，敏感内容不应发布。Notion 不可用、正文/媒体获取失败或发布列缺失时构建失败，不发布不完整的新快照。
 
+#### 内容包：把后台编辑的内容带到静态站点
+
+静态站点没有后台，但可以从 Node 版后台带走内容：`/admin → Settings → Download content bundle (.zip)` 下载 `red-room-content-日期.zip`，内含
+
+| 文件 | 内容 |
+| --- | --- |
+| `site-profile.json` | 站点名、邮箱、中英文简介/引言/标语、首页信息栏、标签对照（与下文的站点资料 JSON 相同格式） |
+| `more.json` | “更多”页面（仅当后台保存过；没有就继续用内置示例） |
+| `uploads/…` | “更多”页面用到的封面、二维码，以及上传过的雕像模型 `venus.glb` |
+| `README.txt` | 使用说明 |
+
+**解压到仓库根目录的 `site-content/` 文件夹**（即 `site-content/site-profile.json`、`site-content/more.json`、`site-content/uploads/`），提交后重新构建即可。构建会把这些内容导入隔离的临时数据库，“更多”页面和首页按后台里的样子生成；页面实际引用到的上传文件复制到产物的 `/uploads/`，没被引用的不会发布。其中任何内容校验失败都会让构建失败（错误信息会写明原因），不会悄悄回到默认值。可用 `SITE_CONTENT_DIR` 指定其他文件夹（指定后不存在会报错）。内容包不含文章（文章始终来自 Notion）、Notion token 或后台 token；里面的一切都会公开，公开仓库里的文件本身也是公开的。
+
+站点资料的优先级：`SITE_PROFILE_PATH` > `site-content/site-profile.json` > 根目录 `site-profile.json`。
+
 #### 可迁移的站点资料 JSON
 
 动态 Node 版 `/admin → Settings → Export site profile` 下载 `site-profile.json`（导出的是上次保存的值，不含 Notion token、数据库 ID、后台 token、More 内容或上传文件）。在另一 Node 版的 Settings 选择 **Import site profile** 可直接保存，空字段回退到目标环境变量或内置默认值；Notion 凭据仍须在目标环境安全配置。
 
 静态 Netlify/Cloudflare **没有在线后台**。可访问 `/profile-editor.html` 在浏览器本地导入、编辑和下载相同格式的 JSON；它不会保存到网站。将导出的 `site-profile.json` 放到 Git 仓库根目录（不是 `public/`），提交后触发部署；构建时自动导入到隔离的临时数据库，每次构建都会读取。迁移时将同一文件带到新站点仓库根目录，再分别设置平台构建所需的 `SITE_URL`（Netlify 可自动检测）、Notion token 和数据库 ID。也可通过构建环境变量 `SITE_PROFILE_PATH` 指定相对于仓库根目录的其他文件路径，建议同时设置 `SITE_PROFILE_PATH=site-profile.json`，这样文件意外缺失时会让构建失败，而不是悄悄回到默认值；指定文件格式错误也会让构建失败。文件本身不会被复制到站点产物，但字段内容会显示在公开页面/RSS 中；不要放任何密码或私人内容，公开仓库中根目录文件本身也是公开的。备份原文件；更改 JSON 后仍须重新构建，不能实时更新。
 
-该 JSON 仅覆盖网站名、联系邮箱、中英文简介/引言/标语和标签对照，**不包含** More 内容、文章、上传文件、雕像模型或任何凭据，不是完整站点备份。More 的已有 JSON 不包含图片文件；Node 动态版仍应同时备份数据库与上传目录。静态部署目前也不会导入这些资料。
+该 JSON 仅覆盖网站名、联系邮箱、中英文简介/引言/标语、首页信息栏和标签对照，**不包含** More 内容、文章、上传文件、雕像模型或任何凭据，不是完整站点备份（静态部署要带上 More 和图片请用上文的内容包）。格式版本为 2（新增首页信息栏）；旧的版本 1 文件仍可导入，信息栏视为留空（使用内置默认）。Node 动态版仍应同时备份数据库与上传目录。
 
-静态版有中英文页面（英文根路径、中文 `/zh-CN/`）、文章、标签/分页、RSS、sitemap、浏览器搜索和朗读；搜索需要 JavaScript。公开文章正文会进入下载到浏览器的搜索索引。Notion 上传的图片和常见音视频/PDF 在构建时复制到公开产物，外链媒体仍依赖外部地址；不支持的媒体类型会使构建失败。构建过程使用隔离的临时 SQLite，不复制数据库或 token。仅生成公开站点，**没有 `/admin`、管理 API、上传或实时同步**；后台保存的设置、More 内容和上传不会自动带入；站点资料可通过上述 JSON 显式导入，未导入时使用默认值，More 仍使用代码内默认内容。语言切换使用静态路径，不支持原 SSR 的 cookie 自动协商或 `?lang=` 地址；旧的动态标签查询和旧博客重定向也不会自动生效。
+静态版有中英文页面（英文根路径、中文 `/zh-CN/`）、文章、标签/分页、RSS、sitemap、浏览器搜索和朗读；搜索需要 JavaScript。公开文章正文会进入下载到浏览器的搜索索引。Notion 上传的图片和常见音视频/PDF 在构建时复制到公开产物，外链媒体仍依赖外部地址；不支持的媒体类型会使构建失败。构建过程使用隔离的临时 SQLite，不复制数据库或 token。仅生成公开站点，**没有 `/admin`、管理 API、上传或实时同步**；后台保存的设置、More 内容和上传不会自动带入，需通过上述内容包（或单独的站点资料 JSON）显式导入；未导入时使用默认值，More 使用代码内示例内容。语言切换使用静态路径，不支持原 SSR 的 cookie 自动协商或 `?lang=` 地址；旧的动态标签查询和旧博客重定向也不会自动生效。
 
 注意：静态构建的临时数据库不会跨构建保留；**Date 留空的文章每次构建都会使用当次构建日期**，请在 Notion 填写 Date 以保持日期稳定。构建期间修改或撤回文章可能造成快照不一致，应等待更改完成后重新构建。只想预览演示内容时可显式设置 `STATIC_DEMO=1`（不能同时设置 Notion 凭据）；非 Netlify 环境仍需设置 `SITE_URL`。生产构建及普通本地构建缺少 Notion 配置不会自动切换成演示内容，以免误部署；Netlify Deploy Preview 的无凭据演示回退见上文。本地命令示例：
 
