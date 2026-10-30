@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-for (const route of ['/articles?lang=en', '/articles/connect-notion?lang=zh-CN', '/search?lang=en', '/search?q=no-such-article&lang=en', '/more?lang=zh-CN', '/admin', 'http://127.0.0.1:4179/zh-CN/articles']) {
+for (const route of ['/articles?lang=en', '/articles/connect-notion?lang=zh-CN', '/search?lang=en', '/search?q=no-such-article&lang=en', '/more?lang=zh-CN', '/admin', 'http://127.0.0.1:4179/zh-CN/articles', 'http://127.0.0.1:4179/profile-editor.html']) {
   test(`automated accessibility scan: ${route}`, async ({ page }) => {
     await page.goto(route);
     if (route === '/admin') await expect(page.locator('#tk')).toBeVisible();

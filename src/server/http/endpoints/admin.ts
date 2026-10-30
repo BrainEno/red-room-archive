@@ -15,7 +15,7 @@ import type {
 import { describeSchema } from '../../notion/mapper.ts';
 import { notion, syncArticles, warmBodies } from '../../services/articles.ts';
 import { adminToken, authenticate, requestPeer, requireAdmin } from '../../services/auth.ts';
-import { adminSettings, notionReady, updateSettings } from '../../services/settings.ts';
+import { adminSettings, importSiteProfile, notionReady, updateSettings } from '../../services/settings.ts';
 import { syncStatus } from '../../services/status.ts';
 import { NO_STORE, json, readJson, route, truthy } from '../respond.ts';
 
@@ -48,6 +48,13 @@ export const readSettings = route((context) => {
 export const writeSettings = route(async (context) => {
   requireAdmin(context.request, requestPeer(context));
   updateSettings(await readJson(context.request));
+  return json(settingsBody(), { headers: NO_STORE });
+});
+
+/** POST /api/settings/profile — replace only the explicitly public fields. */
+export const writeSiteProfile = route(async (context) => {
+  requireAdmin(context.request, requestPeer(context));
+  importSiteProfile(await readJson(context.request));
   return json(settingsBody(), { headers: NO_STORE });
 });
 

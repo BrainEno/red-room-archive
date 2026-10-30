@@ -3,13 +3,15 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { readFile, access } from 'node:fs/promises';
+import { readFile, access, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { makeProfile, PROFILE_KEYS } from '../../public/profile-format.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { API, DB, FILES, ID, compact, createNotionMock } from '../fixtures/notion-mock.mjs';
 
 async function run(env) {
-  const child = spawn(process.execPath, ['scripts/static-snapshot.mjs'], { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['scripts/static-snapshot.mjs'], { env: { ...process.env, SITE_PROFILE_PATH: '', ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = ''; child.stdout.on('data', (d) => { output += d; }); child.stderr.on('data', (d) => { output += d; });
   const [code] = await once(child, 'exit');
   return { code, output };
@@ -119,4 +121,34 @@ test('Netlify falls back to its primary URL without weakening static build valid
   result = await run({ ...env, STATIC_DEMO: '' });
   assert.notEqual(result.code, 0); assert.match(result.output, /Set NOTION_TOKEN and NOTION_DATABASE_ID/);
   await assert.rejects(access('static-dist/index.html'));
+});
+
+test('a portable profile is applied on each static rebuild and rejected safely when invalid', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'rra-profile-'));
+  const profilePath = path.join(dir, 'site-profile.json');
+  const profile = makeProfile(Object.fromEntries(PROFILE_KEYS.map((key) => [key, ''])));
+  Object.assign(profile.settings, { site_name: 'Portable Archive', site_about: 'Portable description', site_intro_zh: '中文迁移简介', site_email: 'portable@example.test' });
+  const env = { SITE_URL: 'https://portable.test', STATIC_DEMO: '1', SITE_PROFILE_PATH: profilePath,
+    NOTION_TOKEN: '', NOTION_API_SECRET: '', NOTION_DATABASE_ID: '', DATABASE_ID: '', NOTION_DB_WRITING: '' };
+  try {
+    await writeFile(profilePath, JSON.stringify(profile));
+    for (let n = 0; n < 2; n++) {
+      const result = await run(env); assert.equal(result.code, 0, result.output);
+      const en = await readFile('static-dist/index.html', 'utf8');
+      const zh = await readFile('static-dist/zh-CN/index.html', 'utf8');
+      assert.match(en, /Portable Archive/); assert.match(en, /Portable description/);
+      assert.match(zh, /中文迁移简介/);
+      assert.match(await readFile('static-dist/rss.xml', 'utf8'), /Portable Archive/);
+      await assert.rejects(access('static-dist/site-profile.json'));
+      await assert.rejects(access('static-dist/admin/index.html'));
+      assert.match(await readFile('static-dist/profile-editor.html', 'utf8'), /does not log you in/);
+    }
+    profile.settings.NOTION_TOKEN = 'never-accept-me';
+    await writeFile(profilePath, JSON.stringify(profile));
+    const invalid = await run(env); assert.notEqual(invalid.code, 0); assert.match(invalid.output, /supported public fields/);
+    await assert.rejects(access('static-dist/index.html'));
+    const missing = await run({ ...env, SITE_PROFILE_PATH: path.join(dir, 'missing.json') });
+    assert.notEqual(missing.code, 0); assert.match(missing.output, /Cannot load site profile/);
+    await assert.rejects(access('static-dist/index.html'));
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });

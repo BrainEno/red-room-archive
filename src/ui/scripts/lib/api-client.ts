@@ -5,6 +5,7 @@
  * these functions, which share their types with the server through
  * `src/shared/contracts.ts`. Relative URLs only, so it works behind any proxy.
  */
+import type { SiteProfileFile } from '../../../../public/profile-format.js';
 import type {
   ApiErrorBody,
   ApiErrorCode,
@@ -129,6 +130,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
     settings: {
       get: () => request<SettingsResponse>('/api/settings'),
+      importProfile: (profile: SiteProfileFile) => request<SettingsResponse>('/api/settings/profile', { method: 'POST', json: profile }),
       update: (values: Partial<SettingValues>) =>
         request<SettingsResponse>('/api/settings', { method: 'PATCH', json: values }),
     },

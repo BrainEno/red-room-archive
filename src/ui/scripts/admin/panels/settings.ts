@@ -1,7 +1,8 @@
 /** Settings panel — site copy, the Notion connection and the column check. */
+import { makeProfile, validateProfile, PROFILE_MAX_BYTES } from '../../../../../public/profile-format.js';
 import type { ArticleField, NotionSchemaResponse, SettingKey, SettingsResponse } from '../../../../shared/contracts.ts';
 import type { ApiClient } from '../../lib/api-client.ts';
-import { $, busy, esc, fail, toast } from '../dom.ts';
+import { $, busy, esc, fail, pickFile, toast } from '../dom.ts';
 
 const LABELS: Record<SettingKey, string> = {
   site_name: 'Site name',
@@ -65,6 +66,11 @@ export function settingsPanel(root: HTMLElement, api: ApiClient, initial: Settin
 
   const render = () => {
     root.innerHTML = `
+      <section aria-labelledby="profile-transfer-title">
+        <h2 id="profile-transfer-title">Site profile backup</h2>
+        <p class="hint">Export the last saved public site text and tag pairs as JSON. No Notion credentials or uploaded files are included. Import replaces these fields immediately; unsaved edits will be lost. Static Netlify/Cloudflare sites need a rebuild using the file.</p>
+        <div class="row2 tight"><button type="button" id="profile-export">Export site profile</button><button type="button" id="profile-import">Import site profile…</button></div>
+      </section>
       <form class="form" id="sf">${keys.map((key) => `<label>${LABELS[key]}${field(key)}</label>`).join('')}
         <div class="row2 tight"><button>Save</button><button type="button" id="chk">Check columns</button></div>
       </form>
@@ -88,6 +94,31 @@ export function settingsPanel(root: HTMLElement, api: ApiClient, initial: Settin
       } catch (error) {
         fail(error);
       }
+    };
+
+    $('#profile-export', root).onclick = () => {
+      try {
+        const profile = makeProfile(state.values);
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(new Blob([JSON.stringify(profile, null, 2) + '\n'], { type: 'application/json' }));
+        link.download = 'site-profile.json';
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      } catch (error) { fail(error); }
+    };
+    $('#profile-import', root).onclick = async () => {
+      const file = await pickFile('.json,application/json');
+      if (!file) return;
+      try {
+        if (file.size > PROFILE_MAX_BYTES) throw new Error('Site profile is too large');
+        const profile = validateProfile(JSON.parse(await file.text()));
+        if (!confirm('Replace all public profile fields with this file? Unsaved edits will be lost. Notion settings will not change.')) return;
+        state = await busy(root, () => api.settings.importProfile(profile));
+        try { localStorage.setItem('rra:settings-changed', `${Date.now()}-${Math.random()}`); } catch { /* refresh other tabs manually */ }
+        render();
+        onSaved(state);
+        toast('Profile imported and saved');
+      } catch (error) { fail(error instanceof SyntaxError ? new Error('Invalid JSON file') : error); }
     };
 
     $('#chk', root).onclick = async () => {

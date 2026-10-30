@@ -3,11 +3,12 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
-import { mkdtemp, mkdir, cp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, cp, rm, writeFile, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import { parse, serialize } from 'parse5';
+import { validateProfile, PROFILE_MAX_BYTES } from '../public/profile-format.js';
 
 const root = process.cwd();
 // The UI harness has its own disposable output and never overwrites a user's snapshot.
@@ -85,6 +86,20 @@ try {
   if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('SITE_URL must be a plain HTTP(S) origin without credentials or a path.');
   if ((!token || !database) && !demo) throw new Error('Set NOTION_TOKEN and NOTION_DATABASE_ID, or explicitly set STATIC_DEMO=1 for a demo.');
   if (demo && (token || database)) throw new Error('STATIC_DEMO cannot be combined with Notion credentials.');
+  // The root file is build input, not a published asset. An explicitly configured
+  // path must exist; never silently ship defaults after a failed import.
+  const profileName = process.env.SITE_PROFILE_PATH || (process.env.UI_TEST_SNAPSHOT === '1' ? '' : 'site-profile.json');
+  const profilePath = profileName ? path.resolve(root, profileName) : '';
+  let profile;
+  try {
+    if (profilePath) {
+      const info = await stat(profilePath);
+      if (!info.isFile() || info.size > PROFILE_MAX_BYTES) throw new Error('Site profile must be a file of at most 128 KiB');
+      profile = validateProfile(JSON.parse(await readFile(profilePath, 'utf8')));
+    }
+  } catch (error) {
+    if (error.code !== 'ENOENT' || process.env.SITE_PROFILE_PATH) throw new Error(`Cannot load site profile: ${error.message}`);
+  }
   child = spawn(process.execPath, [path.join(root, 'dist/server/entry.mjs')], {
     cwd: temp, env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), ADMIN_TOKEN: secret,
       DB_PATH: path.join(temp, 'snapshot.db'), UPLOAD_DIR: path.join(temp, 'uploads'), MEDIA_CACHE_DIR: path.join(temp, 'media'), SYNC_TTL_SECONDS: '31536000',
@@ -97,6 +112,10 @@ try {
     child.stdout.on('data', data); child.stderr.on('data', data);
     child.once('exit', (code) => { clearTimeout(timer); reject(new Error(`Snapshot server exited: ${code}\n${log}`)); });
   });
+  if (profile) {
+    const response = await fetch(base + '/api/settings/profile', { method: 'POST', headers: { ...admin, 'Content-Type': 'application/json' }, body: JSON.stringify(profile) });
+    if (!response.ok) throw new Error(`Site profile import failed (${response.status}); no snapshot published.`);
+  }
   if (!demo) {
     const schema = await (await get('/api/notion/schema', admin)).json();
     if (!schema.mapping?.published?.property || !schema.mapping?.title?.property) throw new Error('A recognized Published column and title column are required for safe static publishing.');
