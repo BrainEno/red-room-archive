@@ -12,8 +12,9 @@
  *   NEWSLETTER_FROM            `Name <letters@your-domain>` (verified sender)
  *
  * Optional: NEWSLETTER_REPLY_TO, NEWSLETTER_DAILY_LIMIT (default 90 — below
- * Resend's free 100/day), NEWSLETTER_TOKEN_TTL_HOURS (default 48),
- * NEWSLETTER_SITE_NAME (default from content/site.ts).
+ * Resend's free 100 per UTC day), NEWSLETTER_MONTHLY_LIMIT (default 2800 —
+ * below Resend's free 3,000 per month), NEWSLETTER_TOKEN_TTL_HOURS
+ * (default 48), NEWSLETTER_SITE_NAME (default from content/site.ts).
  */
 import { readEnv } from '../../core/env.ts';
 import { normalizeEmail } from '../../core/newsletter.ts';
@@ -34,7 +35,10 @@ export interface NewsletterConfig {
   apiKey: string | null;
   from: Sender | null;
   replyTo: string | null;
+  /** Emails per UTC day (all kinds: confirmations, welcomes, notices). */
   dailyLimit: number;
+  /** Emails per UTC calendar month. */
+  monthlyLimit: number;
   tokenTtlMs: number;
   siteName: string;
   /** Names of required variables that are missing or invalid. */
@@ -98,6 +102,7 @@ export function newsletterConfig(env: (key: string) => string | undefined = read
   return {
     secret, siteUrl, provider, apiKey, from, replyTo, siteName, missing,
     dailyLimit: positive(env('NEWSLETTER_DAILY_LIMIT'), 90, 100_000),
+    monthlyLimit: positive(env('NEWSLETTER_MONTHLY_LIMIT'), 2800, 10_000_000),
     tokenTtlMs: positive(env('NEWSLETTER_TOKEN_TTL_HOURS'), 48, 24 * 14) * 60 * 60 * 1000,
     enabled: missing.length === 0,
   };

@@ -4,6 +4,13 @@
 
 [build.environment]
   NODE_VERSION = "22.23.4"
+  # DB_PATH is a file path, not a secret: its documented default
+  # (data/archive.db) is in the README and src/server/config.ts, so Netlify's
+  # secrets scan fails the build whenever DB_PATH is marked "secret" in the
+  # Netlify UI. The static build ignores DB_PATH (it uses a temporary database).
+  # Real secrets (ADMIN_TOKEN, NOTION_TOKEN, NEWSLETTER_SECRET,
+  # NEWSLETTER_EMAIL_API_KEY) are still scanned.
+  SECRETS_SCAN_OMIT_KEYS = "DB_PATH"
 
 # Newsletter API (/api/newsletter/*): the only server code on the static site.
 # Data lives in Netlify Blobs; secrets are function environment variables.

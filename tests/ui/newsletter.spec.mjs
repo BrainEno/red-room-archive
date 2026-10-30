@@ -70,7 +70,8 @@ test('sign-up: client validation, then a JSON request; "check your inbox" only a
 
 test('sign-up failures are reported as failures', async ({ page }) => {
   const answers = [
-    [503, { error: 'The daily email limit has been reached; sign-up reopens tomorrow (UTC). Nothing was saved.', code: 'unavailable' }, 'paused for today'],
+    [503, { error: 'sign-up is paused until tomorrow (UTC): the daily email limit has been reached. You have not been subscribed.', code: 'unavailable', details: { reason: 'daily-limit' } }, 'paused for today'],
+    [503, { error: 'sign-up is paused until next month: the monthly email limit has been reached. You have not been subscribed.', code: 'unavailable', details: { reason: 'monthly-limit' } }, 'paused until next month'],
     [502, { error: 'The confirmation email could not be sent. Nothing was activated.', code: 'upstream_error' }, 'could not send'],
     [429, { error: 'Too many requests', code: 'rate_limited' }, 'Too many attempts'],
   ];

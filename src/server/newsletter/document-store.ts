@@ -16,7 +16,7 @@
 import { unavailable } from '../../core/errors.ts';
 import type { NewsletterCounts } from '../../shared/contracts.ts';
 import {
-  DuplicateSubscriberError, matchesQuery,
+  DuplicateSubscriberError, keepSendCountsFrom, matchesQuery, monthOf,
   type NewsletterStore, type NewsletterTx, type SubscriberRecord, type TokenRecord,
 } from './store.ts';
 
@@ -43,7 +43,7 @@ interface NewsletterDocument {
   nextTokenId: number;
   subscribers: SubscriberRecord[];
   tokens: TokenRecord[];
-  /** Emails sent per UTC day (`YYYY-MM-DD`), last 8 days. */
+  /** Emails sent per UTC day (`YYYY-MM-DD`) and month (`YYYY-MM`), this month and last. */
   sends: Record<string, number>;
   /** Rate-limit windows by hashed client key. */
   limits: Record<string, RateBucket>;
@@ -144,21 +144,21 @@ function documentTx(doc: NewsletterDocument) {
       touch();
       return true;
     },
-    reserveSend: (day, limit) => {
-      const used = doc.sends[day] ?? 0;
-      if (used >= limit) return false;
-      doc.sends[day] = used + 1;
-      for (const old of Object.keys(doc.sends).sort().slice(0, -8)) delete doc.sends[old];
+    sendUsage: (day) => ({ daily: doc.sends[day] ?? 0, monthly: doc.sends[monthOf(day)] ?? 0 }),
+    recordSend: (day) => {
+      for (const key of [day, monthOf(day)]) doc.sends[key] = (doc.sends[key] ?? 0) + 1;
+      const keep = keepSendCountsFrom(day);
+      for (const old of Object.keys(doc.sends)) if (old < keep) delete doc.sends[old];
       touch();
-      return true;
     },
-    releaseSend: (day) => {
-      if ((doc.sends[day] ?? 0) > 0) {
-        doc.sends[day]! -= 1;
-        touch();
+    raiseSendUsage: (day, usage) => {
+      for (const [key, value] of [[day, usage.daily], [monthOf(day), usage.monthly]] as const) {
+        if (typeof value === 'number' && Number.isFinite(value) && value > (doc.sends[key] ?? 0)) {
+          doc.sends[key] = Math.floor(value);
+          touch();
+        }
       }
     },
-    sentOn: (day) => doc.sends[day] ?? 0,
     listSubscribers: (query) => {
       const rows = sorted(doc.subscribers.filter((row) => matchesQuery(row, query)));
       return { rows: rows.slice(query.offset, query.offset + query.limit).map((row) => ({ ...row })), total: rows.length };

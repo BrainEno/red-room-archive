@@ -15,7 +15,7 @@ import { ApiError, createApiClient } from '../lib/api-client.ts';
 
 const api = createApiClient();
 
-type FormMessages = Record<'sent' | 'invalid' | 'rateLimited' | 'closed' | 'paused' | 'sendFailed' | 'unreachable' | 'error' | 'submit' | 'sending', string>;
+type FormMessages = Record<'sent' | 'invalid' | 'rateLimited' | 'closed' | 'paused' | 'pausedMonth' | 'sendFailed' | 'unreachable' | 'error' | 'submit' | 'sending', string>;
 type LinkMessages = Record<string, string>;
 
 const read = <T>(element: HTMLElement): T => {
@@ -33,7 +33,13 @@ function failure(error: unknown): keyof FormMessages {
   if (!(error instanceof ApiError)) return 'unreachable';
   if (error.status === 400 && error.details?.field === 'email') return 'invalid';
   if (error.status === 429) return 'rateLimited';
-  if (error.status === 503) return /daily email limit/.test(error.message) ? 'paused' : 'closed';
+  if (error.status === 503) {
+    // Daily / monthly sending limit (NEWSLETTER_DAILY_LIMIT / NEWSLETTER_MONTHLY_LIMIT).
+    const reason = error.details?.reason;
+    if (reason === 'monthly-limit' || /monthly email limit/.test(error.message)) return 'pausedMonth';
+    if (reason === 'daily-limit' || /daily email limit/.test(error.message)) return 'paused';
+    return 'closed';
+  }
   if (error.status === 502) return 'sendFailed';
   if (error.status === 404 || error.status === 405) return 'unreachable';
   return 'error';

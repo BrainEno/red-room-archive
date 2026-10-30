@@ -18,8 +18,10 @@
  *   token is retired, the row records `send_failed`, nothing is activated and
  *   the visitor is told the truth (502), so retrying immediately works.
  * - Abuse limits: per client (hashed address) window, per address cooldown and
- *   daily cap, and a site-wide daily send budget kept under the provider's
- *   free quota.
+ *   daily cap, and site-wide daily and monthly send limits kept under the
+ *   provider's free quota (NEWSLETTER_DAILY_LIMIT / NEWSLETTER_MONTHLY_LIMIT).
+ *   Every email counts. The counters also rise to the provider's own figures
+ *   when it reports them, and a provider "quota exceeded" closes the period.
  * - Logs carry masked addresses and ids only, never tokens.
  */
 import { badRequest, conflict, gone, notFound, rateLimited, unavailable, upstreamError } from '../../core/errors.ts';
@@ -33,8 +35,8 @@ import { NEWSLETTER_CONFIRM_PATH, NEWSLETTER_UNSUBSCRIBE_PATH } from '../../shar
 import type { NewsletterConfig } from '../newsletter/config.ts';
 import { TOKEN_PATTERN, clientKey, hashToken, newToken, unsubscribeToken, unsubscribeTokenId, verifyUnsubscribeToken } from '../newsletter/crypto.ts';
 import { alreadySubscribedEmail, confirmationEmail, welcomeEmail } from '../newsletter/emails.ts';
-import type { EmailMessage, Mailer } from '../newsletter/mailer.ts';
-import type { NewsletterStore, NewsletterTx, SubscriberRecord } from '../newsletter/store.ts';
+import { MailerError, type EmailMessage, type Mailer, type QuotaPeriod } from '../newsletter/mailer.ts';
+import type { NewsletterStore, NewsletterTx, SendUsage, SubscriberRecord } from '../newsletter/store.ts';
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -58,7 +60,14 @@ export const NEWSLETTER_LIMITS = {
 
 const SUBSCRIBE_OK: NewsletterSubscribeResponse = { status: 'check-inbox' };
 const INVALID_LINK = 'this link is invalid or has already been replaced';
-const DAILY_LIMIT = 'sign-up is paused until tomorrow: the daily email limit has been reached. Nothing was saved.';
+const LIMIT_REACHED: Record<QuotaPeriod, string> = {
+  daily: 'sign-up is paused until tomorrow (UTC): the daily email limit has been reached. You have not been subscribed.',
+  monthly: 'sign-up is paused until next month: the monthly email limit has been reached. You have not been subscribed.',
+};
+/** 503 with `details.reason` = `daily-limit` | `monthly-limit` (the page shows when to come back). */
+const limitReached = (period: QuotaPeriod) => unavailable(LIMIT_REACHED[period], { reason: `${period}-limit` });
+const quotaOf = (error: unknown): QuotaPeriod | null => (error instanceof MailerError ? error.quota : null);
+const utcDay = (at: Date) => at.toISOString().slice(0, 10);
 const SEND_FAILED = 'the confirmation email could not be sent. Nothing was activated; please try again later.';
 const NOT_CONFIGURED = 'newsletter sign-up is not available yet: email delivery is not configured on this server. Nothing was saved.';
 
@@ -153,9 +162,46 @@ export function createNewsletterService(deps: NewsletterServiceDeps) {
     return { raw, id: token.id };
   };
 
+  /** The send limit already used up for `day`, if any. */
+  const spentLimit = (tx: NewsletterTx, day: string): QuotaPeriod | null => {
+    const used = tx.sendUsage(day);
+    if (used.daily >= config.dailyLimit) return 'daily';
+    if (used.monthly >= config.monthlyLimit) return 'monthly';
+    return null;
+  };
+  /** Count one email against today's and this month's limits, or refuse (503). */
+  const reserveSend = (tx: NewsletterTx, day: string) => {
+    const spent = spentLimit(tx, day);
+    if (spent) throw limitReached(spent);
+    tx.recordSend(day);
+  };
+  const noteUsage = async (day: string, usage: Partial<SendUsage>) => {
+    try {
+      await store().transact((tx) => tx.raiseSendUsage(day, usage));
+    } catch (error) {
+      log('send usage not recorded', { reason: (error as Error)?.message });
+    }
+  };
+  /**
+   * Every email goes through here. The provider's own usage figures raise our
+   * counters (other mail from the same account counts too); a "quota
+   * exceeded" answer closes that day or month here as well.
+   */
+  async function send(message: EmailMessage) {
+    const day = utcDay(now());
+    try {
+      const result = await mailer!.send(message);
+      if (result?.usage) await noteUsage(day, result.usage);
+    } catch (error) {
+      const quota = quotaOf(error);
+      if (quota) await noteUsage(day, quota === 'daily' ? { daily: config.dailyLimit } : { monthly: config.monthlyLimit });
+      throw error;
+    }
+  }
+
   async function deliverConfirmation(row: SubscriberRecord, raw: string, tokenId: number) {
     try {
-      await mailer!.send(confirmationMessage(row, raw));
+      await send(confirmationMessage(row, raw));
     } catch (error) {
       log('confirmation send failed', { id: row.id, to: maskEmail(row.email), provider: mailer!.provider, reason: (error as Error)?.message });
       const at = now().toISOString();
@@ -163,7 +209,8 @@ export function createNewsletterService(deps: NewsletterServiceDeps) {
         tx.consumeToken(tokenId, at); // retired: the visitor may retry at once
         tx.updateSubscriber(row.id, { lastError: 'send_failed', lastErrorAt: at, updatedAt: at });
       });
-      throw upstreamError(SEND_FAILED);
+      const quota = quotaOf(error);
+      throw quota ? limitReached(quota) : upstreamError(SEND_FAILED);
     }
     if (row.lastError) {
       await store().transact((tx) => tx.updateSubscriber(row.id, { lastError: null, lastErrorAt: null }));
@@ -172,9 +219,12 @@ export function createNewsletterService(deps: NewsletterServiceDeps) {
   }
 
   async function delivery(): Promise<NewsletterDelivery> {
-    const day = now().toISOString().slice(0, 10);
-    const sentToday = deps.store ? await deps.store.transact((tx) => tx.sentOn(day)) : 0;
-    return { configured: deliverable(), provider: config.provider, missing: config.missing, storage: deps.storage, dailyLimit: config.dailyLimit, sentToday };
+    const day = utcDay(now());
+    const used = deps.store ? await deps.store.transact((tx) => tx.sendUsage(day)) : { daily: 0, monthly: 0 };
+    return {
+      configured: deliverable(), provider: config.provider, missing: config.missing, storage: deps.storage,
+      dailyLimit: config.dailyLimit, monthlyLimit: config.monthlyLimit, sentToday: used.daily, sentThisMonth: used.monthly,
+    };
   }
 
   return {
@@ -206,13 +256,14 @@ export function createNewsletterService(deps: NewsletterServiceDeps) {
       const plan = await store().transact<Plan>((tx) => {
         if (!tx.hitRateLimit(key, max, NEWSLETTER_LIMITS.clientWindowMs, at.getTime())) throw rateLimited('too many sign-up attempts, please try again later');
         // Checked before looking the address up, so the answer cannot depend on it.
-        if (tx.sentOn(day) >= config.dailyLimit) throw unavailable(DAILY_LIMIT);
+        const spent = spentLimit(tx, day);
+        if (spent) throw limitReached(spent);
         tx.purgeTokens(new Date(at.getTime() - NEWSLETTER_LIMITS.tokenRetentionMs).toISOString());
 
         let row = tx.findSubscriberByEmail(address.normalized);
         if (row?.status === 'active') {
           if (row.noticeSentAt && at.getTime() - Date.parse(row.noticeSentAt) < NEWSLETTER_LIMITS.noticeIntervalMs) return { kind: 'none' };
-          if (!tx.reserveSend(day, config.dailyLimit)) throw unavailable(DAILY_LIMIT);
+          reserveSend(tx, day);
           tx.updateSubscriber(row.id, { noticeSentAt: iso, updatedAt: iso });
           return { kind: 'already', row, previousNotice: row.noticeSentAt };
         }
@@ -229,7 +280,7 @@ export function createNewsletterService(deps: NewsletterServiceDeps) {
             confirmedAt: null, unsubscribedAt: null, lastError: null, lastErrorAt: null, noticeSentAt: null,
           });
         }
-        if (!tx.reserveSend(day, config.dailyLimit)) throw unavailable(DAILY_LIMIT);
+        reserveSend(tx, day);
         const token = issueToken(tx, row, at);
         return { kind: 'confirm', row, raw: token.raw, tokenId: token.id };
       });
@@ -239,11 +290,12 @@ export function createNewsletterService(deps: NewsletterServiceDeps) {
         const urls = unsubscribeUrls(plan.row);
         const mail = alreadySubscribedEmail(localeOf(plan.row.locale), config.siteName, link('/', localeOf(plan.row.locale)), urls.page);
         try {
-          await mailer!.send({ to: plan.row.email, ...mail, headers: listHeaders(urls.oneClick) });
+          await send({ to: plan.row.email, ...mail, headers: listHeaders(urls.oneClick) });
         } catch (error) {
           log('notice send failed', { id: plan.row.id, to: maskEmail(plan.row.email), reason: (error as Error)?.message });
           await store().transact((tx) => tx.updateSubscriber(plan.row.id, { noticeSentAt: plan.previousNotice }));
-          throw upstreamError(SEND_FAILED);
+          const quota = quotaOf(error);
+          throw quota ? limitReached(quota) : upstreamError(SEND_FAILED);
         }
       }
       return SUBSCRIBE_OK;
@@ -268,7 +320,9 @@ export function createNewsletterService(deps: NewsletterServiceDeps) {
         tx.retireTokens(row.id, 'confirm', iso);
         if (row.status === 'active') return { status: 'already-confirmed' as const };
         tx.updateSubscriber(row.id, { status: 'active', confirmedAt: iso, updatedAt: iso, lastError: null, lastErrorAt: null });
-        const welcome = Boolean(mailer && config.siteUrl && config.secret) && tx.reserveSend(iso.slice(0, 10), config.dailyLimit);
+        // Best effort, and only within the limits: a spent budget skips the welcome note.
+        const welcome = Boolean(mailer && config.siteUrl && config.secret) && !spentLimit(tx, utcDay(at));
+        if (welcome) tx.recordSend(utcDay(at));
         return { status: 'confirmed' as const, row, welcome };
       });
       if (result.status === 'confirmed') {
@@ -278,7 +332,7 @@ export function createNewsletterService(deps: NewsletterServiceDeps) {
           try {
             const urls = unsubscribeUrls(result.row);
             const locale = localeOf(result.row.locale);
-            await mailer!.send({ to: result.row.email, ...welcomeEmail(locale, config.siteName, link('/', locale), urls.page), headers: listHeaders(urls.oneClick) });
+            await send({ to: result.row.email, ...welcomeEmail(locale, config.siteName, link('/', locale), urls.page), headers: listHeaders(urls.oneClick) });
           } catch (error) {
             log('welcome send failed', { id: result.row.id, reason: (error as Error)?.message });
           }
@@ -335,7 +389,7 @@ export function createNewsletterService(deps: NewsletterServiceDeps) {
         const row = tx.findSubscriber(id);
         if (!row) throw notFound('subscriber not found');
         if (row.status !== 'pending') throw conflict('only pending subscribers can be sent a new confirmation');
-        if (!tx.reserveSend(day, config.dailyLimit)) throw unavailable(DAILY_LIMIT);
+        reserveSend(tx, day);
         const token = issueToken(tx, row, at);
         return { row, raw: token.raw, tokenId: token.id };
       });

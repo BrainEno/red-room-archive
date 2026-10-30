@@ -210,8 +210,9 @@ const MIGRATIONS: ((db: DatabaseConnection) => void)[] = [
       );
       CREATE INDEX IF NOT EXISTS newsletter_tokens_subscriber ON newsletter_tokens(subscriber_id, token_type, created_at);
 
-      CREATE TABLE IF NOT EXISTS newsletter_send_log(
-        day TEXT PRIMARY KEY,
+      -- period: a UTC day (YYYY-MM-DD) or month (YYYY-MM); daily and monthly email limits.
+      CREATE TABLE IF NOT EXISTS newsletter_send_counts(
+        period TEXT PRIMARY KEY,
         count INTEGER NOT NULL DEFAULT 0
       );
 

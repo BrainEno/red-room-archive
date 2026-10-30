@@ -74,7 +74,10 @@ const en = {
     active: 'Active',
     pending: 'Pending',
     unsubscribed: 'Unsubscribed',
-    delivery: (provider: string, sent: number, limit: number): string => `Email via ${provider} · ${sent} / ${limit} sent today (UTC)`,
+    delivery: (provider: string, today: number, daily: number, month: number, monthly: number): string =>
+      `Email via ${provider} · today ${today} / ${daily} · this month ${month} / ${monthly} (UTC)`,
+    limitReached: (period: 'daily' | 'monthly'): string =>
+      period === 'daily' ? 'Daily limit reached: sign-up reopens tomorrow (UTC).' : 'Monthly limit reached: sign-up reopens next month (UTC).',
     notConfigured: (missing: string): string => `Sign-up is closed: email delivery is not configured. Missing: ${missing}.`,
     storage: { sqlite: 'Stored in SQLite (Node server)', 'netlify-blobs': 'Stored encrypted in Netlify Blobs' } as Record<string, string>,
     search: 'Search addresses',
@@ -375,7 +378,8 @@ const zh: Messages = {
     active: '已订阅',
     pending: '待确认',
     unsubscribed: '已退订',
-    delivery: (provider, sent, limit) => `邮件服务：${provider} · 今日（UTC）已发送 ${sent} / ${limit}`,
+    delivery: (provider, today, daily, month, monthly) => `邮件服务：${provider} · 今日已发送 ${today} / ${daily} · 本月 ${month} / ${monthly}（UTC）`,
+    limitReached: (period) => (period === 'daily' ? '已达到每日上限：明天（UTC）恢复订阅。' : '已达到每月上限：下个月（UTC）恢复订阅。'),
     notConfigured: (missing) => `订阅未开放：尚未配置邮件发送。缺少：${missing}。`,
     storage: { sqlite: '数据保存在 SQLite（Node 服务器）', 'netlify-blobs': '数据加密保存在 Netlify Blobs' },
     search: '搜索邮箱',

@@ -9,6 +9,12 @@
  * Both accept custom headers, which carries RFC 8058 one-click unsubscribe
  * (`List-Unsubscribe` + `List-Unsubscribe-Post`). Errors never include the
  * recipient or the provider's response body (it can echo the address).
+ *
+ * Resend also reports quota use on every response (`x-resend-daily-quota`,
+ * free plan only, and `x-resend-monthly-quota`: emails used so far) and
+ * answers 429 `daily_quota_exceeded` / `monthly_quota_exceeded` when a quota
+ * is spent. Both are surfaced so the service can stop before the provider
+ * does. See https://resend.com/docs/api-reference/rate-limit
  */
 import type { EmailProvider, NewsletterConfig, Sender } from './config.ts';
 
@@ -22,17 +28,27 @@ export interface EmailMessage {
   idempotencyKey?: string;
 }
 
+export type QuotaPeriod = 'daily' | 'monthly';
+
+export interface SendResult {
+  /** Emails the provider says were used in its current day / month, when it says. */
+  usage?: { daily?: number; monthly?: number };
+}
+
 export interface Mailer {
   readonly provider: EmailProvider | 'test';
-  send(message: EmailMessage): Promise<void>;
+  send(message: EmailMessage): Promise<SendResult | void>;
 }
 
 export class MailerError extends Error {
   readonly status: number | null;
-  constructor(provider: string, status: number | null, reason = '') {
+  /** Set when the provider refused because a sending quota is used up. */
+  readonly quota: QuotaPeriod | null;
+  constructor(provider: string, status: number | null, reason = '', quota: QuotaPeriod | null = null) {
     super(`${provider} rejected the message${status ? ` (HTTP ${status})` : ''}${reason ? `: ${reason}` : ''}`);
     this.name = 'MailerError';
     this.status = status;
+    this.quota = quota;
   }
 }
 
@@ -46,7 +62,33 @@ const display = (sender: Sender) => (sender.name ? `${sender.name} <${sender.ema
 
 type Fetch = typeof fetch;
 
-async function post(provider: string, fetchImpl: Fetch, url: string, headers: Record<string, string>, body: unknown) {
+const count = (value: string | null) => {
+  if (value === null || !/^\s*\d+\s*$/.test(value)) return undefined;
+  return Number(value);
+};
+
+/** Resend's quota headers: emails already used today (free plan) and this month. */
+function resendUsage(response: Response): SendResult {
+  const daily = count(response.headers.get('x-resend-daily-quota'));
+  const monthly = count(response.headers.get('x-resend-monthly-quota'));
+  return daily === undefined && monthly === undefined ? {} : { usage: { ...(daily !== undefined ? { daily } : {}), ...(monthly !== undefined ? { monthly } : {}) } };
+}
+
+/** Only the error *type* is read from a 429 body — never logged, never the message. */
+async function resendQuota(response: Response): Promise<QuotaPeriod | null> {
+  if (response.status !== 429) return null;
+  try {
+    const name = ((await response.clone().json()) as { name?: unknown })?.name;
+    return name === 'daily_quota_exceeded' ? 'daily' : name === 'monthly_quota_exceeded' ? 'monthly' : null;
+  } catch {
+    return null;
+  }
+}
+
+async function post(
+  provider: string, fetchImpl: Fetch, url: string, headers: Record<string, string>, body: unknown,
+  inspect?: { usage?: (response: Response) => SendResult; quota?: (response: Response) => Promise<QuotaPeriod | null> },
+): Promise<SendResult> {
   let response: Response;
   try {
     response = await fetchImpl(url, {
@@ -58,9 +100,12 @@ async function post(provider: string, fetchImpl: Fetch, url: string, headers: Re
   } catch (error) {
     throw new MailerError(provider, null, (error as Error)?.name === 'TimeoutError' ? 'timed out' : 'network error');
   }
+  const quota = !response.ok && inspect?.quota ? await inspect.quota(response) : null;
+  const result = inspect?.usage ? inspect.usage(response) : {};
   // Drain without reading the content into logs.
   await response.arrayBuffer().catch(() => undefined);
-  if (!response.ok) throw new MailerError(provider, response.status);
+  if (!response.ok) throw new MailerError(provider, response.status, quota ? `${quota} quota exceeded` : '', quota);
+  return result;
 }
 
 export function resendMailer(apiKey: string, from: Sender, replyTo: string | null, fetchImpl: Fetch = fetch): Mailer {
@@ -77,7 +122,8 @@ export function resendMailer(apiKey: string, from: Sender, replyTo: string | nul
           html: message.html,
           ...(replyTo ? { reply_to: replyTo } : {}),
           ...(message.headers ? { headers: headerSafe(message.headers) } : {}),
-        }),
+        },
+        { usage: resendUsage, quota: resendQuota }),
   };
 }
 

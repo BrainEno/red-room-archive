@@ -155,9 +155,9 @@ interface MoreDocument {
 | 410 | 确认链接过期（`details.reason: "expired"`） |
 | 429 | 限流：每客户端 10 分钟 8 次；同一地址 10 分钟内只发一封确认信、24 小时最多 5 封（超出时仍返回 202 但不发信，以免暴露地址状态） |
 | 502 | 邮件服务拒绝或不可达；`Nothing was activated`，可立即重试 |
-| 503 | 邮件未配置（`not configured … Nothing was saved`）、今日发信预算用完（`daily email limit`），或存储无法解密 |
+| 503 | 邮件未配置（`not configured … Nothing was saved`）；发信上限用完（`details.reason` 为 `daily-limit` 或 `monthly-limit`，含 Resend 返回 `daily_quota_exceeded` / `monthly_quota_exceeded` 的情况）；或存储无法解密 |
 
-admin 接口使用与其他后台接口相同的 `ADMIN_TOKEN` 和错误限流；`delivery` 只列出缺少的**变量名**，从不返回值。响应里没有 token、token 哈希或任何密钥。
+admin 接口使用与其他后台接口相同的 `ADMIN_TOKEN` 和错误限流；`delivery` 为 `{ configured, provider, missing, storage, dailyLimit, monthlyLimit, sentToday, sentThisMonth }`，只列出缺少的**变量名**，从不返回值。响应里没有 token、token 哈希或任何密钥。
 
 ## 从 v1 迁移
 

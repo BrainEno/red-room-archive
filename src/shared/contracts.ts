@@ -490,8 +490,12 @@ export interface NewsletterDelivery {
   /** Variables that are missing (names only). */
   missing: string[];
   storage: 'sqlite' | 'netlify-blobs';
+  /** Emails per UTC day / calendar month (NEWSLETTER_DAILY_LIMIT / NEWSLETTER_MONTHLY_LIMIT). */
   dailyLimit: number;
+  monthlyLimit: number;
+  /** Counted here, raised to the provider's own figures when it reports them. */
   sentToday: number;
+  sentThisMonth: number;
 }
 
 export interface NewsletterListResponse {

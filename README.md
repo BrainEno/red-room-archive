@@ -256,7 +256,7 @@ src/content  站点文案、演示文章                    src/pages    路由�
 | `NOTION_API_BASE` | `https://api.notion.com/v1` | 仅用于测试或代理 |
 | `LINK_PREVIEWS` | 开 | 设为 `off` / `0` / `false` 时不抓取书签网页的标题和简介 |
 | `NOTION_WEBHOOK_TOKEN` | — | 可选。固定 Notion webhook 的验证令牌，跳过后台握手（见“Webhook 即时更新”） |
-| `NEWSLETTER_SECRET` · `NEWSLETTER_EMAIL_PROVIDER` · `NEWSLETTER_EMAIL_API_KEY` · `NEWSLETTER_FROM` | — | 邮件订阅（四个都设置才会开放）。可选 `NEWSLETTER_REPLY_TO`、`NEWSLETTER_DAILY_LIMIT`（90）、`NEWSLETTER_TOKEN_TTL_HOURS`（48）、`NEWSLETTER_SITE_NAME`。见 [docs/NEWSLETTER.md](docs/NEWSLETTER.md#2-环境变量)；静态构建不会使用也不会输出它们 |
+| `NEWSLETTER_SECRET` · `NEWSLETTER_EMAIL_PROVIDER` · `NEWSLETTER_EMAIL_API_KEY` · `NEWSLETTER_FROM` | — | 邮件订阅（四个都设置才会开放）。可选 `NEWSLETTER_REPLY_TO`、`NEWSLETTER_DAILY_LIMIT`（90）、`NEWSLETTER_MONTHLY_LIMIT`（2800）、`NEWSLETTER_TOKEN_TTL_HOURS`（48）、`NEWSLETTER_SITE_NAME`。见 [docs/NEWSLETTER.md](docs/NEWSLETTER.md#2-环境变量)；静态构建不会使用也不会输出它们 |
 | `FRAME_ANCESTORS` | `'self'` | 允许哪些页面用 iframe 嵌入本站（CSP `frame-ancestors`）：如 `*`、`'none'` 或空格分隔的 `https://` 来源；格式不合法时回退默认值。静态构建写进 `_headers` |
 
 读取顺序：`process.env` → 构建时注入的 `import.meta.env` → 运行目录的 `.env` / `.env.local`。改完 `.env` 需重启进程。

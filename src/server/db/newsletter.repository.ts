@@ -8,7 +8,7 @@
 import { isSubscriberStatus } from '../../core/newsletter.ts';
 import type { NewsletterCounts } from '../../shared/contracts.ts';
 import {
-  DuplicateSubscriberError,
+  DuplicateSubscriberError, keepSendCountsFrom, monthOf,
   type NewsletterStore, type NewsletterTx, type SubscriberQuery, type SubscriberRecord, type TokenRecord,
 } from '../newsletter/store.ts';
 import { connection, transaction } from './connection.ts';
@@ -140,19 +140,25 @@ const tx: NewsletterTx = {
     db.prepare('UPDATE newsletter_rate_limits SET count = count + 1 WHERE key = ?').run(key);
     return true;
   },
-  reserveSend(day, limit) {
+  sendUsage(day) {
+    const count = (period: string) =>
+      Number((connection().prepare('SELECT count FROM newsletter_send_counts WHERE period = ?').get(period) as { count: number } | undefined)?.count ?? 0);
+    return { daily: count(day), monthly: count(monthOf(day)) };
+  },
+  recordSend(day) {
     const db = connection();
-    const used = Number((db.prepare('SELECT count FROM newsletter_send_log WHERE day = ?').get(day) as { count: number } | undefined)?.count ?? 0);
-    if (used >= limit) return false;
-    db.prepare('INSERT INTO newsletter_send_log(day, count) VALUES(?, 1) ON CONFLICT(day) DO UPDATE SET count = count + 1').run(day);
-    db.prepare("DELETE FROM newsletter_send_log WHERE day < date(?, '-30 days')").run(day);
-    return true;
+    const add = db.prepare('INSERT INTO newsletter_send_counts(period, count) VALUES(?, 1) ON CONFLICT(period) DO UPDATE SET count = count + 1');
+    add.run(day);
+    add.run(monthOf(day));
+    db.prepare('DELETE FROM newsletter_send_counts WHERE period < ?').run(keepSendCountsFrom(day));
   },
-  releaseSend(day) {
-    connection().prepare('UPDATE newsletter_send_log SET count = count - 1 WHERE day = ? AND count > 0').run(day);
-  },
-  sentOn(day) {
-    return Number((connection().prepare('SELECT count FROM newsletter_send_log WHERE day = ?').get(day) as { count: number } | undefined)?.count ?? 0);
+  raiseSendUsage(day, usage) {
+    const raise = connection().prepare(
+      'INSERT INTO newsletter_send_counts(period, count) VALUES(?, ?) ON CONFLICT(period) DO UPDATE SET count = max(count, excluded.count)',
+    );
+    for (const [period, value] of [[day, usage.daily], [monthOf(day), usage.monthly]] as const) {
+      if (typeof value === 'number' && Number.isFinite(value) && value > 0) raise.run(period, Math.floor(value));
+    }
   },
   listSubscribers(query) {
     const { sql, params } = where(query);

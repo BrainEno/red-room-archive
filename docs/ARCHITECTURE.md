@@ -98,7 +98,7 @@ GET /media/notion/<id>
 
 ## 数据库迁移
 
-`PRAGMA user_version` 记录版本。第 11 步新增邮件订阅的四张表：`newsletter_subscribers`（`normalized_email` 唯一）、`newsletter_tokens`（只存 SHA-256 哈希，`token_hash` 唯一，随订阅者级联删除）、`newsletter_send_log`（每日发信计数）、`newsletter_rate_limits`（键为 HMAC）；见 [NEWSLETTER.md](NEWSLETTER.md#数据结构)。第 9 步为正文增加 `body_renderer_version`，保留旧正文用于离线回退及搜索；第 8 步保存空 Date 的首次发现公开日期。第 7 步新增 `more_page`（单行：`id = 1`、`doc` JSON、`updated`），没有这一行时显示内置示例。第 6 步给 `articles` 加 `created` 列（旧缓存为空，下一次同步填上）。第 5 步新增 `articles` 与 `notion_media`；之前版本留下的 `items`、`posts`、`post_revisions`
+`PRAGMA user_version` 记录版本。第 11 步新增邮件订阅的四张表：`newsletter_subscribers`（`normalized_email` 唯一）、`newsletter_tokens`（只存 SHA-256 哈希，`token_hash` 唯一，随订阅者级联删除）、`newsletter_send_counts`（每日 / 每月发信计数）、`newsletter_rate_limits`（键为 HMAC）；见 [NEWSLETTER.md](NEWSLETTER.md#数据结构)。第 9 步为正文增加 `body_renderer_version`，保留旧正文用于离线回退及搜索；第 8 步保存空 Date 的首次发现公开日期。第 7 步新增 `more_page`（单行：`id = 1`、`doc` JSON、`updated`），没有这一行时显示内置示例。第 6 步给 `articles` 加 `created` 列（旧缓存为空，下一次同步填上）。第 5 步新增 `articles` 与 `notion_media`；之前版本留下的 `items`、`posts`、`post_revisions`
 **不删除**（没有破坏性迁移），只是不再被读取。
 
 ## 静态快照构建

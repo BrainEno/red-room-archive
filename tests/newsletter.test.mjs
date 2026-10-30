@@ -27,12 +27,12 @@ const { createNewsletterService, NEWSLETTER_LIMITS } = await import('../src/serv
 const { newsletterConfig, parseSender } = await import('../src/server/newsletter/config.ts');
 const { createDocumentStore, memoryBackend, blobsBackend } = await import('../src/server/newsletter/document-store.ts');
 const { seal, unseal, hashToken, unsubscribeToken } = await import('../src/server/newsletter/crypto.ts');
-const { DuplicateSubscriberError } = await import('../src/server/newsletter/store.ts');
+const { DuplicateSubscriberError, keepSendCountsFrom } = await import('../src/server/newsletter/store.ts');
 const { sqliteNewsletterStore } = await import('../src/server/db/newsletter.repository.ts');
 const { connection, closeConnection } = await import('../src/server/db/connection.ts');
 const { handleNewsletterRequest } = await import('../src/server/newsletter/http.ts');
 const { netlifyNewsletterService, documentKey } = await import('../src/server/newsletter/netlify.ts');
-const { resendMailer, brevoMailer } = await import('../src/server/newsletter/mailer.ts');
+const { resendMailer, brevoMailer, MailerError } = await import('../src/server/newsletter/mailer.ts');
 const endpoint = await import('../src/server/http/endpoints/newsletter.ts');
 const { resetAuthThrottle } = await import('../src/server/services/auth.ts');
 
@@ -52,14 +52,22 @@ const clock = (start = '2026-10-30T08:00:00.000Z') => {
 const fakeMailer = () => {
   const sent = [];
   let failures = 0;
+  let quota = null;
+  let usage = null;
   return {
     sent,
     failNext: (n = 1) => { failures = n; },
+    /** Next send is refused like Resend's 429 daily_quota_exceeded / monthly_quota_exceeded. */
+    quotaNext: (period) => { quota = period; },
+    /** Usage figures the provider reports with every accepted send. */
+    reportUsage: (value) => { usage = value; },
     mailer: {
       provider: 'test',
       async send(message) {
         if (failures > 0) { failures--; throw new Error('provider down (HTTP 503)'); }
+        if (quota) { const period = quota; quota = null; throw new MailerError('test', 429, `${period} quota exceeded`, period); }
         sent.push(message);
+        return usage ? { usage } : undefined;
       },
     },
   };
@@ -112,6 +120,12 @@ test('configuration lists exactly what is missing and never enables half-configu
   assert.equal(newsletterConfig((k) => ({ ...CONFIGURED, NEWSLETTER_SECRET: 'short', SITE_URL: 'https://a.example' })[k]).missing.join(), 'NEWSLETTER_SECRET');
   assert.equal(newsletterConfig((k) => ({ ...CONFIGURED, SITE_URL: 'https://a.example/path' })[k]).missing.join(), 'SITE_URL');
   assert.equal(newsletterConfig((k) => ({ ...CONFIGURED, NETLIFY: 'true', URL: 'https://site.netlify.app' })[k]).siteUrl, 'https://site.netlify.app');
+  assert.equal(newsletterConfig().dailyLimit, 90, 'below Resend free: 100 per UTC day');
+  assert.equal(newsletterConfig().monthlyLimit, 2800, 'below Resend free: 3,000 per month');
+  const limits = newsletterConfig((k) => ({ ...CONFIGURED, NEWSLETTER_DAILY_LIMIT: '40', NEWSLETTER_MONTHLY_LIMIT: '1000' })[k]);
+  assert.deepEqual([limits.dailyLimit, limits.monthlyLimit], [40, 1000]);
+  const junk = newsletterConfig((k) => ({ ...CONFIGURED, NEWSLETTER_DAILY_LIMIT: '-5', NEWSLETTER_MONTHLY_LIMIT: 'lots' })[k]);
+  assert.deepEqual([junk.dailyLimit, junk.monthlyLimit], [90, 2800], 'invalid values fall back to the safe defaults');
   assert.deepEqual(parseSender('Red Room <letters@archive.example>'), { name: 'Red Room', email: 'letters@archive.example' });
   assert.deepEqual(parseSender('letters@archive.example'), { name: '', email: 'letters@archive.example' });
   assert.equal(parseSender('Evil\r\nBcc: x <a@b.com>'), null);
@@ -124,7 +138,7 @@ test('migration 11 creates the newsletter tables with unique keys', () => {
   const db = connection();
   assert.ok(Number(db.pragma('user_version', { simple: true })) >= 11);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'newsletter_%' ORDER BY name").all().map((r) => r.name);
-  assert.deepEqual(tables, ['newsletter_rate_limits', 'newsletter_send_log', 'newsletter_subscribers', 'newsletter_tokens']);
+  assert.deepEqual(tables, ['newsletter_rate_limits', 'newsletter_send_counts', 'newsletter_subscribers', 'newsletter_tokens']);
   const columns = db.prepare('PRAGMA table_info(newsletter_tokens)').all().map((c) => c.name);
   assert.ok(columns.includes('token_hash') && !columns.includes('token'), 'only hashes are stored');
 });
@@ -167,9 +181,18 @@ for (const [name, makeStore] of [
     const counts = await store.transact((tx) => tx.counts());
     assert.ok(counts.total >= 2 && counts.active >= 1 && counts.pending >= 1);
 
-    // Daily budget and rate windows.
-    assert.equal(await store.transact((tx) => tx.reserveSend(`2026-10-${name.length}`, 1)), true);
-    assert.equal(await store.transact((tx) => tx.reserveSend(`2026-10-${name.length}`, 1)), false);
+    // Daily + monthly send counters; provider figures only ever raise them; old months are pruned.
+    assert.deepEqual([keepSendCountsFrom('2027-01-05'), keepSendCountsFrom('2026-10-31')], ['2026-12', '2026-09']);
+    const year = 2030 + name.length;
+    await store.transact((tx) => { tx.recordSend(`${year}-01-30`); tx.recordSend(`${year}-01-31`); tx.recordSend(`${year}-01-31`); });
+    assert.deepEqual(await store.transact((tx) => tx.sendUsage(`${year}-01-31`)), { daily: 2, monthly: 3 });
+    await store.transact((tx) => tx.raiseSendUsage(`${year}-01-31`, { daily: 1, monthly: 40 }));
+    assert.deepEqual(await store.transact((tx) => tx.sendUsage(`${year}-01-31`)), { daily: 2, monthly: 40 }, 'never lowered, raised to the provider figure');
+    await store.transact((tx) => tx.recordSend(`${year}-02-01`));
+    assert.deepEqual(await store.transact((tx) => tx.sendUsage(`${year}-02-01`)), { daily: 1, monthly: 1 }, 'a new month starts at zero');
+    assert.deepEqual(await store.transact((tx) => tx.sendUsage(`${year}-01-31`)), { daily: 2, monthly: 40 }, 'last month is kept');
+    await store.transact((tx) => tx.recordSend(`${year}-03-01`));
+    assert.deepEqual(await store.transact((tx) => tx.sendUsage(`${year}-01-31`)), { daily: 0, monthly: 0 }, 'older months are pruned');
     assert.equal(await store.transact((tx) => [tx.hitRateLimit(`k-${name}`, 2, 1000, 0), tx.hitRateLimit(`k-${name}`, 2, 1000, 1), tx.hitRateLimit(`k-${name}`, 2, 1000, 2)].join()), 'true,true,false');
     assert.equal(await store.transact((tx) => tx.hitRateLimit(`k-${name}`, 2, 1000, 1001)), true, 'a new window starts');
   });
@@ -314,10 +337,52 @@ test('per-client rate limit and the site-wide daily budget', async () => {
   const { service: capped, mail } = memoryService({ config: { dailyLimit: 2 } });
   await capped.subscribe({ email: 'a@example.com' }, client('1.1.1.1'));
   await capped.subscribe({ email: 'b@example.com' }, client('1.1.1.2'));
-  await assert.rejects(capped.subscribe({ email: 'c@example.com' }, client('1.1.1.3')), (e) => e.status === 503 && /daily email limit/.test(e.message));
+  await assert.rejects(capped.subscribe({ email: 'c@example.com' }, client('1.1.1.3')), (e) => e.status === 503 && e.details?.reason === 'daily-limit' && /daily email limit/.test(e.message));
   assert.equal(mail.sent.length, 2);
   assert.equal((await capped.list()).total, 2, 'nothing saved when the budget is spent');
   assert.equal((await capped.delivery()).sentToday, 2);
+});
+
+test('monthly limit: counts every email across days and reopens next month', async () => {
+  const c = clock('2026-10-30T08:00:00.000Z');
+  const { service, mail } = memoryService({ clock: c, config: { dailyLimit: 10, monthlyLimit: 3 } });
+  await service.subscribe({ email: 'm1@example.com' }, client('1.1.1.1'));
+  await service.confirm(tokenFrom(mail.sent[0])); // the welcome note counts too
+  c.advance(24 * 60 * 60 * 1000); // 2026-10-31: new day, same month
+  await service.subscribe({ email: 'm2@example.com' }, client('1.1.1.2'));
+  assert.equal(mail.sent.length, 3);
+  await assert.rejects(service.subscribe({ email: 'm3@example.com' }, client('1.1.1.3')), (e) => e.status === 503 && e.details?.reason === 'monthly-limit' && /monthly email limit/.test(e.message));
+  // A spent budget skips the welcome note, but confirming still works.
+  assert.deepEqual(await service.confirm(tokenFrom(mail.sent[2])), { status: 'confirmed' });
+  assert.equal(mail.sent.length, 3);
+  const delivery = await service.delivery();
+  assert.deepEqual([delivery.sentToday, delivery.sentThisMonth, delivery.dailyLimit, delivery.monthlyLimit], [1, 3, 10, 3]);
+  c.advance(24 * 60 * 60 * 1000); // 2026-11-01
+  assert.deepEqual(await service.subscribe({ email: 'm3@example.com' }, client('1.1.1.3')), { status: 'check-inbox' });
+  assert.equal((await service.delivery()).sentThisMonth, 1);
+});
+
+test('provider usage figures raise the counters; a provider quota refusal closes the period', async () => {
+  const { service, mail } = memoryService({ config: { dailyLimit: 90, monthlyLimit: 2800 } });
+  // The account also sends other mail: the provider says 89 today, 500 this month.
+  mail.reportUsage({ daily: 89, monthly: 500 });
+  await service.subscribe({ email: 'u1@example.com' }, client('1.1.1.1'));
+  assert.deepEqual([(await service.delivery()).sentToday, (await service.delivery()).sentThisMonth], [89, 500]);
+  mail.reportUsage(null);
+  await service.subscribe({ email: 'u2@example.com' }, client('1.1.1.2'));
+  await assert.rejects(service.subscribe({ email: 'u3@example.com' }, client('1.1.1.3')), (e) => e.details?.reason === 'daily-limit');
+  assert.equal(mail.sent.length, 2);
+
+  const other = memoryService();
+  other.mail.quotaNext('monthly');
+  await assert.rejects(other.service.subscribe({ email: 'q1@example.com' }, client('1.1.1.1')), (e) => e.status === 503 && e.details?.reason === 'monthly-limit');
+  const row = (await other.service.list()).subscribers[0];
+  assert.equal(row.status, 'pending'); assert.equal(row.lastError, 'send_failed');
+  // Further sign-ups stop here, without calling the provider again.
+  await assert.rejects(other.service.subscribe({ email: 'q2@example.com' }, client('1.1.1.2')), (e) => e.details?.reason === 'monthly-limit');
+  await assert.rejects(other.service.resend(row.id), (e) => e.details?.reason === 'monthly-limit');
+  assert.equal(other.mail.sent.length, 0);
+  assert.equal((await other.service.delivery()).sentThisMonth, 2800);
 });
 
 test('honeypot submissions are dropped without storing or sending', async () => {
@@ -620,6 +685,18 @@ test('provider adapters send the documented payloads and keep errors free of add
   assert.equal(calls[1].headers['api-key'], 'xkeysib');
   assert.deepEqual(calls[1].body, { sender: { email: 'letters@archive.example', name: 'Red Room' }, to: [{ email: 'reader@example.com' }], subject: 'S', textContent: 'T', htmlContent: '<p>H</p>', headers: { 'List-Unsubscribe': '<https://x/u>', 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } });
 
-  await assert.rejects(resendMailer('re_key', from, null, fake(422)).send(message), (e) => e.status === 422 && !/reader@example\.com/.test(e.message));
+  await assert.rejects(resendMailer('re_key', from, null, fake(422)).send(message), (e) => e.status === 422 && e.quota === null && !/reader@example\.com/.test(e.message));
+
+  // Resend quota headers (emails used) and 429 quota errors (https://resend.com/docs/api-reference/rate-limit).
+  const withHeaders = async () => new Response('{"id":"x"}', { status: 200, headers: { 'x-resend-daily-quota': '12', 'x-resend-monthly-quota': '345' } });
+  assert.deepEqual(await resendMailer('re_key', from, null, withHeaders).send(message), { usage: { daily: 12, monthly: 345 } });
+  const paidPlan = async () => new Response('{}', { status: 200, headers: { 'x-resend-monthly-quota': '7' } });
+  assert.deepEqual(await resendMailer('re_key', from, null, paidPlan).send(message), { usage: { monthly: 7 } });
+  assert.deepEqual(await resendMailer('re_key', from, null, fake(200)).send(message), {});
+  for (const [name, quota] of [['daily_quota_exceeded', 'daily'], ['monthly_quota_exceeded', 'monthly'], ['rate_limit_exceeded', null]]) {
+    const refused = async () => new Response(JSON.stringify({ statusCode: 429, name, message: 'reader@example.com: quota' }), { status: 429 });
+    await assert.rejects(resendMailer('re_key', from, null, refused).send(message), (e) => e instanceof MailerError && e.status === 429 && e.quota === quota && !/reader@example\.com/.test(e.message));
+  }
+  assert.deepEqual(await brevoMailer('k', from, null, withHeaders).send(message), {}, 'Brevo: no Resend headers are read');
   await assert.rejects(brevoMailer('k', from, null, async () => { throw new TypeError('fetch failed'); }).send(message), (e) => e.status === null && /network error/.test(e.message));
 });

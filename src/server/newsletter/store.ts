@@ -84,15 +84,34 @@ export interface NewsletterTx {
    * Increments and returns true while under `limit`; false once the window is full. */
   hitRateLimit(key: string, limit: number, windowMs: number, nowMs: number): boolean;
 
-  /** Daily delivery budget: add one to `day`'s counter unless it reached `limit`. */
-  reserveSend(day: string, limit: number): boolean;
-  /** Give back a reservation whose send never happened. */
-  releaseSend(day: string): void;
-  sentOn(day: string): number;
+  /** Emails counted for this UTC day (`YYYY-MM-DD`) and its calendar month. */
+  sendUsage(day: string): SendUsage;
+  /** Count one email against `day` and its month. Limits are checked by the service. */
+  recordSend(day: string): void;
+  /** Raise the counters to what the email provider reports (never lowers them). */
+  raiseSendUsage(day: string, usage: Partial<SendUsage>): void;
 
   listSubscribers(query: SubscriberQuery): { rows: SubscriberRecord[]; total: number };
   allSubscribers(query: Omit<SubscriberQuery, 'limit' | 'offset'>): SubscriberRecord[];
   counts(): NewsletterCounts;
+}
+
+/** Emails sent (or reserved) in one UTC day and in that day's calendar month. */
+export interface SendUsage {
+  daily: number;
+  monthly: number;
+}
+
+/**
+ * Send counters are keyed by period: `YYYY-MM-DD` (a UTC day) and `YYYY-MM`
+ * (its month). Keys sort as text, and a month key sorts before that month's
+ * days, so everything older than the previous month is `key < keepFrom(day)`.
+ */
+export const monthOf = (day: string) => day.slice(0, 7);
+export function keepSendCountsFrom(day: string): string {
+  const year = Number(day.slice(0, 4));
+  const month = Number(day.slice(5, 7));
+  return month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, '0')}`;
 }
 
 export interface NewsletterStore {

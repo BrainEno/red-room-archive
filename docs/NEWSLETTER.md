@@ -55,7 +55,7 @@
 | 重放 / 过期 | token 单次有效、48 小时过期；新确认邮件会使旧 token 失效；已消耗、已过期的 token 7 天后清理。 |
 | 枚举 | 订阅接口对所有地址返回同一个 202；确认/退订只看 token。 |
 | 重复 | `normalized_email` 唯一约束；Blobs 文档内同样检查。 |
-| 滥用 | ① Netlify 平台限流：每 IP 每分钟 40 次；② 应用限流：每客户端 10 分钟 8 次（无法区分客户端时共享 60 次）；③ 每个地址 10 分钟内最多一封确认信、24 小时最多 5 封；④ 全站每日发信预算（默认 90，低于 Resend 免费层每日 100 封）；⑤ 蜜罐字段 `website`（填写即静默丢弃）；⑥ 请求体上限 4 KB。限流键是地址/IP 的 HMAC，不存明文。 |
+| 滥用 | ① Netlify 平台限流：每 IP 每分钟 40 次；② 应用限流：每客户端 10 分钟 8 次（无法区分客户端时共享 60 次）；③ 每个地址 10 分钟内最多一封确认信、24 小时最多 5 封；④ 全站发信上限：每天（UTC）默认 90 封、每月默认 2,800 封，低于 Resend 免费层的每天 100 封、每月 3,000 封（见下文“发信上限”）；⑤ 蜜罐字段 `website`（填写即静默丢弃）；⑥ 请求体上限 4 KB。限流键是地址/IP 的 HMAC，不存明文。 |
 | CSV 注入 | 以 `= + - @` 制表符、回车开头的单元格前加 `'`；只导出最少字段。 |
 | 日志 | 不记录完整邮箱（只记 `r***@example.com`）和 token。 |
 | 密钥 | 所有密钥只在服务器端环境变量中；静态构建会去掉 `NEWSLETTER_*`，并扫描 `static-dist/`，发现任何服务端密钥就中止发布。 |
@@ -79,7 +79,7 @@ newsletter_subscribers(id, email, normalized_email UNIQUE, status, source, local
                        last_error, last_error_at, notice_sent_at)
 newsletter_tokens(id, subscriber_id → subscribers ON DELETE CASCADE, token_hash UNIQUE,
                   token_type, expires_at, consumed_at, created_at)
-newsletter_send_log(day PRIMARY KEY, count)          -- 每日发信预算（UTC）
+newsletter_send_counts(period PRIMARY KEY, count)    -- 发信计数：period 为 UTC 日（YYYY-MM-DD）或月（YYYY-MM），保留本月和上月
 newsletter_rate_limits(key PRIMARY KEY, window_start, count)  -- key 为 HMAC
 ```
 
@@ -119,11 +119,27 @@ newsletter_rate_limits(key PRIMARY KEY, window_start, count)  -- key 为 HMAC
 | `SITE_URL` | ✔ | 站点源（如 `https://archive.example`）。Netlify 上未设置时使用内置的 `URL`。用于邮件链接和同站校验。 |
 | `ADMIN_TOKEN` | 后台 | 与 Node 站点相同的后台 token；静态站后台用它管理订阅。 |
 | `NEWSLETTER_REPLY_TO` |  | 回复地址 |
-| `NEWSLETTER_DAILY_LIMIT` |  | 每日发信上限，默认 90（Resend 免费层每天 100） |
+| `NEWSLETTER_DAILY_LIMIT` |  | 每天（UTC）最多发几封，默认 90（Resend 免费层每天 100） |
+| `NEWSLETTER_MONTHLY_LIMIT` |  | 每月（UTC 自然月）最多发几封，默认 2800（Resend 免费层每月 3,000） |
 | `NEWSLETTER_TOKEN_TTL_HOURS` |  | 确认链接有效期，默认 48 |
 | `NEWSLETTER_SITE_NAME` |  | 邮件里的站点名，默认 `Red Room Archive` |
 
 缺少任何一个必填变量，订阅都会保持关闭（503），后台会列出缺少的变量名（不显示值）。
+
+### 发信上限（防止超出 Resend 免费额度）
+
+Resend 免费层：**每天 100 封**（按 UTC 自然日，UTC 午夜重置）、**每月 3,000 封**；发出和收到的邮件都计入；超出时 API 返回 429（`daily_quota_exceeded` / `monthly_quota_exceeded`），免费层不会扣费，只是发不出去。本项目的保护：
+
+1. **自己计数**：确认信、欢迎信、“你已订阅”提醒、后台重发，**每一封**都计入当天和当月的计数。
+2. **发信前检查**：任一上限用完，新的订阅请求直接返回 503（`details.reason` = `daily-limit` / `monthly-limit`），不保存地址、不调用 Resend；页面显示“今日订阅已暂停，请明天再试”或“本月订阅已暂停，请下个月再试”。确认链接照常可用，只是不再发欢迎信。
+3. **以 Resend 的数字为准**：Resend 每次响应都带 `x-resend-daily-quota`（仅免费层）和 `x-resend-monthly-quota`（已用数量）。若它比本站的计数大（例如你用同一个 Resend 账号发了别的邮件），本站计数会提高到这个数，只升不降。
+4. **Resend 拒绝时立即停下**：收到 `daily_quota_exceeded` / `monthly_quota_exceeded` 后，本站把当天（或当月）计数直接记满，之后的请求不再调用 Resend；这位访客的地址保持“待确认”，后台会标记“发送失败”，可在恢复后“重发确认”。
+
+调整方法：在 Netlify 环境变量里设置 `NEWSLETTER_DAILY_LIMIT` / `NEWSLETTER_MONTHLY_LIMIT`（正整数；无效值回到默认值），重新部署生效。后台“订阅”模块顶部显示“今日已发送 x / 90 · 本月 y / 2800”，用完时会标红。
+
+- 本站按 **UTC 自然月**计月；Resend 的月度额度可能按你的账单周期重置（在 Resend → Settings → Usage 查看）。第 3 点会让本站在两者不一致时偏保守（宁可提前停，不会超）。如果 Resend 账号还用于别的项目，请把两个值调低，为它们留出余量。
+- 想暂时停止所有发信：删掉 `NEWSLETTER_EMAIL_API_KEY` 并重新部署，订阅会显示“尚未开放”，已有名单不受影响。
+- Brevo 免费层每天 300 封、没有月度上限，可设 `NEWSLETTER_DAILY_LIMIT=280`、`NEWSLETTER_MONTHLY_LIMIT=8400`。Brevo 不返回用量头，只靠本站计数。
 
 ### 3. Netlify 上的设置
 
@@ -138,9 +154,9 @@ newsletter_rate_limits(key PRIMARY KEY, window_start, count)  -- key 为 HMAC
 
 `/admin → 订阅`（Node 站点和静态站点都有；使用现有的 `ADMIN_TOKEN`，没有新的登录方式）：
 
-- 总数 / 已订阅 / 待确认 / 已退订；邮件服务状态和今日已发送数量；
+- 总数 / 已订阅 / 待确认 / 已退订；邮件服务状态、今日和本月已发送数量（达到上限时标红）；
 - 按邮箱搜索、按状态筛选、分页；创建时间、确认时间、退订时间、来源、语言；
-- 待确认地址可“重发确认”（受同样的冷却和每日预算限制）；
+- 待确认地址可“重发确认”（受同样的冷却和每日 / 每月上限限制）；
 - **导出 CSV**：`email,status,locale,source,created_at,confirmed_at,unsubscribed_at`，UTF-8 BOM（Excel 可直接打开）。不含 id、token、哈希、错误信息或任何密钥；防公式注入。
 
 ## 备份
@@ -152,7 +168,7 @@ newsletter_rate_limits(key PRIMARY KEY, window_start, count)  -- key 为 HMAC
 
 ## 测试
 
-- `tests/newsletter.test.mjs`：规范化、配置、迁移、两种存储（唯一性、单次 token、回滚、ETag 竞争、加密）、服务层（双重确认、过期、枚举、冷却、限流、每日预算、蜜罐、未配置、发信失败与重发、退订）、后台列表与 CSV、HTTP（CSRF、413、401、一键退订）、Netlify 接线（按上下文隔离）、函数打包图（不含 SQLite / Astro / UI）、提供商请求体。
+- `tests/newsletter.test.mjs`：规范化、配置、迁移、两种存储（唯一性、单次 token、回滚、ETag 竞争、加密）、服务层（双重确认、过期、枚举、冷却、限流、每日 / 每月发信上限与 Resend 用量同步、蜜罐、未配置、发信失败与重发、退订）、后台列表与 CSV、HTTP（CSRF、413、401、一键退订）、Netlify 接线（按上下文隔离）、函数打包图（不含 SQLite / Astro / UI）、提供商请求体。
 - `tests/integration/static-export.test.mjs`：静态构建包含订阅页面和后台外壳，不含数据库、订阅数据或任何密钥。
 - `tests/ui/newsletter.spec.mjs`：真实的“未配置”和“无函数”状态、模拟后端下的完整流程、确认/退订页、入口、后台（Node 与静态）。
 

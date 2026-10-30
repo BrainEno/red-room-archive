@@ -70,12 +70,13 @@ export function newsletterPanel(root: HTMLElement, api: ApiClient) {
   const render = (data: NewsletterListResponse) => {
     const { counts, delivery } = data;
     $('#nl-counts', root).innerHTML = [stat(n.total, counts.total), stat(n.active, counts.active), stat(n.pending, counts.pending), stat(n.unsubscribed, counts.unsubscribed)].join('');
+    const spent = delivery.sentToday >= delivery.dailyLimit ? 'daily' : delivery.sentThisMonth >= delivery.monthlyLimit ? 'monthly' : null;
     const deliveryLine = delivery.configured
-      ? n.delivery(delivery.provider ?? '?', delivery.sentToday, delivery.dailyLimit)
+      ? [n.delivery(delivery.provider ?? '?', delivery.sentToday, delivery.dailyLimit, delivery.sentThisMonth, delivery.monthlyLimit), ...(spent ? [n.limitReached(spent)] : [])].join(' · ')
       : n.notConfigured(delivery.missing.join(', '));
     const line = $('#nl-delivery', root);
     line.textContent = `${deliveryLine} · ${n.storage[delivery.storage] ?? delivery.storage}`;
-    line.classList.toggle('warn', !delivery.configured);
+    line.classList.toggle('warn', !delivery.configured || Boolean(spent));
     const filtered = Boolean(query().q || query().status);
     $('#nl-rows', root).innerHTML = data.subscribers.map(row).join('') ||
       `<tr><td colspan="8" class="hint">${esc(filtered ? n.noMatch : n.none)}</td></tr>`;
