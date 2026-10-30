@@ -74,7 +74,7 @@ https://www.notion.so/workspace/0123456789abcdef0123456789abcdef?v=fffffffffffff
 如果 Check columns 显示多数据源错误，目前仅支持**单数据源**数据库（Notion 2022-06-28 API）；需要先使用单数据源，或等待后续 API 升级。截图无法判断你的数据库有几个数据源。
 ### 数据库列
 
-只有**标题列**是必需的，其余都可选。列按**名称（不区分大小写/空格）+ 类型**一起识别，所以叫 “Date” 的文本列不会被当成日期。
+必须有**标题列和可识别的发布列**，其余列可选。列按**名称（不区分大小写/空格）+ 类型**一起识别，所以叫 “Date” 的文本列不会被当成日期。
 默认名称沿用旧博客 astro-notion，那个数据库可以原样使用：
 
 | 字段 | 识别的列名（节选） | 列类型 | 没有这列时 |
@@ -82,13 +82,13 @@ https://www.notion.so/workspace/0123456789abcdef0123456789abcdef?v=fffffffffffff
 | 标题 | 任意名称（Page / Name / Title…） | Title | — |
 | Slug | Slug | Text / Formula | 由标题生成；重名的第二篇得到 `-2` |
 | 日期 | Date, Publish Date, 发布日期 | Date / Created time / Formula（日期） | 网站首次同步发现文章公开时的服务器本地日期 |
-| 发布 | Published, Public, Status, 发布 | Checkbox，或 Status/Select 值为 Published/Public/Done/已发布 | **全部公开**（Check columns 会警告） |
+| 发布 | Published, Public, Status, 发布 | Checkbox，Status/Select 为 Published/Public/Done/已发布，或 Formula 返回 true/对应文本 | **全部隐藏**（Check columns 会警告） |
 | 标签 | Tags, Category, 标签 | Multi-select / Select | 无标签 |
 | 摘要 | Excerpt, Summary, Description, 摘要 | Text | 无摘要 |
 | 封面 | FeaturedImage, Cover, Image, 封面 | Files / URL | 用页面自身的封面 |
 | 精选 | Rank, Featured, 权重 | Number / Checkbox | 不显示精选 |
 
-- **草稿**：你的 `Published` 复选框为未勾选时是草稿，不会进入文章列表、正文或搜索；勾选后，成功同步才公开。没有可识别的 `Published` 列时兼容旧行为，**所有有标题的页面都会公开**，所以务必先用 Check columns 检查并确认。
+- **草稿**：你的 `Published` 复选框为未勾选时是草稿，不会进入文章列表、正文或搜索；勾选后，成功同步才公开。没有可识别的发布列，或单个页面缺少可识别的发布值时，**该页面不会公开**。升级前依赖“无发布列即全部公开”的站点需要先在 Notion 添加发布列并检查勾选状态。
 - **Date 留空**：网站首次同步发现该文章公开时，记录**服务器本地时区的当天日期**到本地 SQLite；以后同步、全文重同步、取消后重新勾选或更换 token 都沿用它。Notion 中填写的 Date 优先；清空后如果已有空日期记录则恢复，否则首次记下清空后的同步日期；不会写回 Notion。若网站没运行，日期是之后首次成功同步的日期，不一定是真正勾选日；服务器时区和你所在地不同时，跨午夜的日期可能不同（本地运行使用电脑的时区）。首次接入时，旧文章若 Date 为空也会记首次同步日期。需要精确或历史日期时请在 Notion 手动填写 Date。记录随 `data/archive.db` 备份；删除或更换该数据库会丢失记录。
 - **定时发布**：日期在未来的文章不会出现，到期后的下一次同步自动出现（只有日期没有时间时按 UTC 零点）。
 - 完整别名表在 `src/server/notion/mapper.ts` 的 `FIELDS`，想加自己的列名改这里即可。
@@ -101,13 +101,19 @@ https://www.notion.so/workspace/0123456789abcdef0123456789abcdef?v=fffffffffffff
 表格（列标题/行标题）、分栏、同步块、目录、页面链接与 @提及（只链接到已发布的文章）、文字颜色与背景色。
 `child_page` / `child_database` 不会被展开（避免把私有子页面公开）。所有文本都转义，链接只放行 http/https/mailto/tel。
 
+### 阅读与朗读
+
+文章页采用适合长文的单栏、行距和段落留白，保留 Notion 段落、列表等富文本中的手动换行以及空段落；有三个以上标题时桌面显示侧栏目录，手机可展开目录；不会擅自把作者的长段落拆成短段。升级后旧缓存正文会在首次阅读时重新渲染；如果 Notion 暂时不可用，先显示旧缓存，恢复后会再次尝试。
+
+支持 Web Speech 语音合成且启用 JavaScript 的浏览器会显示 **朗读 / Listen**，点击后朗读标题与正文，可暂停、继续、停止、调整语速（从下一段生效）。会读取折叠内容及图片说明，跳过目录、音视频播放器和书签的网址；离开页面时停止。功能使用浏览器/设备可用的语音，并按段落尝试匹配中文或英文，混合语言和没有相应语音的设备可能读得不准确。浏览器可能使用本地或联网语音服务，具体隐私及网络要求由浏览器和设备决定；本站不生成或保存音频。关闭 JavaScript、不支持该 API 或没有可朗读正文时，入口不显示。
+
 ### 图片
 
 Notion 里上传的图片和文件是带签名的临时地址（约 1 小时失效），不能直接写进缓存的 HTML。
 网站改为输出 `/media/notion/<id>`：第一次被访问时向 Notion 重新取一个新地址、下载到 `MEDIA_CACHE_DIR`，之后直接从磁盘发；
 文章在 Notion 里被编辑后，旧副本在下次同步时删除。只有已发布文章里出现的文件 id 才会被代理，其他一律 404。
 文章没有封面时，列表以标题、日期、摘要和标签呈现，不显示占位图片；正文直接从文章头部进入。
-搜索结果和首页本来就是文字列表；无封面文章不添加虚构的社交分享图或 RSS 附件。
+搜索结果和首页本来就是文字列表；无封面文章不添加虚构的社交分享图。RSS 不再推测封面的 MIME 类型和大小，因此暂不输出封面 enclosure。
 
 外链图片（`external`）直接使用原地址。媒体缓存按 Notion 配置版本分目录；升级后旧格式的磁盘副本不会再被读取，
 会在需要时重新下载。旧缓存可在停服后从 `MEDIA_CACHE_DIR` 清理（不要删除 `DB_PATH` 或 `UPLOAD_DIR`）。
@@ -187,29 +193,52 @@ src/content  站点文案、演示文章                    src/pages    路由�
 | `MAX_MEDIA_MB` | 50 | 媒体代理单个文件上限 |
 | `DB_PATH` | `data/archive.db` | SQLite 文件（文章缓存、站点设置和“更多”页面） |
 | `UPLOAD_DIR` | `data/uploads` | 后台上传目录 |
-| `MAX_UPLOAD_MB` | 300 | 单个上传文件上限 |
+| `MAX_UPLOAD_MB` | 300 | 单个上传文件上限；multipart 单文件另限 8 MiB，较大文件使用 `?name=` 原始流上传 |
 | `MAX_JSON_KB` | 256 | JSON 请求体上限 |
 | `NOTION_API_BASE` | `https://api.notion.com/v1` | 仅用于测试或代理 |
 
 读取顺序：`process.env` → 构建时注入的 `import.meta.env` → 运行目录的 `.env` / `.env.local`。改完 `.env` 需重启进程。
-**切换已有 Notion 连接时，请在更改环境变量之前使用后台 Settings 保存新连接**：直接修改环境变量并重启不会自动清空旧文章缓存，可能继续显示旧内容。
+**Notion 来源变化**：有效 token、数据库 ID 或 `NOTION_API_BASE` 变化会隔离并清除旧文章缓存、重置同步状态；后台设置仍优先于环境变量。首次升级此安全机制时，旧缓存也会被清除并重新同步，若 Notion 离线可能暂时没有文章。SQLite 中保存加盐的来源指纹，不把 token 作为指纹明文保存；原先由后台保存的 Notion token 仍会以明文存入 SQLite，应保护数据库和备份。来源变化不会清除站点设置、More 或首次发现发布日期。
 
 ## 部署
+
+### Node 动态部署
 
 `npm run build && npm start`。需要可写磁盘的 Node 环境（VPS / Fly.io / Railway 卷）：SQLite 缓存、图片副本和上传文件都在磁盘上。
 部署探针：`GET /api/health`。
 
 **部署限制：**目前只支持单个 Node 进程操作同一份数据目录；不要使用多 worker 或多个实例共享 SQLite/媒体目录。
 配置切换的跨进程旧任务防护已加入，但同步去重、媒体清理、后台限流等仍不是跨进程协调的。
+后台限流不信任任何转发 IP 头：带 `X-Forwarded-For`、`X-Real-IP` 或 `Forwarded` 的请求统一共用一个限流桶（每桶 10 分钟 12 次失败，另有进程级 1200 次失败上限）；代理后多个用户可能互相影响，且本进程重启会重置计数。建议代理层另设限流并限制后台访问。
 媒体及文章可能已被浏览器或 CDN 缓存；撤回内容或切换数据库后，已缓存内容不会立即消失，请按部署环境清除缓存。
 
-文章内容在 Notion 里，SQLite 里的文章只是缓存（删掉后下一次访问会重新同步）。
+文章内容在 Notion 里，SQLite 里的文章只是缓存（删掉后下一次访问会重新同步）。单篇正文最多 5000 块、根块以下 8 层；超过限制或分页异常时不会保存截断结果。Node 模式会尽量回退同来源的旧正文；升级后旧缓存会重新抓取，若抓取失败，回退内容可能仍是此前不完整的版本。
 但**“更多”页面的内容只保存在 SQLite（`more_page` 表）里**，封面和二维码在 `UPLOAD_DIR`：请把 `data/archive.db`（`DB_PATH`）和 `UPLOAD_DIR` **一起备份**，
 或者在后台 More 里点 **Export JSON** 留一份（JSON 里只有图片地址，图片文件仍需备份 `UPLOAD_DIR`）。
 数据库使用 SQLite WAL 模式：运行时不要只复制主 `.db` 文件；请用 SQLite 在线备份工具，或先停止应用并确认没有其他进程使用数据库后再备份。
 SQLite 还包含后台保存的站点设置和 Notion token（未加密），备份需限制访问权限并安全保存。
-Notion 全量重新同步、修改 Notion token/数据库都**不会**清除“更多”页面。
+Notion 全量重新同步、修改 Notion token/数据库都**不会**清除“更多”页面。文件重命名先建立新名称再提交 More 引用，失败保留原文件；中途崩溃可能留下两个同内容名称或隐藏的 `.part` 文件，可停服并确认引用后手动清理；上传目录所在文件系统必须支持同目录硬链接。
 从旧版本升级：数据库会自动迁移；旧的 `items` / `posts` / `post_revisions` 表原样保留但不再使用，确认不需要后可以手动删除。
+
+### 静态部署：Netlify / Cloudflare
+
+`npm run build:static` 在**构建时**读取 Notion，导出可直接托管的 `static-dist/`；它不是 SSR 的无服务器适配器。已有 Node 模式不受影响。
+
+1. 在 Netlify 或 Cloudflare 的构建环境中设置 `SITE_URL`（公开站点的完整 origin，例如 `https://archive.example`）、`NOTION_TOKEN` 和 `NOTION_DATABASE_ID`。token 是服务端构建密钥，不要提交或放在 `PUBLIC_` 变量中；使用独立的只读 Notion integration 并仅授权需要发布的数据库。
+2. 数据库必须有可识别的标题列和 Published 列（checkbox、status/select 或 formula），构建会拒绝缺少发布列的数据库，避免将全部页面意外公开。先在 Notion 确认草稿未发布，再触发构建。
+3. Netlify 自动读取仓库的 `netlify.toml`。Cloudflare Workers 的 **Static Assets** 或 Cloudflare Pages 选择 Git 仓库后，将构建命令设为 `npm run build:static`、输出目录设为 `static-dist`、Node 版本设为 **22.23.4**（可用构建环境变量 `NODE_VERSION`）。不需要绑定 D1/R2 或安装 Astro Workers adapter。
+4. 更新、撤回或定时发布文章后，**必须重新构建并部署**（可手动触发平台构建或由你自行配置安全的构建钩子）；撤回后旧部署、浏览器/CDN 缓存可能仍留有内容，敏感内容不应发布。Notion 不可用、正文/媒体获取失败或发布列缺失时构建失败，不发布不完整的新快照。
+
+静态版有中英文页面（英文根路径、中文 `/zh-CN/`）、文章、标签/分页、RSS、sitemap、浏览器搜索和朗读；搜索需要 JavaScript。公开文章正文会进入下载到浏览器的搜索索引。Notion 上传的图片和常见音视频/PDF 在构建时复制到公开产物，外链媒体仍依赖外部地址；不支持的媒体类型会使构建失败。构建过程使用隔离的临时 SQLite，不复制数据库或 token。仅生成公开站点，**没有 `/admin`、管理 API、上传或实时同步**；后台保存的设置、More 内容和上传不会自动带入，静态版使用代码内的站点/More 默认内容。语言切换使用静态路径，不支持原 SSR 的 cookie 自动协商或 `?lang=` 地址；旧的动态标签查询和旧博客重定向也不会自动生效。
+
+注意：静态构建的临时数据库不会跨构建保留；**Date 留空的文章每次构建都会使用当次构建日期**，请在 Notion 填写 Date 以保持日期稳定。构建期间修改或撤回文章可能造成快照不一致，应等待更改完成后重新构建。只想预览演示内容时可显式设置 `STATIC_DEMO=1`（不能同时设置 Notion 凭据）和 `SITE_URL`。本地命令示例：
+
+```bash
+SITE_URL=https://archive.example NOTION_TOKEN=... NOTION_DATABASE_ID=... npm run build:static
+# 仅演示：SITE_URL=https://example.invalid STATIC_DEMO=1 npm run build:static
+```
+
+部署产物只应包含准备公开的文章和媒体；`static-dist/` 已加入 `.gitignore`。请在首次上线前检查平台部署预览与实际域名配置。
 
 ## 开发与验证
 
@@ -217,12 +246,13 @@ Notion 全量重新同步、修改 Notion token/数据库都**不会**清除“�
 npm test            # 渲染器、Notion 映射、接口契约（用假的 Notion）、架构边界（node:test）
 npm run typecheck   # tsc --noEmit
 npm run build       # 生产构建
-npm run check       # 以上三步
+npm run check       # typecheck、单元测试、生产构建、SSR 与静态导出集成测试
 npm run test:render # 构建后检查有图/无图文章的 SSR 输出
+npm run test:ui     # Chromium 多视口 UI/交互回归（需先安装 Playwright 浏览器）
 node tests/fixtures/notion-mock.mjs 4999 [--showcase]   # 本地假 Notion：NOTION_API_BASE=http://127.0.0.1:4999/v1；--showcase 加几篇中英文章预览排版
 ```
 
-CI（`.github/workflows/validate.yml`）依次执行类型检查、单元测试、构建和页面渲染测试。
+CI（`.github/workflows/validate.yml`）运行类型检查、单元测试、构建、页面渲染及浏览器 UI 测试。设计与响应式规则见 [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md)，测试安装及限制见 [docs/UI-TESTING.md](docs/UI-TESTING.md)，Agent 工作约定见 [AGENTS.md](AGENTS.md)。
 
 ## 还没做
 

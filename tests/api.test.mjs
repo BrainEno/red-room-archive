@@ -42,13 +42,13 @@ test.beforeEach(() => resetAuthThrottle());
 const TOKEN = 'test-admin-token';
 
 /** Invoke a handler the way Astro does. */
-async function call(handler, { method = 'GET', path: p = '/', params = {}, json, body, headers = {}, token } = {}) {
+async function call(handler, { method = 'GET', path: p = '/', params = {}, json, body, headers = {}, token, peer = '127.0.0.1' } = {}) {
   const url = new URL(p, 'http://archive.test');
   const h = new Headers(headers);
   if (token) h.set('authorization', `Bearer ${token}`);
   if (json !== undefined) h.set('content-type', 'application/json');
   const request = new Request(url, { method, headers: h, body: json !== undefined ? JSON.stringify(json) : body, duplex: 'half' });
-  const response = await handler({ request, url, params });
+  const response = await handler({ request, url, params, clientAddress: peer });
   const raw = response.status === 204 ? new ArrayBuffer(0) : await response.arrayBuffer();
   const text = Buffer.from(raw).toString();
   let data;
@@ -319,15 +319,15 @@ test('settings: token masked, database accepts a pasted link, changing it resets
 
 test('login: wrong tokens are throttled, missing tokens on other endpoints are not', async () => {
   for (let i = 0; i < 12; i++) {
-    const r = await call(admin.login, { method: 'POST', json: { token: 'wrong' }, headers: { 'x-forwarded-for': '10.0.0.9' } });
+    const r = await call(admin.login, { method: 'POST', json: { token: 'wrong' }, peer: '10.0.0.9' });
     assert.equal(r.status, 401);
   }
-  const locked = await call(admin.login, { method: 'POST', json: { token: TOKEN }, headers: { 'x-forwarded-for': '10.0.0.9' } });
+  const locked = await call(admin.login, { method: 'POST', json: { token: TOKEN }, peer: '10.0.0.9' });
   assert.equal(locked.status, 429);
   assert.equal(locked.data.code, 'rate_limited');
 
-  for (let i = 0; i < 20; i++) await call(admin.readSettings, { headers: { 'x-forwarded-for': '10.0.0.10' } });
-  const owner = await call(admin.login, { method: 'POST', json: { token: TOKEN }, headers: { 'x-forwarded-for': '10.0.0.10' } });
+  for (let i = 0; i < 20; i++) await call(admin.readSettings, { peer: '10.0.0.10' });
+  const owner = await call(admin.login, { method: 'POST', json: { token: TOKEN }, peer: '10.0.0.10' });
   assert.equal(owner.status, 200);
 });
 

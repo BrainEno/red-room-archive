@@ -4,7 +4,8 @@
  * All names are reduced to a single safe basename; nothing outside the upload
  * directory can be read, written, renamed or deleted.
  */
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, linkSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
@@ -15,7 +16,7 @@ import { config } from '../config.ts';
 /** Name the 3D statue model is stored under (see ui/scripts/site/scene.ts). */
 export const MODEL_NAME = 'venus.glb';
 
-export const MIME: Record<string, string> = {
+const MIME: Record<string, string> = {
   '.mp3': 'audio/mpeg',
   '.m4a': 'audio/mp4',
   '.wav': 'audio/wav',
@@ -50,7 +51,7 @@ export const ext = (name: string): string => {
 
 export const supported = (name: string): boolean => Boolean(MIME[ext(name)]);
 
-export const mimeOf = (name: string): string => MIME[ext(name)] ?? 'application/octet-stream';
+const mimeOf = (name: string): string => MIME[ext(name)] ?? 'application/octet-stream';
 
 /** Filesystem-safe name that keeps the extension and any letters/digits. */
 export const safeName = (name: string): string => {
@@ -73,7 +74,7 @@ export const resolveInDir = (name: string): string | null => {
   return path.join(uploadDir(), base);
 };
 
-export const publicUrl = (name: string) => `/uploads/${encodeURIComponent(name)}`;
+const publicUrl = (name: string) => `/uploads/${encodeURIComponent(name)}`;
 
 const describe = (name: string): UploadFile | null => {
   try {
@@ -120,7 +121,7 @@ export function removeUpload(name: string): void {
 }
 
 /** Rename within the upload dir; the extension must stay the same. */
-export function renameUpload(from: string, to: string): string {
+export function renameUpload(from: string, to: string, updateReferences: (name: string) => void = () => {}): string {
   const source = resolveInDir(from);
   if (!source) throw badRequest('invalid source name', { name: from });
   if (!supported(from) || !supported(to) || ext(from) !== ext(to)) {
@@ -130,8 +131,18 @@ export function renameUpload(from: string, to: string): string {
   if (!target) throw badRequest('invalid target name', { name: to });
   if (!existsSync(source)) throw notFound('file not found', { name: from });
   if (path.basename(target) === path.basename(source)) return path.basename(source);
-  if (existsSync(target)) throw conflict('target name already exists', { name: path.basename(target) });
-  renameSync(source, target);
+  // Hard-link first: atomic no-clobber and both names remain available until
+  // references commit. A crash can leave a harmless duplicate, not a broken URL.
+  try { linkSync(source, target); } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw conflict('target name already exists', { name: path.basename(target) });
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') throw notFound('file not found', { name: from });
+    throw error;
+  }
+  try { updateReferences(path.basename(target)); } catch (error) {
+    try { unlinkSync(target); } catch { /* a duplicate is safer than a broken reference */ }
+    throw error;
+  }
+  try { unlinkSync(source); } catch (error) { console.error('[uploads] old name retained after rename', error); }
   return path.basename(target);
 }
 
@@ -167,8 +178,7 @@ export async function saveStream(
   if (!body) throw badRequest('empty request body');
   const max = options.maxBytes ?? config.maxUploadBytes();
   const name = targetName(originalName, options);
-  const final = path.join(uploadDir(), name);
-  const temporary = `${final}.${process.pid}.${Date.now().toString(36)}.part`;
+  const temporary = path.join(uploadDir(), `.${randomUUID()}.part`);
   let total = 0;
 
   const counter = new Transform({
@@ -182,8 +192,22 @@ export async function saveStream(
   try {
     await pipeline(Readable.fromWeb(body as never), counter, createWriteStream(temporary));
     if (!total) throw badRequest('empty request body');
-    renameSync(temporary, final);
-    return { name, size: total, mtime: Date.now(), url: publicUrl(name) };
+    let committed = name;
+    if (options.asModel) {
+      // Intentional replacement: readers see either the old or the complete new model.
+      renameSync(temporary, path.join(uploadDir(), MODEL_NAME));
+    } else {
+      const suffix = ext(name);
+      for (;;) {
+        try { linkSync(temporary, path.join(uploadDir(), committed)); break; }
+        catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+          committed = `${name.slice(0, -suffix.length)}-${randomUUID()}${suffix}`;
+        }
+      }
+      try { unlinkSync(temporary); } catch (error) { console.error('[uploads] temporary link retained', error); }
+    }
+    return { name: committed, size: total, mtime: Date.now(), url: publicUrl(committed) };
   } catch (error) {
     try {
       unlinkSync(temporary);

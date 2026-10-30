@@ -18,6 +18,7 @@ test('readJson rejects malformed and oversized bodies', async () => {
   await assert.rejects(readJson(new Request('https://x.test/', { method: 'POST', body: 'not json' })), /invalid JSON/);
   await assert.rejects(readJson(new Request('https://x.test/', { method: 'POST', body: '[1]' })), /must be an object/);
   await assert.rejects(readJson(new Request('https://x.test/', { method: 'POST', body: '{"a":"' + 'x'.repeat(50) + '"}', headers: { 'content-length': '99999999' } })), /too large/);
+  await assert.rejects(readJson(new Request('https://x.test/', { method: 'POST', body: '{"a":"' + 'x'.repeat(50) + '"}', headers: { 'content-length': '1' } }), 10), /too large/, 'actual bytes override a forged small length');
 });
 
 test('errorResponse uses the contract shape { error, code, details? }', async () => {

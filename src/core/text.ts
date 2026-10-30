@@ -38,7 +38,7 @@ export interface DateParts {
  * 23:30 — the author's wall clock — not the 28th 15:30 UTC. Values without an
  * ISO prefix fall back to the UTC reading of `Date`.
  */
-export function dateParts(value: unknown): DateParts | null {
+function dateParts(value: unknown): DateParts | null {
   const text = String(value ?? '');
   const iso = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(text);
   if (iso) return { year: +iso[1], month: +iso[2], day: +iso[3], time: iso[4] ? `${iso[4]}:${iso[5]}` : null };

@@ -14,8 +14,6 @@ export type Media =
 const AUDIO = /\.(mp3|m4a|wav|ogg|flac|aac)(\?|#|$)/i;
 const VIDEO = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
 
-export const isAudioUrl = (url: unknown): url is string => typeof url === 'string' && AUDIO.test(url);
-
 export function classifyMedia(url: unknown): Media {
   if (typeof url !== 'string' || !url.trim() || !isSafeUrl(url)) return { kind: 'none' };
   const src = url.trim();

@@ -4,7 +4,7 @@
 
 ## 当前项目如何发布
 
-这是 **运行中的 Astro SSR + SQLite 缓存**，并非每篇文章都生成 Git 文件。Notion 中 `Published` 勾选后，首次请求同步、访问触发的过期刷新或 `/admin → Articles → Sync now` 成功时，文章进入站点；取消勾选同样需要成功同步才能移除。默认 5 分钟只是缓存过期阈值，不是定时器：没有访问时不会自动更新。GitHub 的代码 PR / CI 与这条文章发布链路是两件事，正常发布文章不需要 GitHub PR 或重新部署代码。
+Node 模式是 **运行中的 Astro SSR + SQLite 缓存**，并非每篇文章都生成 Git 文件。静态快照模式则在构建时读取 Notion，更新后需要重新构建并部署；见 README「静态部署」。Notion 中 `Published` 勾选后，首次请求同步、访问触发的过期刷新或 `/admin → Articles → Sync now` 成功时，文章进入站点；取消勾选同样需要成功同步才能移除。默认 5 分钟只是缓存过期阈值，不是定时器：没有访问时不会自动更新。GitHub 的代码 PR / CI 与这条文章发布链路是两件事，正常发布文章不需要 GitHub PR 或重新部署代码。
 
 ## “GitHub Pull Requests” 连接属性
 

@@ -90,12 +90,12 @@ export const articlesRepository = {
    * Cached body, only when it was rendered from the current Notion revision
    * (`allowStale`: any previously rendered copy — the fallback when Notion is down).
    */
-  body(id: string, options: { allowStale?: boolean } = {}): ArticleBody | undefined {
+  body(id: string, options: { allowStale?: boolean; rendererVersion?: number } = {}): ArticleBody | undefined {
     const row = connection()
-      .prepare('SELECT body, body_text, toc, body_updated, updated FROM articles WHERE id = ?')
-      .get(id) as { body: string | null; body_text: string | null; toc: string | null; body_updated: string | null; updated: string } | undefined;
+      .prepare('SELECT body, body_text, toc, body_updated, updated, body_renderer_version FROM articles WHERE id = ?')
+      .get(id) as { body: string | null; body_text: string | null; toc: string | null; body_updated: string | null; updated: string; body_renderer_version: number } | undefined;
     if (!row || row.body == null) return undefined;
-    if (!options.allowStale && row.body_updated !== row.updated) return undefined;
+    if (!options.allowStale && (row.body_updated !== row.updated || (options.rendererVersion !== undefined && row.body_renderer_version !== options.rendererVersion))) return undefined;
     let toc: TocEntry[] = [];
     try {
       toc = JSON.parse(row.toc ?? '[]');
@@ -105,10 +105,10 @@ export const articlesRepository = {
     return { html: row.body, text: row.body_text ?? '', toc, updated: row.body_updated ?? '' };
   },
 
-  saveBody(id: string, body: ArticleBody) {
+  saveBody(id: string, body: ArticleBody, rendererVersion = 0) {
     connection()
-      .prepare('UPDATE articles SET body = ?, body_text = ?, toc = ?, body_updated = ? WHERE id = ?')
-      .run(body.html, body.text, JSON.stringify(body.toc), body.updated, id);
+      .prepare('UPDATE articles SET body = ?, body_text = ?, toc = ?, body_updated = ?, body_renderer_version = ? WHERE id = ?')
+      .run(body.html, body.text, JSON.stringify(body.toc), body.updated, rendererVersion, id);
   },
 
   /** Plain text of every cached body (search). */

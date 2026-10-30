@@ -39,7 +39,7 @@ test('demo articles are listed and rendered through the Notion renderer', async 
   assert.equal(detail.status, 200);
   assert.match(detail.data.html, /<table>/);
   assert.match(detail.data.html, /<nav class="toc"/);
-  assert.equal(detail.data.toc.length, 2);
+  assert.equal(detail.data.toc.length, 3);
   assert.equal(detail.data.next.slug, 'a-room-with-red-curtains');
 
   const home = await queries.getHome();

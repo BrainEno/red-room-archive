@@ -82,3 +82,23 @@ test('parseRange handles open, closed, suffix and invalid ranges', () => {
   assert.equal(parseRange('bytes=100-', 100), 'invalid');
   assert.equal(parseRange('bytes=-', 100), 'invalid');
 });
+
+test('concurrent uploads never clobber one another or leave partial files', async () => {
+  const files = await Promise.all(Array.from({ length: 30 }, (_, i) => saveStream(streamOf(`payload-${i}`), 'same.mp3')));
+  assert.equal(new Set(files.map((file) => file.name)).size, 30);
+  const { readFileSync } = await import('node:fs');
+  assert.equal(new Set(files.map((file) => readFileSync(path.join(dir, file.name), 'utf8'))).size, 30);
+  assert.ok(!readdirSync(dir).some((name) => name.endsWith('.part')));
+});
+
+test('rename failure rolls back target while preserving original and existing conflicts', async () => {
+  await saveStream(streamOf('original'), 'rollback.mp3');
+  assert.throws(() => renameUpload('rollback.mp3', 'new.mp3', () => { throw new Error('injected database failure'); }), /injected/);
+  assert.ok(readdirSync(dir).includes('rollback.mp3'));
+  assert.ok(!readdirSync(dir).includes('new.mp3'));
+  await saveStream(streamOf('existing'), 'new.mp3');
+  assert.throws(() => renameUpload('rollback.mp3', 'new.mp3'), (error) => error.status === 409);
+  const { readFileSync } = await import('node:fs');
+  assert.equal(readFileSync(path.join(dir, 'rollback.mp3'), 'utf8'), 'original');
+  assert.equal(readFileSync(path.join(dir, 'new.mp3'), 'utf8'), 'existing');
+});

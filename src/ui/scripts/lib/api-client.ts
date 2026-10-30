@@ -39,7 +39,7 @@ export class ApiError extends Error {
 }
 
 /** Files above this size are streamed as a raw body instead of multipart. */
-export const RAW_UPLOAD_THRESHOLD = 8 * 1024 * 1024;
+const RAW_UPLOAD_THRESHOLD = 8 * 1024 * 1024;
 
 export interface ApiClientOptions {
   /** Returns the current bearer token ('' when logged out). */

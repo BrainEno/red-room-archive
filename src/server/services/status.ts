@@ -7,7 +7,7 @@ import type { SiteResponse, SyncStatus } from '../../shared/contracts.ts';
 import { DEFAULT_LOCALE, type Locale } from '../../shared/i18n.ts';
 import { articlesRepository } from '../db/articles.repository.ts';
 import { isDemo, syncState } from './articles.ts';
-import { notionReady, siteProfile } from './settings.ts';
+import { notionGeneration, notionReady, siteProfile } from './settings.ts';
 
 export function syncStatus(): SyncStatus {
   const demo = isDemo();
@@ -21,6 +21,7 @@ export function syncStatus(): SyncStatus {
 }
 
 export function siteResponse(locale: Locale = DEFAULT_LOCALE): SiteResponse {
+  notionGeneration();
   const demo = isDemo();
   return {
     ...siteProfile(locale),

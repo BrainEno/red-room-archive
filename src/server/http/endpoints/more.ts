@@ -9,7 +9,7 @@
 import type { MoreDocumentResponse, MoreResponse } from '../../../shared/contracts.ts';
 import { DEFAULT_LOCALE, parseLocale } from '../../../shared/i18n.ts';
 import { config } from '../../config.ts';
-import { requireAdmin } from '../../services/auth.ts';
+import { requestPeer, requireAdmin } from '../../services/auth.ts';
 import { moreDocument, moreFor, resetMore, saveMore } from '../../services/more.ts';
 import { NO_STORE, json, publicCache, readJson, route } from '../respond.ts';
 
@@ -26,17 +26,17 @@ export const publicMore = route((context) => {
 });
 
 export const readMoreDocument = route((context) => {
-  requireAdmin(context.request);
+  requireAdmin(context.request, requestPeer(context));
   return json<MoreDocumentResponse>(moreDocument(), { headers: NO_STORE });
 });
 
 export const writeMoreDocument = route(async (context) => {
-  requireAdmin(context.request);
+  requireAdmin(context.request, requestPeer(context));
   const body = await readJson(context.request, MAX_DOCUMENT_BYTES());
   return json<MoreDocumentResponse>(saveMore(body), { headers: NO_STORE });
 });
 
 export const resetMoreDocument = route((context) => {
-  requireAdmin(context.request);
+  requireAdmin(context.request, requestPeer(context));
   return json<MoreDocumentResponse>(resetMore(), { headers: NO_STORE });
 });

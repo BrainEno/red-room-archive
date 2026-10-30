@@ -284,7 +284,9 @@ class Renderer {
       case 'paragraph': {
         const text = this.rich(d.rich_text);
         const nested = this.children(block, 'indent');
-        return text || nested ? `${text ? `<p${classAttr('', d.color)}>${text}</p>` : ''}${nested}` : '';
+        // Notion uses an empty paragraph block as intentional vertical space.
+        return text || nested ? `${text ? `<p${classAttr('', d.color)}>${text}</p>` : ''}${nested}`
+          : '<p class="notion-blank-line" aria-hidden="true"><br></p>';
       }
       case 'heading_1':
       case 'heading_2':
@@ -377,8 +379,5 @@ export function renderBlocks(blocks: NotionBlock[] = [], ctx: RenderContext = {}
     files: [...renderer.files],
   };
 }
-
-/** Convenience wrapper for callers that only need HTML. */
-export const blocksToHtml = (blocks: NotionBlock[] = [], ctx: RenderContext = {}) => renderBlocks(blocks, ctx).html;
 
 export { NOTION_ID, compactId };

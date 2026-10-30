@@ -1,15 +1,15 @@
 /* /admin */
 .admin #app { max-width: 880px; margin: 0 auto; padding: 56px 20px 120px; }
 .admin h1 { font-stretch: 62%; font-weight: 800; font-size: 3rem; text-transform: uppercase; }
-.tabs { display: flex; gap: 8px; align-items: center; margin-bottom: 28px; padding-bottom: 12px; border-bottom: 1px solid rgba(241,238,230,.25); }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 28px; padding-bottom: 12px; border-bottom: 1px solid rgba(241,238,230,.25); }
 .tabs a { margin-left: auto; opacity: .6; }
 .admin button { font: inherit; font-weight: 600; color: var(--ink); background: none; border: 1px solid rgba(241,238,230,.4); padding: 8px 14px; cursor: pointer; }
 .admin button:hover, .tabs button.on { background: var(--ink); color: var(--void); }
 .form { display: grid; gap: 14px; } .card { max-width: 360px; margin: 18vh auto 0; display: grid; gap: 14px; }
 .admin label { display: grid; gap: 4px; font-weight: 600; } .admin label small { font-weight: 400; opacity: .5; margin-left: .5em; }
 .admin input:not([type=checkbox]), .admin textarea, .admin select { font: inherit; color: var(--ink); background: rgba(241,238,230,.06); border: 1px solid rgba(241,238,230,.3); padding: 9px 10px; border-radius: 0; width: 100%; }
-.admin input:focus, .admin textarea:focus, .admin select:focus { outline: 2px solid var(--red); outline-offset: 1px; }
-.row2 { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; } .row2 select { width: auto; } .hint { opacity: .6; font-size: 13px; }
+.admin input:focus-visible, .admin textarea:focus-visible, .admin select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.row2 { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 18px; } .row2 select { width: auto; max-width: 100%; min-width: 0; } .hint { opacity: .6; font-size: 13px; }
 .up { justify-self: start; } .files li { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid rgba(241,238,230,.2); } .files li > :first-child { flex: 1; word-break: break-all; }
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translate(-50%, 20px); background: var(--ink); color: var(--void); padding: 10px 16px; font-weight: 600; opacity: 0; transition: .3s var(--ease); pointer-events: none; z-index: 9; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); } .toast.bad { background: var(--red); color: var(--ink); }
@@ -21,6 +21,10 @@
 .admin label.check input { width: auto; }
 .row2.tight { margin: 0; }
 .badge { display: inline-block; margin-left: 6px; padding: 0 6px; font-size: 11px; font-weight: 600; border: 1px solid var(--red); color: var(--red); vertical-align: middle; }
+/* Wide tabular data stays readable and scrollable without expanding the page. */
+.admin .table-scroll { max-width: 100%; overflow-x: auto; }
+.admin .table-scroll:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.admin .table-scroll .grid { min-width: 560px; }
 /* articles + schema check */
 .admin table.grid { width: 100%; border-collapse: collapse; margin: 12px 0 24px; font-size: 14px; }
 .admin table.grid th, .admin table.grid td { text-align: left; padding: 8px 10px 8px 0; border-top: 1px solid rgba(241,238,230,.18); vertical-align: top; }
@@ -47,8 +51,8 @@
 .me-body > .me-single { margin: 4px 0 10px 140px; }
 .me-single { font-size: 14px; }
 .admin input.invalid, .admin textarea.invalid { border-color: var(--red); outline: 2px solid var(--red); outline-offset: 1px; }
-.me-list { display: grid; gap: 8px; margin: 12px 0; }
-.me-card { border: 1px solid rgba(241,238,230,.22); }
+.me-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 12px 0; }
+.me-card { min-width: 0; border: 1px solid rgba(241,238,230,.22); }
 .me-card[open] { border-color: rgba(241,238,230,.45); }
 .me-card summary { display: flex; gap: 12px; align-items: center; padding: 8px 10px; cursor: pointer; list-style: none; }
 .me-card summary::-webkit-details-marker { display: none; }
@@ -69,7 +73,7 @@
 .me-image.qr .me-thumb img { object-fit: contain; }
 .me-thumb span { font-size: 11px; opacity: .5; text-align: center; padding: 6px; color: var(--ink); }
 .me-image.qr .me-thumb span { color: #555; opacity: 1; }
-.me-image-ctl { display: grid; gap: 8px; }
+.me-image-ctl { min-width: 0; display: grid; gap: 8px; }
 @media (max-width: 680px) {
   .me-head { display: none; }
   .me-pair { grid-template-columns: 1fr; }

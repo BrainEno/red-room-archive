@@ -11,6 +11,21 @@ import { upstreamError } from '../../core/errors.ts';
 
 const NOTION_VERSION = '2022-06-28';
 const MAX_RETRIES = 2;
+// Bound even malformed upstream responses with endless distinct cursors.
+const MAX_PAGES = 1000;
+
+function nextCursor<T>(page: ListResponse<T>, seen: Set<string>, pageCount: number): string | undefined {
+  if (!page || !Array.isArray(page.results) || typeof page.has_more !== 'boolean') {
+    throw upstreamError('Invalid Notion pagination response');
+  }
+  if (!page.has_more) return undefined;
+  if (typeof page.next_cursor !== 'string' || !page.next_cursor || seen.has(page.next_cursor)) {
+    throw upstreamError('Invalid or repeated Notion pagination cursor');
+  }
+  if (pageCount >= MAX_PAGES) throw upstreamError(`Notion pagination exceeds the ${MAX_PAGES} page limit`);
+  seen.add(page.next_cursor);
+  return page.next_cursor;
+}
 
 export interface NotionPage {
   object?: 'page';
@@ -146,13 +161,15 @@ export class NotionClient {
   async paginate<T>(path: string, body: Record<string, unknown> = {}): Promise<T[]> {
     const out: T[] = [];
     let cursor: string | undefined;
+    const seen = new Set<string>();
+    let pageCount = 0;
     do {
       const page: ListResponse<T> = await this.request<ListResponse<T>>(path, {
         method: 'POST',
         body: JSON.stringify({ ...body, page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) }),
       });
+      cursor = nextCursor(page, seen, ++pageCount);
       out.push(...page.results);
-      cursor = page.has_more && page.next_cursor ? page.next_cursor : undefined;
     } while (cursor);
     return out;
   }
@@ -175,14 +192,17 @@ export class NotionClient {
   }
 
   /** All direct children of a block (follows the cursor). */
-  async blockChildren(blockId: string): Promise<NotionBlockPayload[]> {
+  async blockChildren(blockId: string, maxItems = Infinity): Promise<NotionBlockPayload[]> {
     const out: NotionBlockPayload[] = [];
     let cursor: string | undefined;
+    const seen = new Set<string>();
+    let pageCount = 0;
     do {
       const query = `page_size=100${cursor ? `&start_cursor=${encodeURIComponent(cursor)}` : ''}`;
       const page = await this.request<ListResponse<NotionBlockPayload>>(`/blocks/${blockId}/children?${query}`);
+      cursor = nextCursor(page, seen, ++pageCount);
+      if (out.length + page.results.length > maxItems) throw upstreamError('Notion article exceeds the 5000 block limit');
       out.push(...page.results);
-      cursor = page.has_more && page.next_cursor ? page.next_cursor : undefined;
     } while (cursor);
     return out;
   }

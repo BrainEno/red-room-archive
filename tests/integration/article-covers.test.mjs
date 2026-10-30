@@ -54,7 +54,10 @@ test('covered and text-only articles render correctly in the built site', async 
   noSummary.properties.Excerpt.rich_text = [];
   noSummary.properties.Tags.multi_select = [];
   mock.state.pages.push(noSummary);
-  mock.state.blocks[compact(ID.twin)] = [{ object: 'block', id: 'text', type: 'paragraph', has_children: false, paragraph: { rich_text: [{ type: 'text', plain_text: 'A text-only body.', text: { content: 'A text-only body.' }, annotations: {} }] } }];
+  mock.state.blocks[compact(ID.twin)] = [
+    { object: 'block', id: 'text', type: 'paragraph', has_children: false, paragraph: { rich_text: [{ type: 'text', plain_text: 'A text-only body.', text: { content: 'A text-only body.' }, annotations: {} }] } },
+    ...['First section', 'Second section', 'Third section'].map((name, i) => ({ object: 'block', id: `heading-${i}`, type: 'heading_1', has_children: false, heading_1: { rich_text: [{ type: 'text', plain_text: name, text: { content: name }, annotations: {} }] } })),
+  ];
   const notion = createServer(async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
@@ -126,6 +129,13 @@ test('covered and text-only articles render correctly in the built site', async 
     const detail = await get('/articles/text-only');
     assert.match(detail, /class="article-body text-only"/);
     assert.match(detail, /A text-only body/);
+    assert.match(detail, /class="read-aloud"[^>]*hidden[^>]*data-read-aloud/);
+    assert.match(detail, /data-article-title/);
+    assert.match(detail, /data-play-label/);
+    assert.match(detail, /data-speed/);
+    assert.match(detail, /class="article-inline-toc"/);
+    assert.match(detail, /href="#first-section"/);
+    assert.match(detail, /class="article-aside"/);
     assert.doesNotMatch(detail, /<img class="cover"|property="og:image"/);
     assert.match(detail, /name="twitter:card" content="summary"/);
     const coveredDetail = await get('/articles/first-light');
@@ -138,7 +148,7 @@ test('covered and text-only articles render correctly in the built site', async 
     const coveredItem = rssItems.find((item) => item.includes('/articles/first-light'));
     assert.ok(plainItem && coveredItem);
     assert.doesNotMatch(plainItem, /<enclosure/);
-    assert.match(coveredItem, /<enclosure/);
+    assert.doesNotMatch(coveredItem, /<enclosure/, 'MIME and length are unknown');
 
     // The screenshot's Published checkbox is the visibility boundary, even
     // with a blank Date. Verify actual HTML, search, RSS and detail routes.

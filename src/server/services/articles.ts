@@ -48,6 +48,7 @@ export const assertGeneration = (expected: string) => {
 };
 
 export function syncState() {
+  notionGeneration(); // reconcile the effective source before reporting or serving cache
   return {
     syncedAt: Number(metaRepository.get('synced') ?? 0) || 0,
     syncing: Boolean(inFlight),
@@ -180,6 +181,11 @@ const pageResolver = (articles: ArticleRow[]) => {
 
 const toBody = (result: RenderResult, updated: string): ArticleBody => ({ html: result.html, text: result.text, toc: result.toc, updated });
 
+// Notion revisions do not change when the site's renderer changes. Old HTML
+// is refreshed on demand, but remains available if Notion is offline. Version 3
+// also re-fetches bodies cached by the old, potentially truncated tree walk.
+const BODY_RENDERER_VERSION = 3;
+
 const rendering = new Map<string, { generation: string; promise: Promise<ArticleBody> }>();
 
 /**
@@ -192,12 +198,15 @@ export async function articleBody(article: ArticleRow, options: { refresh?: bool
     return toBody(renderBlocks(demo?.blocks ?? [], { page: pageResolver(demoRows()) }), article.updated);
   }
 
+  const bodyGeneration = notionGeneration();
+  const latestForBody = articlesRepository.byId(article.id);
+  if (!latestForBody || latestForBody.updated !== article.updated) throw conflict('Article changed during rendering; please retry');
   if (!options.refresh) {
-    const cached = articlesRepository.body(article.id);
+    const cached = articlesRepository.body(article.id, { rendererVersion: BODY_RENDERER_VERSION });
     if (cached) return cached;
   }
 
-  const current = notionGeneration();
+  const current = bodyGeneration;
   const pending = rendering.get(article.id);
   if (pending?.generation === current) return pending.promise;
 
@@ -215,7 +224,7 @@ export async function articleBody(article: ArticleRow, options: { refresh?: bool
         });
         articlesRepository.registerMedia(article.id, result.files.map(compact));
         const body = toBody(result, article.updated);
-        articlesRepository.saveBody(article.id, body);
+        articlesRepository.saveBody(article.id, body, BODY_RENDERER_VERSION);
         return body;
       });
     } catch (error) {
@@ -241,7 +250,7 @@ export async function warmBodies(): Promise<number> {
   if (isDemo()) return 0;
   let rendered = 0;
   for (const article of articlesRepository.all()) {
-    if (articlesRepository.body(article.id)) continue;
+    if (articlesRepository.body(article.id, { rendererVersion: BODY_RENDERER_VERSION })) continue;
     await articleBody(article);
     rendered += 1;
   }

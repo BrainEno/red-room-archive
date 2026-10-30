@@ -6,7 +6,7 @@ v2 起网站只读 Notion：没有任何创建/修改文章的接口，内容请
 ## 通用规则
 
 - **鉴权**：后台接口需要 `Authorization: Bearer <ADMIN_TOKEN>`。标记为 *公开* 的接口可匿名访问。
-- **请求体**：JSON（`Content-Type: application/json`，默认上限 256 KB，`MAX_JSON_KB` 可调）；上传除外。
+- **请求体**：JSON（`Content-Type: application/json`，默认上限 256 KB，`MAX_JSON_KB` 可调；More 文档上限为两者中较大的 8 MiB）；上传除外。读取时按实际字节限额，超限响应关闭连接。multipart 单文件上限为 `min(MAX_UPLOAD_MB, 8 MiB)`，较大文件使用 `?name=` 原始流上传。
 - **分页**：`?limit=&offset=`，响应带 `total / limit / offset`。
 - **错误**：始终是 `{ "error": "说明", "code": "not_found", "details": { "slug": "x" } }`
 
@@ -17,7 +17,7 @@ v2 起网站只读 Notion：没有任何创建/修改文章的接口，内容请
   | 404 | `not_found` | 文章不存在（未发布、定时未到也是 404） |
   | 409 | `conflict` | 上传文件名冲突，或 Notion 设置/文章在操作期间发生变化，请重试 |
   | 413 | `payload_too_large` | 请求体、上传文件或 Notion 文件过大 |
-  | 429 | `rate_limited` | 错误 token 次数过多（同 IP 10 分钟内 12 次） |
+  | 429 | `rate_limited` | 错误 token 次数过多（10 分钟内每个桶 12 次，另有全局上限）；带转发头的请求共用一个桶，不信任转发 IP |
   | 502 | `upstream_error` | Notion 拒绝或不可达（上游细节只写服务器日志） |
   | 503 | `unavailable` | 服务器未配置 `ADMIN_TOKEN` / Notion |
   | 500 | `internal` | 未预期的错误 |
@@ -42,7 +42,7 @@ interface ArticleSummary {
   id: string;          // Notion page id
   slug: string;
   title: string;
-  date: string;        // Notion Date 列原样（YYYY-MM-DD，或带时间和时区的 ISO），没有 Date 列时为创建时间
+  date: string;        // Notion Date 列原样（YYYY-MM-DD，或带时间和时区的 ISO），Date 留空或缺失时为首次成功同步发现公开的服务器本地日期
   tags: string[];      // 标签显示名（?lang= 的语言），每个主题一个：同时标了 Fiction 和 小说 只出现一次
   excerpt: string;
   cover: string | null; // /media/notion/<id>（Notion 上传）或外链

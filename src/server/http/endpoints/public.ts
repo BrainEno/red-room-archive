@@ -14,7 +14,7 @@ import { connection } from '../../db/connection.ts';
 import { presentArticle, presentArticleDetail } from '../../presenters.ts';
 import { articleBody, listArticles, neighbours, requireArticle } from '../../services/articles.ts';
 import { filterByTag, tagNamer, topicCounts } from '../../services/tags.ts';
-import { isAdmin, requireAdmin } from '../../services/auth.ts';
+import { isAdmin, requestPeer, requireAdmin } from '../../services/auth.ts';
 import { MAX_QUERY_LENGTH, search } from '../../services/search.ts';
 import { notionReady } from '../../services/settings.ts';
 import { siteResponse } from '../../services/status.ts';
@@ -72,7 +72,7 @@ export const listArticlesEndpoint = route(async (context) => {
 export const getArticle = route(async (context) => {
   const slug = param(context, 'slug');
   const refresh = truthy(context.url.searchParams.get('refresh'));
-  if (refresh) requireAdmin(context.request);
+  if (refresh) requireAdmin(context.request, requestPeer(context));
   const article = await requireArticle(slug);
   const body = await articleBody(article, { refresh });
   const all = await listArticles();

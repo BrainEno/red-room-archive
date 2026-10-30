@@ -22,7 +22,7 @@ import type {
 type Locale = MoreResponse['locale'];
 
 /** Hard limits; generous for real use, small enough to keep one request bounded. */
-export const MORE_LIMITS = {
+const MORE_LIMITS = {
   publications: 60,
   channels: 30,
   intro: 2000,
@@ -170,7 +170,7 @@ export function normalizeMoreDocument(input: unknown): MoreDocument {
 }
 
 /** One language, falling back to the other when this side is empty (a Chinese title still shows on the English page). */
-export const pickText = (text: LocalizedText, locale: Locale): string => {
+const pickText = (text: LocalizedText, locale: Locale): string => {
   const other: Locale = locale === 'en' ? 'zh-CN' : 'en';
   return text[locale].trim() || text[other].trim();
 };

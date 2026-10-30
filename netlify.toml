@@ -1,0 +1,6 @@
+[build]
+  command = "npm run build:static"
+  publish = "static-dist"
+
+[build.environment]
+  NODE_VERSION = "22.23.4"

@@ -1,6 +1,7 @@
 ---
 import Page from '../layouts/Page.astro';
 import PrevNext from '../components/PrevNext.astro';
+import ReadAloud from '../components/ReadAloud.astro';
 import { messages } from '../i18n.ts';
 import { formatDate, isoDatetime } from '../../core/text.ts';
 import type { ArticleDetail } from '../../shared/contracts.ts';
@@ -23,7 +24,7 @@ const lang = contentLang(`${article.title} ${article.excerpt}`);
   <div class="article-wrap">
     <article class="prose" lang={lang}>
       <p class="kicker" lang={locale}><a href={ARTICLES_PATH}>{t.articles.title}</a></p>
-      <h1>{article.title}</h1>
+      <h1 data-article-title>{article.title}</h1>
       <p class="by" lang={locale}>
         <time datetime={isoDatetime(article.date)}>{formatDate(article.date, locale, { time: true })}</time>
         <span> · {t.article.readingTime(article.readingMinutes)}</span>
@@ -32,6 +33,15 @@ const lang = contentLang(`${article.title} ${article.excerpt}`);
         <p class="tags">{article.tags.map((tag) => <a href={tagPath(tag)}>{tag}</a>)}</p>
       )}
       {article.cover && <img class="cover" src={article.cover} alt="" decoding="async" fetchpriority="high" />}
+      {!bodyMissing && <ReadAloud locale={locale} />}
+      {showToc && (
+        <details class="article-inline-toc" lang={locale}>
+          <summary>{t.article.contents}</summary>
+          <nav aria-label={t.article.contents}>
+            <ol lang={lang}>{article.toc.map((entry) => <li class={`toc-l${entry.level}`}><a href={`#${entry.id}`}>{entry.text}</a></li>)}</ol>
+          </nav>
+        </details>
+      )}
       <div class:list={['article-body', { 'text-only': !article.cover }]}>
         {bodyMissing
           ? <p class="body-missing" lang={locale}>{t.article.unavailable}</p>

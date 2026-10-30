@@ -160,6 +160,11 @@ const MIGRATIONS: ((db: DatabaseConnection) => void)[] = [
       PRIMARY KEY (database_id, page_id)
     )`);
   },
+  // 9 — renderer changes can invalidate HTML without discarding searchable text.
+  (db) => {
+    const columns = new Set((db.prepare('PRAGMA table_info(articles)').all() as { name: string }[]).map((c) => c.name));
+    if (!columns.has('body_renderer_version')) db.exec('ALTER TABLE articles ADD COLUMN body_renderer_version INTEGER NOT NULL DEFAULT 0');
+  },
 ];
 
 let depth = 0;
@@ -182,7 +187,7 @@ export function transaction<T>(fn: () => T): T {
   return run();
 }
 
-export function migrate(db: DatabaseConnection) {
+function migrate(db: DatabaseConnection) {
   const current = Number((db.prepare('PRAGMA user_version').get() as { user_version?: number })?.user_version ?? 0);
   MIGRATIONS.forEach((step, index) => {
     if (index < current) return;

@@ -1,51 +1,61 @@
-/**
- * Fetch a page's block tree (children attached as `block.children`).
- *
- * Notion only returns one level per request, so nested content (lists,
- * toggles, columns, tables) costs one request per parent. Siblings are
- * fetched with a small concurrency limit — the API allows ~3 requests/s and
- * the client retries 429s — instead of the strictly sequential N+1 walk.
- */
+/** Fetch a complete article block tree with bounded work per article. */
 import type { NotionBlock } from '../../core/blocks.ts';
-import type { NotionBlockPayload, NotionClient } from './client.ts';
+import { upstreamError } from '../../core/errors.ts';
+import type { NotionClient } from './client.ts';
 
-export const MAX_DEPTH = 8;
-export const MAX_BLOCKS = 5000;
+const MAX_DEPTH = 8;
+const MAX_BLOCKS = 5000;
 const CONCURRENCY = 3;
 
 /** Blocks whose children are separate pages/databases, not article content. */
 const OPAQUE = new Set(['child_page', 'child_database']);
 
-async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) await fn(items[next++]!);
-  });
-  await Promise.all(workers);
-}
-
 export async function fetchBlockTree(client: NotionClient, pageId: string): Promise<NotionBlock[]> {
   let total = 0;
+  let root: NotionBlock[] = [];
+  type Task = { id: string; depth: number; parent?: NotionBlock };
+  let level: Task[] = [{ id: pageId, depth: 0 }];
 
-  const load = async (parentId: string, depth: number): Promise<NotionBlock[]> => {
-    const payloads: NotionBlockPayload[] = await client.blockChildren(parentId);
-    total += payloads.length;
-    const blocks = payloads as unknown as NotionBlock[];
-    if (depth >= MAX_DEPTH) return blocks;
-
-    const parents = blocks.filter(
-      (block) => (block.has_children || block.synced_block?.synced_from?.block_id) && !OPAQUE.has(block.type),
-    );
-    await mapLimit(parents, CONCURRENCY, async (block) => {
-      if (total > MAX_BLOCKS) return;
-      // A synced copy shows the original block's children.
-      const source = block.type === 'synced_block' && block.synced_block?.synced_from?.block_id
-        ? String(block.synced_block.synced_from.block_id)
-        : String(block.id);
-      block.children = await load(source, depth + 1);
+  // Process one level at a time. Workers only hold a slot while fetching,
+  // never while waiting on descendants, so deep trees cannot deadlock or
+  // multiply the concurrency limit. Preserve each parent's Notion order.
+  while (level.length) {
+    const nextLevel: Task[][] = new Array(level.length);
+    let next = 0;
+    let failure: unknown;
+    let failed = false;
+    const workers = Array.from({ length: Math.min(CONCURRENCY, level.length) }, async () => {
+      while (!failed && next < level.length) {
+        const index = next++;
+        const task = level[index]!;
+        try {
+          const payloads = await client.blockChildren(task.id, MAX_BLOCKS - total);
+          total += payloads.length;
+          if (total > MAX_BLOCKS) throw upstreamError(`Notion article exceeds the ${MAX_BLOCKS} block limit`);
+          const blocks = payloads as unknown as NotionBlock[];
+          if (task.parent) task.parent.children = blocks;
+          else root = blocks;
+          const parents = blocks.filter((block) =>
+            (block.has_children || block.synced_block?.synced_from?.block_id) && !OPAQUE.has(block.type));
+          if (parents.length && task.depth >= MAX_DEPTH) {
+            throw upstreamError(`Notion article exceeds the ${MAX_DEPTH} nesting depth limit`);
+          }
+          nextLevel[index] = parents.map((block) => ({
+            id: block.type === 'synced_block' && block.synced_block?.synced_from?.block_id
+              ? String(block.synced_block.synced_from.block_id) : String(block.id),
+            depth: task.depth + 1,
+            parent: block,
+          }));
+        } catch (error) {
+          if (!failed) { failed = true; failure = error; }
+        }
+      }
     });
-    return blocks;
-  };
-
-  return load(pageId, 0);
+    // Wait for in-flight requests to finish before reporting failure; do not
+    // leave a detached crawl running after a failed render.
+    await Promise.all(workers);
+    if (failed) throw failure;
+    level = nextLevel.flat();
+  }
+  return root;
 }

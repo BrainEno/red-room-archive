@@ -30,7 +30,7 @@ const FIELD_LABELS: Record<ArticleField, string> = {
 
 const MULTILINE: SettingKey[] = ['site_about', 'site_intro', 'site_about_zh', 'site_intro_zh', 'tag_glossary'];
 
-export function schemaHtml(schema: NotionSchemaResponse): string {
+function schemaHtml(schema: NotionSchemaResponse): string {
   const rows = (Object.keys(FIELD_LABELS) as ArticleField[])
     .map((field) => {
       const m = schema.mapping[field];
