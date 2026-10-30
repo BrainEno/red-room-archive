@@ -57,7 +57,7 @@ export function settingsPanel(root: HTMLElement, api: ApiClient, initial: Settin
     if (MULTILINE.includes(key)) return `<textarea name="${key}" rows="3">${value}</textarea>`;
     if (key === 'NOTION_TOKEN') {
       return `<input name="${key}" type="password" autocomplete="off" value="" placeholder="${
-        state.values.hasToken ? `stored (${value}) — leave blank to keep` : 'not set'
+        state.values.hasToken ? `configured (${value}) — leave blank to keep` : 'not set'
       }">`;
     }
     if (key === 'NOTION_DATABASE_ID') return `<input name="${key}" value="${value}" placeholder="https://www.notion.so/…  or  0123456789abcdef…" spellcheck="false">`;
@@ -71,6 +71,9 @@ export function settingsPanel(root: HTMLElement, api: ApiClient, initial: Settin
         <p class="hint">Export the last saved public site text and tag pairs as JSON. No Notion credentials or uploaded files are included. Import replaces these fields immediately; unsaved edits will be lost. Static Netlify/Cloudflare sites need a rebuild using the file.</p>
         <div class="row2 tight"><button type="button" id="profile-export">Export site profile</button><button type="button" id="profile-import">Import site profile…</button></div>
       </section>
+      <p id="notion-config-status" role="status" class="hint">${state.status.notion
+        ? 'Notion settings are configured (environment or saved settings). Connection and database permissions are not yet verified; use Check columns.'
+        : 'Notion is not fully configured. Set a token and database ID, then use Check columns.'}</p>
       <form class="form" id="sf">${keys.map((key) => `<label>${LABELS[key]}${field(key)}</label>`).join('')}
         <div class="row2 tight"><button>Save</button><button type="button" id="chk">Check columns</button></div>
       </form>

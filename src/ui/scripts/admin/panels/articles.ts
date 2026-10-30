@@ -8,7 +8,7 @@ import { $, busy, dateLabel, esc, fail, timeLabel, toast } from '../dom.ts';
 
 const describeStatus = (status: SyncStatus) =>
   [
-    status.demo ? 'Notion not configured — showing demo articles' : 'Notion connected',
+    status.demo ? 'Notion not configured — showing demo articles' : 'Notion configured — connection not verified; use Check columns or sync',
     `${status.articles} published`,
     status.demo ? '' : `${status.bodiesCached} bodies cached`,
     status.demo ? '' : `last sync ${status.syncedAt ? timeLabel(status.syncedAt) : 'never'}`,

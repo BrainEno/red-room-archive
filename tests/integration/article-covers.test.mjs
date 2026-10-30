@@ -84,6 +84,14 @@ test('covered and text-only articles render correctly in the built site', async 
       assert.equal(response.status, 200, url);
       return response.text();
     };
+    const envSettings = await fetch(`http://127.0.0.1:${port}/api/settings`, { headers: { Authorization: 'Bearer test-admin' } });
+    assert.equal(envSettings.status, 200);
+    const configured = await envSettings.json();
+    assert.equal(configured.status.notion, true);
+    assert.equal(configured.values.hasToken, true);
+    assert.match(configured.values.NOTION_TOKEN, /^••••/);
+    assert.notEqual(configured.values.NOTION_TOKEN, 'mock-token');
+    assert.ok(!JSON.stringify(configured).includes('mock-token'));
     const save = await fetch(`http://127.0.0.1:${port}/api/settings`, {
       method: 'PATCH', headers: { 'Authorization': 'Bearer test-admin', 'Content-Type': 'application/json' },
       body: JSON.stringify({ site_name: 'My <Archive>', site_about: 'About in English', site_intro: 'English intro', site_tagline: 'English tagline',
