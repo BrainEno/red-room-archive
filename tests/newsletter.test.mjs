@@ -592,6 +592,15 @@ test('Netlify Function source: routes, platform rate limit, and no Node-server i
   }
 });
 
+test('Netlify Function outside the Netlify runtime (no Blobs): a clear 503, never a crash', async () => {
+  const fn = await import('../netlify/functions/newsletter.mts');
+  const response = await fn.default(new Request('https://archive.example/api/newsletter/status'), { ip: '192.0.2.1' });
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const body = await response.json();
+  assert.equal(body.code, 'unavailable'); assert.match(body.error, /Nothing was saved/);
+});
+
 /* ── provider adapters ───────────────────────────────────────────────── */
 
 test('provider adapters send the documented payloads and keep errors free of addresses', async () => {

@@ -12,3 +12,6 @@ static-dist/
 test-results/
 playwright-report/
 visual-candidates/
+
+# Netlify local build output (functions bundles)
+.netlify/

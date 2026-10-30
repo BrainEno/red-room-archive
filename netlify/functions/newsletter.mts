@@ -21,8 +21,16 @@ interface NetlifyContext {
 
 export default async (request: Request, context: NetlifyContext) => {
   const ip = context.ip || 'unknown';
+  let store;
+  try {
+    store = getStore({ name: BLOB_STORE_NAME, consistency: 'strong' });
+  } catch (error) {
+    // Blobs is provided by the Netlify runtime; without it nothing can be stored, so say so.
+    console.error('[newsletter] Netlify Blobs unavailable:', (error as Error).name);
+    return Response.json({ error: 'Newsletter storage is unavailable. Nothing was saved.', code: 'unavailable' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+  }
   return handleNewsletterRequest(request, {
-    service: netlifyNewsletterService(getStore({ name: BLOB_STORE_NAME, consistency: 'strong' }), context.deploy?.context),
+    service: netlifyNewsletterService(store, context.deploy?.context),
     // Netlify sets context.ip from the connection; it is not a client-supplied header.
     client: { ip, shared: ip === 'unknown' },
     requireAdmin: (req) => requireAdminFrom(req, ip),
