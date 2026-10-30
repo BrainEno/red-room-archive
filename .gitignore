@@ -6,3 +6,8 @@ data/
 
 # Generated static snapshots (may contain published content)
 static-dist/
+
+# Playwright diagnostics (may contain test content)
+.ui-test-snapshot/
+test-results/
+playwright-report/

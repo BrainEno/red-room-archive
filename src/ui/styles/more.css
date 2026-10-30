@@ -4,7 +4,7 @@
    Chinese adjustments live in cjk.css; every condensed element is in the
    display list in base.css (enforced by tests/i18n.test.mjs). */
 
-.mp { padding: 0 clamp(16px, 3vw, 40px) 24px; }
+.mp { padding: 0 var(--page-gutter) 24px; }
 .mp-head, .mp-rule, .pub, .reachout { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 16px; }
 .mp .lbl { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; opacity: .55; }
 

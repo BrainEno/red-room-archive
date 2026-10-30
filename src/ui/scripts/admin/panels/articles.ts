@@ -48,7 +48,7 @@ export function articlesPanel(root: HTMLElement, api: ApiClient, initial: SyncSt
     try {
       const { articles, total } = await api.articles.list({ limit: 100 });
       list.innerHTML = articles.length
-        ? `<table class="grid"><thead><tr><th>Title</th><th>Date</th><th>Tags</th><th>Rank</th><th></th></tr></thead><tbody>${articles.map(row).join('')}</tbody></table>${
+        ? `<div class="table-scroll" role="region" aria-label="Published articles" tabindex="0"><table class="grid"><thead><tr><th>Title</th><th>Date</th><th>Tags</th><th>Rank</th><th></th></tr></thead><tbody>${articles.map(row).join('')}</tbody></table></div>${
             total > articles.length ? `<p class="hint">Showing the newest ${articles.length} of ${total}.</p>` : ''
           }`
         : '<p class="hint">No published articles. Check the database in Settings → “Check columns”.</p>';

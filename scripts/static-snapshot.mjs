@@ -10,7 +10,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { parse, serialize } from 'parse5';
 
 const root = process.cwd();
-const dest = path.join(root, 'static-dist');
+// The UI harness has its own disposable output and never overwrites a user's snapshot.
+const dest = path.join(root, process.env.UI_TEST_SNAPSHOT === '1' ? '.ui-test-snapshot' : 'static-dist');
 const temp = await mkdtemp(path.join(tmpdir(), 'red-room-static-'));
 const siteUrl = (process.env.SITE_URL || '').replace(/\/+$/, '');
 const demo = process.env.STATIC_DEMO === '1';

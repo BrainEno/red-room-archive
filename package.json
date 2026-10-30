@@ -10,7 +10,10 @@
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm test && npm run build && npm run test:render",
     "test:render": "node --test tests/integration/*.test.mjs",
-    "build:static": "npm run build && node scripts/static-snapshot.mjs"
+    "build:static": "npm run build && node scripts/static-snapshot.mjs",
+    "test:ui": "npm run build && npm run test:ui:prepare && npm run test:ui:built",
+    "test:ui:prepare": "UI_TEST_SNAPSHOT=1 SITE_URL=https://example.invalid STATIC_DEMO=1 NOTION_TOKEN= NOTION_API_SECRET= NOTION_DATABASE_ID= DATABASE_ID= NOTION_DB_WRITING= node scripts/static-snapshot.mjs",
+    "test:ui:built": "playwright test"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.9",
@@ -23,6 +26,7 @@
   },
   "devDependencies": {
     "@fontsource-variable/noto-sans-sc": "^5.3.1",
+    "@playwright/test": "^1.56.1",
     "@types/better-sqlite3": "^7.6.11",
     "@types/three": "^0.171.0",
     "parse5": "^7.3.0",

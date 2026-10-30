@@ -27,7 +27,9 @@ document.querySelectorAll<HTMLAnchorElement>('[data-lang-switch]').forEach((a) =
     try { sessionStorage.setItem(RESUME_KEY, JSON.stringify({ y: scrollY, at: Date.now() })); } catch { /* private mode */ }
   }));
 
-initScene($<HTMLCanvasElement>('#gl'));
+// The content and navigation must remain usable when WebGL is unavailable.
+try { initScene($<HTMLCanvasElement>('#gl')); }
+catch (error) { console.warn('[scene] WebGL unavailable; showing the static page', error); }
 const neon = initNeon($<HTMLCanvasElement>('#neon canvas'));
 const fx = neon.fx;
 world.fade.v = 1; world.dolly.v = 1;   // 开场不再用 3D 房间做“亮起”，首页由纯黑 + 招牌承担；房间在滚动中显现

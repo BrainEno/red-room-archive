@@ -124,6 +124,8 @@ export const demoArticles: DemoArticle[] = [
       li('Create an internal integration at notion.so/my-integrations and copy its token.'),
       li('Share the database with the integration (••• → Connections).'),
       li('Paste the token and the database link in /admin → Settings, then press “Check columns”.'),
+      h(2, 'Publishing'),
+      p(t('Check Published on a page to make it visible. Set a Date to keep its publication date stable.')),
       { type: 'callout', callout: { icon: { type: 'emoji', emoji: '💡' }, color: 'gray_background', rich_text: [t('Notion stays the only source: edit there, the site follows within a few minutes.')] } },
     ],
   },
