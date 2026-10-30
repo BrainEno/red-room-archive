@@ -11,7 +11,7 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   fullyParallel: false,
   workers: process.env.CI ? 2 : 1,
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  reporter: process.env.CI ? [['list'], ['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: 'http://127.0.0.1:4178',
     contextOptions: { reducedMotion: 'reduce' },
