@@ -4,11 +4,17 @@
  * Only the interface is translated (navigation, labels, dates, site copy).
  * Articles are shown in whatever language they were written in Notion.
  *
- * Resolution order (first match wins):
- *   1. `?lang=` in the URL      — explicit, shareable, what the switcher links to
- *   2. the `lang` cookie        — remembers the last explicit choice
- *   3. `Accept-Language`        — the browser's preference
- *   4. DEFAULT_LOCALE
+ * Pages carry the language in the path: English is unprefixed, every other
+ * locale lives under its prefix (`/articles` ↔ `/zh-CN/articles`), so each
+ * language has its own crawlable, cacheable, shareable URL. The middleware
+ * (src/middleware.ts) serves prefixed paths from the same page routes, and
+ * only *redirects* based on the other signals:
+ *   - `?lang=` on a page            — set by the switcher; remembered in the
+ *                                      `lang` cookie, then 302 to the clean URL
+ *   - the `lang` cookie             — an unprefixed page 302s to the prefix
+ *   - `Accept-Language`             — only for `/` with no cookie yet
+ * APIs have no prefix and keep `?lang=` → cookie → Accept-Language → English
+ * (resolveLocale).
  */
 
 export const LOCALES = ['en', 'zh-CN'] as const;
@@ -84,19 +90,59 @@ export function contentLang(text: string | null | undefined): Locale | undefined
   return undefined;
 }
 
-/** The same URL with `?lang=` set — what the language switcher links to. */
-export function localeHref(url: URL, locale: Locale): string {
-  const params = new URLSearchParams(url.search);
-  params.set(LOCALE_PARAM, locale);
-  return `${url.pathname}?${params.toString()}${url.hash}`;
+/** Path prefix per locale; the default language has none. */
+export const LOCALE_PREFIX: Record<Locale, string> = { en: '', 'zh-CN': '/zh-CN' };
+
+/**
+ * True for paths that are pages (and so exist once per language). APIs,
+ * media proxies, uploads, the admin shell, build assets and files with an
+ * extension (`/rss.xml`, `/robots.txt`, `/favicon.svg`) are shared.
+ */
+export function isPagePath(path: string): boolean {
+  const pathname = path.split(/[?#]/)[0];
+  if (/^\/(api|media|uploads|admin|_astro|_)(\/|$)/.test(pathname)) return false;
+  const last = pathname.slice(pathname.lastIndexOf('/') + 1);
+  return !last.includes('.');
+}
+
+/** `/zh-CN/articles` → `{ locale: 'zh-CN', path: '/articles' }`; unprefixed → `{ locale: null, path }`. */
+export function splitLocale(pathname: string): { locale: Locale | null; path: string } {
+  for (const locale of LOCALES) {
+    const prefix = LOCALE_PREFIX[locale];
+    if (!prefix) continue;
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+      return { locale, path: pathname.slice(prefix.length) || '/' };
+    }
+  }
+  return { locale: null, path: pathname };
 }
 
 /**
- * A site path in a given interface language: the default language keeps the
- * clean URL, others add `lang=` (`/articles?tag=x` → `/articles?tag=x&lang=zh-CN`).
- * Used for canonical / hreflang links and the sitemap.
+ * A locale-neutral site path in one interface language:
+ * `localePath('/articles?x=1', 'zh-CN')` → `/zh-CN/articles?x=1`,
+ * `localePath('/', 'zh-CN')` → `/zh-CN`. The default language keeps the
+ * path as is, and non-page paths (APIs, files) are never prefixed.
  */
-export function localizedPath(path: string, locale: Locale): string {
-  if (locale === DEFAULT_LOCALE) return path;
-  return `${path}${path.includes('?') ? '&' : '?'}${LOCALE_PARAM}=${encodeURIComponent(locale)}`;
+export function localePath(path: string, locale: Locale): string {
+  const prefix = LOCALE_PREFIX[locale];
+  if (!prefix || !path.startsWith('/') || path.startsWith('//') || !isPagePath(path)) return path;
+  const cut = path.search(/[?#]/);
+  const pathname = cut === -1 ? path : path.slice(0, cut);
+  const rest = cut === -1 ? '' : path.slice(cut);
+  return `${prefix}${pathname === '/' ? '' : pathname}${rest}`;
+}
+
+/** Same as localePath — used for canonical / hreflang links and the sitemap. */
+export const localizedPath = localePath;
+
+/**
+ * What the language switcher links to: the current page in `locale`, plus
+ * `?lang=` so the server remembers the choice (it then redirects to the
+ * clean URL). `search` is the current query string, kept apart from `lang`.
+ */
+export function switchHref(path: string, search: string, locale: Locale): string {
+  const params = new URLSearchParams(search);
+  params.delete(LOCALE_PARAM);
+  params.set(LOCALE_PARAM, locale);
+  return `${localePath(path, locale)}?${params.toString()}`;
 }

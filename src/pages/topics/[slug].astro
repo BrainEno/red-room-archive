@@ -1,0 +1,15 @@
+---
+// Route: /topics/:slug (page 1). Another name of a topic (/topics/小说 for
+// Fiction) redirects to the canonical slug; unknown or empty topics are 404.
+import ArticlesView from '../../ui/views/ArticlesView.astro';
+import NotFoundView from '../../ui/views/NotFoundView.astro';
+import { getSite, getTopic } from '../../server/queries.ts';
+import { localePath } from '../../shared/i18n.ts';
+import { topicPath } from '../../shared/routes.ts';
+
+const site = getSite(Astro.locals.locale);
+const data = await getTopic({ slug: Astro.params.slug ?? '', locale: site.locale });
+if (data.status === 'redirect') return Astro.redirect(localePath(topicPath(data.slug), site.locale), 301);
+if (data.status === 'missing') Astro.response.status = 404;
+---
+{data.status === 'ok' ? <ArticlesView site={site} articles={data.articles} total={data.total} page={data.page} pages={data.pages} tag={data.tag} tags={data.tags} /> : <NotFoundView site={site} />}

@@ -1,0 +1,49 @@
+---
+/** /archive — every article on one page, grouped by year, with a year index. */
+import Page from '../layouts/Page.astro';
+import { messages } from '../i18n.ts';
+import { formatDate, isoDatetime } from '../../core/text.ts';
+import type { ArticleSummary } from '../../shared/contracts.ts';
+import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
+import { ARCHIVE_PATH, TOPICS_PATH } from '../../shared/routes.ts';
+
+export interface Props {
+  site: { locale: Locale; name: string; url: string; email: string };
+  total: number;
+  years: { year: string; articles: ArticleSummary[] }[];
+}
+const { site, total, years } = Astro.props;
+const { locale } = site;
+const t = messages(locale);
+const to = (path: string) => localePath(path, locale);
+const anchor = (year: string) => (year ? `y${year}` : 'undated');
+---
+<Page title={`${t.archive.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={t.archive.intro(total)} current={ARCHIVE_PATH}>
+  <section class="prose listing archive">
+    <p class="article-label">{site.name} / {t.archive.title}</p>
+    <h1>{t.archive.title}</h1>
+    <p class="article-intro">{total ? t.archive.intro(total) : t.articles.empty}</p>
+    {years.length > 1 && (
+      <nav class="filters" aria-label={t.archive.years}>
+        {years.map((group) => <a href={`#${anchor(group.year)}`}>{group.year || t.archive.undated}<sup>{group.articles.length}</sup></a>)}
+      </nav>
+    )}
+    {years.map((group) => (
+      <section class="archive-year" id={anchor(group.year)} aria-labelledby={`${anchor(group.year)}-h`}>
+        <h2 id={`${anchor(group.year)}-h`}>{group.year || t.archive.undated} <small>{t.archive.count(group.articles.length)}</small></h2>
+        <ol class="archive-list">
+          {group.articles.map((article) => (
+            <li>
+              <a href={to(article.href)}>
+                <time datetime={isoDatetime(article.date)}>{formatDate(article.date, locale)}</time>
+                <span class="archive-title" lang={contentLang(article.title)}>{article.title}</span>
+                {article.tags.length > 0 && <span class="archive-tags">{article.tags.join(' / ')}</span>}
+              </a>
+            </li>
+          ))}
+        </ol>
+      </section>
+    ))}
+    <p class="listing-links"><a href={to(TOPICS_PATH)}>{t.articles.allTopics}</a></p>
+  </section>
+</Page>

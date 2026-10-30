@@ -87,7 +87,7 @@ test('sync is admin-only; it paginates, retries 429 and keeps only visible pages
 test('tags: counts are case-insensitive and filter the list', async () => {
   const tags = await call(pub.tags);
   // Labels follow what the archive uses (`Poem`, not the glossary's first name `Poetry`).
-  assert.deepEqual(tags.data.tags, [{ key: 'fiction', name: 'Fiction', count: 2 }, { key: 'poetry', name: 'Poem', count: 1 }]);
+  assert.deepEqual(tags.data.tags, [{ key: 'fiction', slug: 'fiction', name: 'Fiction', count: 2 }, { key: 'poetry', slug: 'poetry', name: 'Poem', count: 1 }]);
   const filtered = await call(pub.listArticlesEndpoint, { path: '/api/articles?tag=fiction&limit=1' });
   assert.equal(filtered.data.total, 2);
   assert.equal(filtered.data.articles.length, 1);
@@ -96,7 +96,7 @@ test('tags: counts are case-insensitive and filter the list', async () => {
 
 test('tags in Chinese: built-in pairs translate, any alias filters, one name per topic', async () => {
   const zh = await call(pub.tags, { path: '/api/tags?lang=zh-CN' });
-  assert.deepEqual(zh.data.tags, [{ key: 'fiction', name: '小说', count: 2 }, { key: 'poetry', name: '诗歌', count: 1 }]);
+  assert.deepEqual(zh.data.tags, [{ key: 'fiction', slug: 'fiction', name: '小说', count: 2 }, { key: 'poetry', slug: 'poetry', name: '诗歌', count: 1 }]);
   const byChinese = await call(pub.listArticlesEndpoint, { path: `/api/articles?tag=${encodeURIComponent('小说')}&lang=zh-CN` });
   assert.equal(byChinese.data.total, 2, 'a Chinese name selects the English-tagged articles');
   assert.ok(byChinese.data.articles.every((article) => article.tags.includes('小说') && !article.tags.includes('Fiction')));
@@ -109,8 +109,13 @@ test('tags in Chinese: built-in pairs translate, any alias filters, one name per
   const home = await queries.getHome('zh-CN');
   assert.deepEqual(home.topics.map((topic) => topic.name), ['小说', '诗']);
   assert.ok(home.latest.every((article) => article.tags.every((tag) => /\p{Script=Han}/u.test(tag))));
-  const page = await queries.getArticles({ tag: 'FICTION', locale: 'zh-CN' });
-  assert.deepEqual(page.tag, { key: 'fiction', name: '小说' });
+  // Topic pages: other names of a topic redirect to its one slug.
+  assert.deepEqual(await queries.getTopic({ slug: 'FICTION', locale: 'zh-CN' }), { status: 'redirect', slug: 'fiction' });
+  assert.deepEqual(await queries.getTopic({ slug: '小说', locale: 'zh-CN' }), { status: 'redirect', slug: 'fiction' });
+  const page = await queries.getTopic({ slug: 'fiction', locale: 'zh-CN' });
+  assert.equal(page.status, 'ok');
+  assert.deepEqual(page.tag, { key: 'fiction', slug: 'fiction', name: '小说' });
+  assert.ok(page.articles.every((article) => article.topics.some((topic) => topic.slug === 'fiction' && topic.name === '小说')));
   const found = await call(pub.searchArticles, { path: `/api/search?q=${encodeURIComponent('小说')}` });
   assert.ok(found.data.total >= 2, 'search matches a tag through its translation');
   await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { tag_glossary: '' } });
@@ -240,9 +245,24 @@ test('page facade: home sections, paginated index, article view', async () => {
   assert.deepEqual(home.featured.map((a) => a.slug), ['first-light']);
   assert.deepEqual(home.topics.map((t) => t.name), ['Fiction', 'Poem']);
 
-  const index = await queries.getArticles({ tag: 'Poem' });
-  assert.equal(index.total, 1);
+  const index = await queries.getArticles();
+  assert.equal(index.total, 3);
   assert.equal(index.pages, 1);
+  assert.equal(index.tag, undefined);
+  assert.deepEqual(index.tags.map((t) => t.slug), ['fiction', 'poetry']);
+  const poem = await queries.getTopic({ slug: 'poetry' });
+  assert.equal(poem.status, 'ok');
+  assert.equal(poem.total, 1);
+  assert.equal(poem.pages, 1);
+  assert.deepEqual(poem.tag, { key: 'poetry', slug: 'poetry', name: 'Poem' });
+  assert.deepEqual(await queries.getTopic({ slug: 'poem' }), { status: 'redirect', slug: 'poetry' }, 'the label used on articles finds the topic');
+  assert.deepEqual(await queries.getTopic({ slug: 'no-such-topic' }), { status: 'missing' });
+  assert.deepEqual(await queries.getTopic({ slug: 'essay' }), { status: 'missing' }, 'a glossary topic without articles has no page');
+
+  const archive = await queries.getArchive('en');
+  assert.equal(archive.total, 3);
+  assert.equal(archive.years.reduce((n, year) => n + year.articles.length, 0), 3);
+  assert.ok(archive.years.every((year, i, all) => !i || !year.year || year.year < all[i - 1].year), 'years run newest first');
   const view = await queries.getArticle('first-light');
   assert.equal(view.bodyMissing, false);
   assert.equal(await queries.getArticle('missing'), undefined);

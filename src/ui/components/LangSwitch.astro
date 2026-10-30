@@ -1,10 +1,12 @@
 ---
 /**
- * EN / 中文 switcher. Plain links (`?lang=`), so it works without JavaScript;
- * the middleware remembers the choice in a cookie. On the homepage, home.ts
+ * EN / 中文 switcher. Plain links to the same page in the other language
+ * (`/zh-CN/…?lang=zh-CN`), so it works without JavaScript; the middleware
+ * remembers the choice in a cookie and redirects to the clean URL (the static
+ * snapshot drops the parameter). On the homepage, home.ts
  * intercepts the click to keep the reader's scroll position across the reload.
  */
-import { LOCALES, LOCALE_NAMES, LOCALE_SHORT, localeHref, type Locale } from '../../shared/i18n.ts';
+import { LOCALES, LOCALE_NAMES, LOCALE_SHORT, switchHref, type Locale } from '../../shared/i18n.ts';
 import { messages } from '../i18n.ts';
 
 export interface Props {
@@ -12,9 +14,10 @@ export interface Props {
 }
 const { locale } = Astro.props;
 const t = messages(locale);
+const path = Astro.locals.path ?? Astro.url.pathname;
 ---
 <span class="lang-switch" role="group" aria-label={t.page.language}>
   {LOCALES.map((code) => (
-    <a href={localeHref(Astro.url, code)} hreflang={code} lang={code} title={LOCALE_NAMES[code]} aria-current={code === locale ? 'true' : undefined} data-lang-switch={code}>{LOCALE_SHORT[code]}</a>
+    <a href={switchHref(path, Astro.url.search, code)} hreflang={code} lang={code} title={LOCALE_NAMES[code]} aria-current={code === locale ? 'true' : undefined} data-lang-switch={code}>{LOCALE_SHORT[code]}</a>
   ))}
 </span>

@@ -22,14 +22,13 @@ export function tagIndex(articles: ArticleRow[]): TagIndex {
   return createTagIndex([BUILTIN_TAG_GLOSSARY, resolveSetting('tag_glossary') ?? ''], articles.map((article) => article.tags));
 }
 
-/** Display names for one language, consistent across every article of `all`. */
-export function tagNamer(all: ArticleRow[], locale: Locale): TagNames {
-  const index = tagIndex(all);
+/** Display names + slugs for one language, consistent across every article of `all`. */
+export function tagNamer(all: ArticleRow[], locale: Locale, index: TagIndex = tagIndex(all)): TagNames {
   const lang = tagLangOf(locale);
-  return (tags) => index.names(tags, lang);
+  return (tags) => index.topics(tags, lang);
 }
 
-/** `?tag=` filter: `Fiction`, `fiction` and `小说` select the same articles. */
+/** API `?tag=` filter: `Fiction`, `fiction` and `小说` select the same articles. */
 export function filterByTag(articles: ArticleRow[], tag: string | null | undefined): ArticleRow[] {
   if (!tag) return articles;
   const index = tagIndex(articles);

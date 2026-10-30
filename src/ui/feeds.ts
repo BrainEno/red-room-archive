@@ -5,7 +5,7 @@
 import { escapeHtml } from '../core/text.ts';
 import type { ArticleSummary, TagCount } from '../shared/contracts.ts';
 import { DEFAULT_LOCALE, LOCALES, localizedPath } from '../shared/i18n.ts';
-import { ARTICLES_PATH, MORE_PATH, tagPath } from '../shared/routes.ts';
+import { ARCHIVE_PATH, ARTICLES_PATH, MORE_PATH, TOPICS_PATH, topicPath } from '../shared/routes.ts';
 
 const xml = escapeHtml;
 
@@ -48,14 +48,16 @@ export function sitemap(input: { origin: string; articles: ArticleSummary[]; tag
   const urls: { loc: string; lastmod?: string }[] = [
     { loc: '/' },
     { loc: ARTICLES_PATH, lastmod: articles[0]?.updated },
+    { loc: TOPICS_PATH },
+    { loc: ARCHIVE_PATH, lastmod: articles[0]?.updated },
     { loc: MORE_PATH },
-    ...tags.map((tag) => ({ loc: tagPath(tag.key) })), // one URL per topic, whatever language it is written in
+    ...tags.map((tag) => ({ loc: topicPath(tag.slug) })), // one URL per topic, whatever language it is written in
     ...articles.map((article) => ({ loc: article.href, lastmod: article.updated || article.date })),
   ];
   const body = urls
     .map(({ loc, lastmod }) => {
       const date = lastmod ? String(lastmod).slice(0, 10) : '';
-      // Every page exists in each interface language (`?lang=`); list the
+      // Every page exists in each interface language (`/zh-CN/…`); list the
       // alternates so search engines index the Chinese pages too.
       const alternates = [
         ...LOCALES.map((locale) => [locale, localizedPath(loc, locale)]),

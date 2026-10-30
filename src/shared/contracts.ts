@@ -38,6 +38,12 @@ export interface Paged {
 
 /* ── Articles ───────────────────────────────────────────────────────── */
 
+/** A topic as linked from an article: display name + URL slug (`/topics/<slug>`). */
+export interface TopicRef {
+  name: string;
+  slug: string;
+}
+
 export interface ArticleSummary {
   /** Notion page id (dashed). */
   id: string;
@@ -51,6 +57,8 @@ export interface ArticleSummary {
    * Any of them works as a `?tag=` filter.
    */
   tags: string[];
+  /** The same topics as `tags`, with their page slugs (`/topics/<slug>`, `/zh-CN/topics/<slug>`). */
+  topics: TopicRef[];
   excerpt: string;
   /** Site-relative proxy URL (`/media/notion/…`) or an external https URL. */
   cover: string | null;
@@ -93,6 +101,8 @@ export interface ArticleListResponse extends Paged {
 export interface TagCount {
   /** Stable topic id, the same in every language (e.g. `fiction` for Fiction / 小说). Usable as `?tag=`. */
   key: string;
+  /** URL slug of the topic page: `/topics/<slug>` (unique, the same in every language). */
+  slug: string;
   /** Display name in the requested language. */
   name: string;
   count: number;

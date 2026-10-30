@@ -1,0 +1,9 @@
+---
+// Route: /archive — every article on one page, by year.
+import ArchiveView from '../ui/views/ArchiveView.astro';
+import { getArchive, getSite } from '../server/queries.ts';
+
+const site = getSite(Astro.locals.locale);
+const archive = await getArchive(site.locale);
+---
+<ArchiveView site={site} {...archive} />

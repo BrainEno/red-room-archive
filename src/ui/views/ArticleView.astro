@@ -5,8 +5,8 @@ import ReadAloud from '../components/ReadAloud.astro';
 import { messages } from '../i18n.ts';
 import { formatDate, isoDatetime } from '../../core/text.ts';
 import type { ArticleDetail } from '../../shared/contracts.ts';
-import { contentLang, type Locale } from '../../shared/i18n.ts';
-import { ARTICLES_PATH, tagPath } from '../../shared/routes.ts';
+import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
+import { ARTICLES_PATH, topicPath } from '../../shared/routes.ts';
 
 export interface Props {
   site: { locale: Locale; name: string; url: string; email: string };
@@ -23,14 +23,14 @@ const lang = contentLang(`${article.title} ${article.excerpt}`);
 <Page title={`${article.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={article.excerpt || site.name} image={article.cover} current={ARTICLES_PATH} type="article">
   <div class="article-wrap">
     <article class="prose" lang={lang}>
-      <p class="kicker" lang={locale}><a href={ARTICLES_PATH}>{t.articles.title}</a></p>
+      <p class="kicker" lang={locale}><a href={localePath(ARTICLES_PATH, locale)}>{t.articles.title}</a></p>
       <h1 data-article-title>{article.title}</h1>
       <p class="by" lang={locale}>
         <time datetime={isoDatetime(article.date)}>{formatDate(article.date, locale, { time: true })}</time>
         <span> · {t.article.readingTime(article.readingMinutes)}</span>
       </p>
-      {article.tags.length > 0 && (
-        <p class="tags">{article.tags.map((tag) => <a href={tagPath(tag)}>{tag}</a>)}</p>
+      {article.topics.length > 0 && (
+        <p class="tags">{article.topics.map((topic) => <a href={localePath(topicPath(topic.slug), locale)} lang={contentLang(topic.name)}>{topic.name}</a>)}</p>
       )}
       {article.cover && <img class="cover" src={article.cover} alt="" decoding="async" fetchpriority="high" />}
       {!bodyMissing && <ReadAloud locale={locale} />}

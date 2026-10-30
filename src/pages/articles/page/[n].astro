@@ -1,0 +1,17 @@
+---
+// Route: /articles/page/:n (n ≥ 2)
+import ArticlesView from '../../../ui/views/ArticlesView.astro';
+import NotFoundView from '../../../ui/views/NotFoundView.astro';
+import { getArticles, getSite } from '../../../server/queries.ts';
+import { localePath } from '../../../shared/i18n.ts';
+import { ARTICLES_PATH } from '../../../shared/routes.ts';
+import { parsePageParam } from '../../../ui/paging.ts';
+
+const site = getSite(Astro.locals.locale);
+const param = parsePageParam(Astro.params.n);
+if (!param.ok && param.redirectToFirst) return Astro.redirect(localePath(ARTICLES_PATH, site.locale), 301);
+const data = param.ok ? await getArticles({ page: param.page, locale: site.locale }) : undefined;
+const found = data && data.page <= data.pages;
+if (!found) Astro.response.status = 404;
+---
+{found ? <ArticlesView site={site} {...data} /> : <NotFoundView site={site} />}

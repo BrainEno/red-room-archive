@@ -1,13 +1,13 @@
 ---
 import LangSwitch from './LangSwitch.astro';
 import { messages } from '../i18n.ts';
-import type { Locale } from '../../shared/i18n.ts';
-import { ARTICLES_PATH, MORE_PATH } from '../../shared/routes.ts';
+import { localePath, type Locale } from '../../shared/i18n.ts';
+import { ARTICLES_PATH, MORE_PATH, SEARCH_PATH, TOPICS_PATH } from '../../shared/routes.ts';
 
 export interface Props {
   siteName: string;
   locale: Locale;
-  /** Path prefix of the active section, e.g. `/articles` or `/search`. */
+  /** Locale-neutral path of the active section, e.g. `/articles` or `/search`. */
   current?: string;
 }
 
@@ -15,15 +15,16 @@ const { siteName, locale, current = '' } = Astro.props;
 const t = messages(locale);
 const links = [
   { href: ARTICLES_PATH, label: t.nav.articles },
-  { href: '/search', label: t.nav.search },
+  { href: TOPICS_PATH, label: t.nav.topicsLink },
+  { href: SEARCH_PATH, label: t.nav.search },
   { href: MORE_PATH, label: t.nav.moreLink },
 ];
 ---
 <header class="site-header">
-  <a class="site-brand" href="/">{siteName}</a>
+  <a class="site-brand" href={localePath('/', locale)}>{siteName}</a>
   <nav aria-label="Site">
     {links.map((link) => (
-      <a href={link.href} aria-current={current === link.href ? 'page' : undefined}>{link.label}</a>
+      <a href={localePath(link.href, locale)} aria-current={current === link.href ? 'page' : undefined}>{link.label}</a>
     ))}
     <LangSwitch locale={locale} />
   </nav>

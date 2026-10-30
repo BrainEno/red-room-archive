@@ -4,10 +4,10 @@ import path from 'node:path';
 
 const out = path.resolve('visual-candidates');
 const cases = [
-  { name: 'desktop-articles-en', width: 1280, height: 900, url: '/articles?lang=en' },
-  { name: 'phone-articles-zh', width: 390, height: 844, url: '/articles?lang=zh-CN' },
-  { name: 'desktop-article-en', width: 1280, height: 900, url: '/articles/connect-notion?lang=en' },
-  { name: 'phone-search-empty', width: 390, height: 844, url: '/search?q=no-such-article&lang=en' },
+  { name: 'desktop-articles-en', width: 1280, height: 900, url: '/articles' },
+  { name: 'phone-articles-zh', width: 390, height: 844, url: '/zh-CN/articles' },
+  { name: 'desktop-article-en', width: 1280, height: 900, url: '/articles/connect-notion' },
+  { name: 'phone-search-empty', width: 390, height: 844, url: '/search?q=no-such-article' },
 ];
 
 test('capture deterministic demo pages for review', async ({ page, browser }) => {

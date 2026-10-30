@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import {
-  contentLang, localeHref, localizedPath, negotiateLocale, parseLocale, resolveLocale,
+  contentLang, isPagePath, localePath, localizedPath, splitLocale, switchHref, negotiateLocale, parseLocale, resolveLocale,
 } from '../src/shared/i18n.ts';
 import { formatDate, isoDatetime } from '../src/core/text.ts';
 import { instant, newestFirst } from '../src/core/order.ts';
@@ -47,12 +47,27 @@ test('contentLang tags text by script, so typography follows the content', () =>
   assert.equal(contentLang(''), undefined);
 });
 
-test('switcher and canonical URLs keep the rest of the query', () => {
-  assert.equal(localeHref(new URL('http://x.test/articles?tag=Poem&page=2'), 'zh-CN'), '/articles?tag=Poem&page=2&lang=zh-CN');
-  assert.equal(localeHref(new URL('http://x.test/?lang=zh-CN'), 'en'), '/?lang=en');
-  assert.equal(localizedPath('/articles', 'en'), '/articles', 'the default language keeps the clean URL');
-  assert.equal(localizedPath('/articles', 'zh-CN'), '/articles?lang=zh-CN');
-  assert.equal(localizedPath('/articles?tag=x', 'zh-CN'), '/articles?tag=x&lang=zh-CN');
+test('pages live under a language prefix; APIs and files never do', () => {
+  assert.equal(localePath('/articles', 'en'), '/articles', 'the default language keeps the clean URL');
+  assert.equal(localePath('/articles', 'zh-CN'), '/zh-CN/articles');
+  assert.equal(localePath('/', 'zh-CN'), '/zh-CN');
+  assert.equal(localePath('/search?q=x#r', 'zh-CN'), '/zh-CN/search?q=x#r');
+  assert.equal(localePath('/?x=1', 'zh-CN'), '/zh-CN?x=1');
+  for (const shared of ['/api/articles', '/media/notion/abc', '/uploads/a.png', '/admin', '/rss.xml', '/_astro/x.js', 'https://x.test/a', '//x.test/a', '#top']) {
+    assert.equal(localePath(shared, 'zh-CN'), shared, shared);
+  }
+  assert.equal(localizedPath, localePath);
+  assert.ok(isPagePath('/topics/小说') && isPagePath('/') && !isPagePath('/robots.txt') && !isPagePath('/api'));
+  assert.deepEqual(splitLocale('/zh-CN'), { locale: 'zh-CN', path: '/' });
+  assert.deepEqual(splitLocale('/zh-CN/topics/fiction'), { locale: 'zh-CN', path: '/topics/fiction' });
+  assert.deepEqual(splitLocale('/zh-CNx'), { locale: null, path: '/zh-CNx' });
+  assert.deepEqual(splitLocale('/articles'), { locale: null, path: '/articles' });
+});
+
+test('the switcher links to the other language and asks the server to remember it', () => {
+  assert.equal(switchHref('/articles/page/2', '', 'zh-CN'), '/zh-CN/articles/page/2?lang=zh-CN');
+  assert.equal(switchHref('/search', '?q=light&lang=en', 'zh-CN'), '/zh-CN/search?q=light&lang=zh-CN', 'the query survives, lang is replaced');
+  assert.equal(switchHref('/', '', 'en'), '/?lang=en');
 });
 
 test('formatDate is locale-aware and keeps the author\'s wall-clock date and time', () => {
@@ -112,8 +127,9 @@ test('sitemap lists every page in both languages with hreflang alternates', () =
   const xml = sitemap({ origin: 'https://site.test', articles: [{ href: '/articles/a', updated: '2026-10-01T00:00:00Z', date: '2026-10-01' }] });
   assert.match(xml, /xmlns:xhtml="http:\/\/www\.w3\.org\/1999\/xhtml"/);
   assert.match(xml, /<loc>https:\/\/site\.test\/articles\/a<\/loc>/);
-  assert.match(xml, /<loc>https:\/\/site\.test\/articles\/a\?lang=zh-CN<\/loc>/);
-  assert.match(xml, /hreflang="zh-CN" href="https:\/\/site\.test\/articles\/a\?lang=zh-CN"/);
+  assert.match(xml, /<loc>https:\/\/site\.test\/zh-CN\/articles\/a<\/loc>/);
+  assert.match(xml, /<loc>https:\/\/site\.test\/zh-CN<\/loc>/);
+  assert.match(xml, /hreflang="zh-CN" href="https:\/\/site\.test\/zh-CN\/articles\/a"/);
   assert.match(xml, /hreflang="x-default" href="https:\/\/site\.test\/articles\/a"/);
 });
 

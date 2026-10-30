@@ -28,20 +28,26 @@ Windows PowerShell 可用 `Copy-Item .env.example .env` 创建配置文件。
 | 路径 | 内容 |
 | --- | --- |
 | `/` | 开场动画 → 引言（逐词点亮）→ **Latest / 最新**（最多 10 篇，按 Notion 日期时间倒序）→ **Featured / 精选**（最多 10 篇，Rank > 0 并按数值降序，同 Rank 按日期降序）→ **Topics / 主题**（全部文章入口与标签，中英合并）→ **More / 更多**（“了解更多”入口 + 小字邮箱） |
-| `/articles` | 全部文章，按日期时间倒序（同一天内按具体时刻），分页；`?tag=` 按标签筛选 |
-| `/articles/:slug` | 正文（由 Notion 块渲染）、封面、日期、阅读时长、标签、目录、上一篇/下一篇 |
+| `/articles` · `/articles/page/:n` | 全部文章，按日期时间倒序（同一天内按具体时刻），每页 20 篇 |
+| `/articles/:slug` | 正文（由 Notion 块渲染）、封面、日期、阅读时长、标签（链接到主题页）、目录、上一篇/下一篇 |
+| `/topics` | 全部主题（中英同义标签已合并）及文章数，按数量倒序 |
+| `/topics/:slug` · `/topics/:slug/page/:n` | 某个主题下的文章；主题的任一名称都能找到它（`/topics/小说` 301 到 `/topics/fiction`） |
+| `/archive` | 全部文章一页列完，按年份分组，顶部有年份索引 |
 | `/search?q=` | 搜索标题、标签、摘要和正文 |
 | `/more` | 自印出版物（封面、规格、选读）与联系方式（邮箱、社交账号二维码），在后台 **More** 编辑，见下文 |
 | `/rss.xml` · `/sitemap.xml` · `/robots.txt` | 订阅与搜索引擎 |
 | `/media/notion/:id` | Notion 里上传的图片/文件的本地副本（见下文“图片”） |
 
 **语言**：英文 / 简体中文，导航栏右侧 `EN / 中文` 切换（在首页切换会停在原来的位置，不重播开场）。
-每个页面都可以加 `?lang=zh-CN` 或 `?lang=en`；选择会记在 `lang` cookie 里（一年），第一次访问按浏览器的 `Accept-Language`。
+每个页面在两种语言下各有一个地址：英文不带前缀，中文加 `/zh-CN`（`/topics/fiction` ↔ `/zh-CN/topics/fiction`），
+可以直接分享、被搜索引擎分别收录。切换的选择会记在 `lang` cookie 里（一年），之后访问不带前缀的页面会跳到中文地址；
+第一次访问首页 `/` 时按浏览器的 `Accept-Language`。旧的 `?lang=zh-CN` 链接仍然有效（跳到对应的路径）。详见 **[docs/I18N.md](docs/I18N.md)**。
 界面文字在 `src/ui/i18n.ts`，首页文案在 `src/content/site.ts`；文章本身不翻译，按标题自动标注 `lang`。
 中文字体的做法见 **[docs/I18N.md](docs/I18N.md)**。
 
-旧地址都会 301 跳转：`/works/*`、`/writing/*`、`/journal/*` → `/articles/*`（跳转不带 `?lang`，语言由 cookie 保持）；
-旧博客 astro-notion 的 `/posts/:slug` → `/articles/:slug`，`/posts/tag/:tag` → `/articles?tag=`。
+旧地址都会 301 跳转（`/zh-CN/…` 下的旧地址保留中文前缀）：`/works/*`、`/writing/*`、`/journal/*` → `/articles/*`；
+旧博客 astro-notion 的 `/posts/:slug` → `/articles/:slug`，`/posts/tag/:tag` → `/topics/:slug`；
+本站以前的查询地址 `/articles?page=2` → `/articles/page/2`，`/articles?tag=x&page=2` → `/topics/x/page/2`。
 
 ## 连接 Notion
 
@@ -121,7 +127,7 @@ Notion 里上传的图片和文件是带签名的临时地址（约 1 小时失�
 ### 中英文标签
 
 Notion 只有一个标签列，中英文章混写时会出现 `Fiction` 和 `小说` 这样意思相同的两个标签。网站会把它们合并成**一个主题**：
-中文界面只显示“小说”，英文界面只显示“Fiction”，文章数合并，`?tag=fiction` 与 `?tag=小说` 是同一个筛选。
+中文界面只显示“小说”，英文界面只显示“Fiction”，文章数合并，主题页只有一个地址 `/topics/fiction`（`/topics/小说` 会跳过去）。
 
 - 常见写作主题（小说、随笔、诗歌、笔记、评论、翻译、电影、摄影……）已内置对照表：`src/content/tags.ts`。
 - 自己的标签：后台 **Settings → Tag pairs**，一行一组，如 `Red Room = 红房间`、`Poetry, Poem = 诗歌, 诗`（逗号分隔多个别名，后台的优先于内置的）。
@@ -277,7 +283,7 @@ cp -a /absolute/path/uploads "$backup/uploads"
 
 该 JSON 仅覆盖网站名、联系邮箱、中英文简介/引言/标语、首页信息栏和标签对照，**不包含** More 内容、文章、上传文件、雕像模型或任何凭据，不是完整站点备份（静态部署要带上 More 和图片请用上文的内容包）。格式版本为 2（新增首页信息栏）；旧的版本 1 文件仍可导入，信息栏视为留空（使用内置默认）。Node 动态版仍应同时备份数据库与上传目录。
 
-静态版有中英文页面（英文根路径、中文 `/zh-CN/`）、文章、标签/分页、RSS、sitemap、浏览器搜索和朗读；搜索需要 JavaScript。公开文章正文会进入下载到浏览器的搜索索引。Notion 上传的图片和常见音视频/PDF 在构建时复制到公开产物，外链媒体仍依赖外部地址；不支持的媒体类型会使构建失败。构建过程使用隔离的临时 SQLite，不复制数据库或 token。仅生成公开站点，**没有 `/admin`、管理 API、上传或实时同步**；后台保存的设置、More 内容和上传不会自动带入，需通过上述内容包（或单独的站点资料 JSON）显式导入；未导入时使用默认值，More 使用代码内示例内容。语言切换使用静态路径，不支持原 SSR 的 cookie 自动协商或 `?lang=` 地址；旧的动态标签查询和旧博客重定向也不会自动生效。
+静态版有中英文页面（英文根路径、中文 `/zh-CN/`）、文章、标签/分页、RSS、sitemap、浏览器搜索和朗读；搜索需要 JavaScript。公开文章正文会进入下载到浏览器的搜索索引。Notion 上传的图片和常见音视频/PDF 在构建时复制到公开产物，外链媒体仍依赖外部地址；不支持的媒体类型会使构建失败。构建过程使用隔离的临时 SQLite，不复制数据库或 token。仅生成公开站点，**没有 `/admin`、管理 API、上传或实时同步**；后台保存的设置、More 内容和上传不会自动带入，需通过上述内容包（或单独的站点资料 JSON）显式导入；未导入时使用默认值，More 使用代码内示例内容。页面地址与 Node 版完全相同（同一套路径，由 SSR 直接渲染后写出）；语言切换是普通链接，静态主机上没有 cookie 记忆和 `Accept-Language` 协商，也不支持 `?lang=` 和旧查询地址/旧博客重定向。
 
 注意：静态构建的临时数据库不会跨构建保留；**Date 留空的文章每次构建都会使用当次构建日期**，请在 Notion 填写 Date 以保持日期稳定。构建期间修改或撤回文章可能造成快照不一致，应等待更改完成后重新构建。只想预览演示内容时可显式设置 `STATIC_DEMO=1`（不能同时设置 Notion 凭据）；非 Netlify 环境仍需设置 `SITE_URL`。生产构建及普通本地构建缺少 Notion 配置不会自动切换成演示内容，以免误部署；Netlify Deploy Preview 的无凭据演示回退见上文。本地命令示例：
 

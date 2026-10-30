@@ -6,7 +6,7 @@ import { once } from 'node:events';
 import { mkdtemp, mkdir, cp, rm, writeFile, readFile, readdir, stat, copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { parse, parseFragment, serialize } from 'parse5';
 import { validateProfile, PROFILE_MAX_BYTES } from '../public/profile-format.js';
 
@@ -41,21 +41,14 @@ const get = async (url, headers = {}) => {
 };
 const api = async (url) => (await get(url)).json();
 const admin = { Authorization: `Bearer ${secret}` };
-const langPrefix = (lang) => lang === 'zh-CN' ? '/zh-CN' : '';
-// Tags are arbitrary user input: never treat them as filesystem path segments.
-const topicSegment = (key) => 't-' + createHash('sha256').update(key).digest('hex');
-const pagePath = (url, lang, aliases) => {
-  const u = new URL(url, base);
-  let p = u.pathname;
-  if (p === '/articles' || p === '/articles/') {
-    const tag = u.searchParams.get('tag');
-    const page = Math.max(1, Number(u.searchParams.get('page')) || 1);
-    if (tag) p = `/topics/${topicSegment(aliases.get(tag.toLowerCase()) || tag)}`;
-    else p = '/articles';
-    if (page > 1) p += `/page/${page}`;
-  }
-  return `${langPrefix(lang)}${p === '/' ? '/' : p}`;
-};
+// The server already renders path URLs (shared/routes.ts, shared/i18n.ts):
+// `/zh-CN/…` for Chinese, `/topics/<slug>` for topics. Mirror that here.
+const LANGS = ['en', 'zh-CN'];
+const localized = (route, lang) => (lang === 'zh-CN' ? (route === '/' ? '/zh-CN' : `/zh-CN${route}`) : route);
+const PAGE_SIZE = 20;
+const pageCount = (n) => Math.max(1, Math.ceil(n / PAGE_SIZE));
+// Topic slugs only contain letters, digits and '-' (topicSlug), so they are safe
+// file names; write() still refuses anything that escapes the output folder.
 const getAttr = (node, key) => node.attrs?.find((a) => a.name === key)?.value;
 const setAttr = (node, key, value) => { const a = node.attrs?.find((x) => x.name === key); if (a) a.value = value; else node.attrs?.push({ name: key, value }); };
 const walk = (node, fn) => { fn(node); for (const child of node.childNodes || []) walk(child, fn); };
@@ -198,25 +191,25 @@ try {
     total = data.total; articles.push(...data.articles);
     if (!data.articles.length && articles.length < total) throw new Error('Could not enumerate all articles');
   } while (articles.length < total);
-  const tagsEn = (await api('/api/tags?lang=en')).tags;
-  const tagsZh = (await api('/api/tags?lang=zh-CN')).tags;
-  const aliases = new Map();
-  for (const tag of [...tagsEn, ...tagsZh]) { aliases.set(tag.key.toLowerCase(), tag.key); aliases.set(tag.name.toLowerCase(), tag.key); }
-  const routes = [{ source: '/', target: '/' }, { source: '/more', target: '/more' }, { source: '/search', target: '/search' }];
-  for (let p = 1; p <= Math.max(1, Math.ceil(total / 20)); p++) routes.push({ source: `/articles?page=${p}`, target: p === 1 ? '/articles' : `/articles/page/${p}` });
-  for (const tag of tagsEn) for (let p = 1; p <= Math.max(1, Math.ceil(tag.count / 20)); p++) {
-    routes.push({ source: `/articles?tag=${encodeURIComponent(tag.key)}&page=${p}`, target: `/topics/${topicSegment(tag.key)}${p > 1 ? `/page/${p}` : ''}` });
+  const topics = (await api('/api/tags?lang=en')).tags;
+  const routes = ['/', '/more', '/search', '/topics', '/archive'];
+  for (let p = 1; p <= pageCount(total); p++) routes.push(p === 1 ? '/articles' : `/articles/page/${p}`);
+  for (const topic of topics) {
+    for (let p = 1; p <= pageCount(topic.count); p++) routes.push(`/topics/${encodeURIComponent(topic.slug)}${p > 1 ? `/page/${p}` : ''}`);
   }
   // The detail API propagates failures instead of silently rendering an unavailable body.
-  for (const article of articles) { await api(`/api/articles/${encodeURIComponent(article.slug)}`); routes.push({ source: article.href, target: article.href }); }
+  for (const article of articles) { await api(`/api/articles/${encodeURIComponent(article.slug)}`); routes.push(article.href); }
+  // Tag names in both languages, so a search on the Chinese page also finds `Fiction`.
+  const byLang = {};
+  for (const lang of LANGS) {
+    const list = [];
+    for (let offset = 0; offset < total; offset += 100) list.push(...(await api(`/api/articles?limit=100&offset=${offset}&lang=${lang}`)).articles);
+    byLang[lang] = new Map(list.map((article) => [article.href, article]));
+  }
   const search = { en: [], 'zh-CN': [] };
-  for (const lang of ['en', 'zh-CN']) {
-    const localArticles = [];
-    for (let offset = 0; offset < total; offset += 100) localArticles.push(...(await api(`/api/articles?limit=100&offset=${offset}&lang=${lang}`)).articles);
-    const localByHref = new Map(localArticles.map((article) => [article.href, article]));
+  for (const lang of LANGS) {
     for (const route of routes) {
-      const sourceUrl = new URL(route.source, base); sourceUrl.searchParams.set('lang', lang);
-      const doc = parse(await (await get(sourceUrl.pathname + sourceUrl.search)).text());
+      const doc = parse(await (await get(localized(route, lang))).text());
       markDemoPreview(doc);
       const changes = [];
       let articleBody;
@@ -224,43 +217,34 @@ try {
         if (getAttr(node, 'class')?.split(/\s+/).includes('article-body')) articleBody = node;
         const href = getAttr(node, 'href');
         const src = getAttr(node, 'src');
-        if (node.tagName === 'form' && getAttr(node, 'action') === '/search') setAttr(node, 'action', langPrefix(lang) + '/search');
         for (const [key, value] of [['href', href], ['src', src], ['content', getAttr(node, 'content')], ['data-model', getAttr(node, 'data-model')]]) {
           if (!value) continue;
           let url; try { url = new URL(value, siteUrl); } catch { continue; }
           if (url.origin === new URL(siteUrl).origin && /^\/uploads\/[^/]+$/.test(url.pathname)) changes.push(exportUpload(url.pathname));
           if (url.origin === new URL(siteUrl).origin && /^\/media\/notion\/[0-9a-f]{32}$/i.test(url.pathname)) changes.push(exportMedia(url.pathname).then((p) => setAttr(node, key, value.startsWith('http') ? siteUrl + p : p)));
         }
-        if (!href || !href.startsWith('/') || href.startsWith('//')) return;
-        if (/^\/(?:articles(?:\/|\?|$)|more(?:\/|\?|$)|search(?:\/|\?|$)|\?|$)/.test(href) || href === '/') {
-          const code = getAttr(node, 'data-lang-switch') || lang;
+        // The switcher's `?lang=` asks the server to remember the choice; a static host cannot.
+        if (href && getAttr(node, 'data-lang-switch')) {
           const u = new URL(href, base);
-          setAttr(node, 'href', pagePath(href, code, aliases) + u.hash);
+          u.searchParams.delete('lang');
+          setAttr(node, 'href', u.pathname + u.search + u.hash);
         }
       });
       await Promise.all(changes);
-      // Replace runtime query-string SEO links with actual static language paths.
-      walk(doc, (node) => {
-        const rel = getAttr(node, 'rel');
-        if (rel === 'canonical') setAttr(node, 'href', siteUrl + langPrefix(lang) + route.target);
-        if (rel === 'alternate' && getAttr(node, 'hreflang')) setAttr(node, 'href', siteUrl + langPrefix(getAttr(node, 'hreflang') === 'zh-CN' ? 'zh-CN' : 'en') + route.target);
-        if (getAttr(node, 'property') === 'og:url') setAttr(node, 'content', siteUrl + langPrefix(lang) + route.target);
-      });
       if (articleBody) {
-        const item = localByHref.get(route.target);
+        const item = byLang[lang].get(route);
         if (item) {
-          const keys = new Set(item.tags.map((name) => aliases.get(name.toLowerCase())));
-          const searchTags = [...new Set([...item.tags, ...[...tagsEn, ...tagsZh].filter((tag) => keys.has(tag.key)).map((tag) => tag.name)])];
-          search[lang].push({ ...item, searchTags, href: langPrefix(lang) + item.href, text: textContent(articleBody) });
+          const searchTags = [...new Set(LANGS.flatMap((code) => byLang[code].get(route)?.tags ?? []))];
+          search[lang].push({ ...item, searchTags, href: localized(item.href, lang), text: textContent(articleBody) });
         }
       }
-      if (route.target === '/search') {
+      if (route === '/search') {
         walk(doc, (node) => { if (node.tagName === 'body') node.childNodes.push({ nodeName: 'script', tagName: 'script', attrs: [{ name: 'src', value: '/static-search.js' }, { name: 'defer', value: '' }], namespaceURI: 'http://www.w3.org/1999/xhtml', childNodes: [], parentNode: node }); });
       }
-      await write(langPrefix(lang) + route.target, serialize(doc));
+      await write(localized(route, lang), serialize(doc));
     }
   }
-  const missing = await fetch(base + '/404?lang=en');
+  const missing = await fetch(base + '/404');
   if (missing.status !== 404) throw new Error('Expected the 404 page to return 404.');
   const missingDoc = parse(await missing.text());
   markDemoPreview(missingDoc);
@@ -268,12 +252,12 @@ try {
   await writeFile(path.join(dest, 'static-search.json'), JSON.stringify(search));
   await cp(path.join(root, 'scripts/static-search.js'), path.join(dest, 'static-search.js'));
   await writeFile(path.join(dest, 'rss.xml'), await (await get('/rss.xml')).text());
-  const urls = routes.filter((r) => r.target !== '/search' && !r.target.includes('/page/')).flatMap((r) => ['en', 'zh-CN'].map((lang) => `<url><loc>${xml(siteUrl + langPrefix(lang) + r.target)}</loc></url>`));
+  const urls = routes.filter((r) => r !== '/search' && !r.includes('/page/')).flatMap((r) => LANGS.map((lang) => `<url><loc>${xml(siteUrl + localized(r, lang))}</loc></url>`));
   await writeFile(path.join(dest, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`);
   await writeFile(path.join(dest, 'robots.txt'), previewDemo ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nDisallow: /admin\nDisallow: /api/\nSitemap: ${siteUrl}/sitemap.xml\n`);
   // Same security headers as the Node server (server/http/security.ts), copied
   // from what the snapshot server actually sent, so the two cannot drift apart.
-  const pageHeaders = (await get('/?lang=en')).headers;
+  const pageHeaders = (await get('/')).headers;
   const security = ['Content-Security-Policy', 'X-Content-Type-Options', 'Referrer-Policy', 'Permissions-Policy']
     .map((name) => [name, pageHeaders.get(name)]);
   if (security.some(([, value]) => !value)) throw new Error('The snapshot server did not send the expected security headers.');

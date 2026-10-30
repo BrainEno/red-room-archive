@@ -1,6 +1,6 @@
 ---
 import type { ArticleSummary } from '../../shared/contracts.ts';
-import { contentLang, type Locale } from '../../shared/i18n.ts';
+import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
 import { formatDate, isoDatetime } from '../../core/text.ts';
 
 export interface Props {
@@ -18,7 +18,7 @@ const { articles, locale, empty, showExcerpt = false, showCovers = false } = Ast
       const cover = showCovers && article.cover;
       return (
         <li>
-          <a class:list={['article-entry', { 'has-cover': cover }]} href={article.href}>
+          <a class:list={['article-entry', { 'has-cover': cover }]} href={localePath(article.href, locale)}>
             <time class="article-date" datetime={isoDatetime(article.date)}>{formatDate(article.date, locale)}</time>
             <span class="article-copy">
               <span class="article-title" lang={contentLang(article.title)}>{article.title}</span>

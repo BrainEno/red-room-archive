@@ -36,9 +36,9 @@ test('Node admin exports only saved public fields and imports a profile', async 
   expect(bytes.subarray(0, 4).toString('hex')).toBe('504b0304');
   expect(bytes.includes(Buffer.from('site-profile.json'))).toBeTruthy();
   expect(bytes.includes(Buffer.from('ui-test-only'))).toBeFalsy();
-  await page.goto('/?lang=en');
+  await page.goto('/');
   await expect(page.locator('.facts')).toContainText('Portable City');
-  await page.goto('/articles?lang=en');
+  await page.goto('/articles');
   await expect(page.locator('body')).toContainText('Portable Archive');
   const restore = await page.request.post('/api/settings/profile', { headers: { Authorization: 'Bearer ui-test-only' }, data });
   expect(restore.ok()).toBeTruthy();

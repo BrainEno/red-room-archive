@@ -1,6 +1,6 @@
 ---
 import { messages } from '../i18n.ts';
-import { contentLang, type Locale } from '../../shared/i18n.ts';
+import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
 
 export interface Props {
   locale: Locale;
@@ -13,10 +13,10 @@ const t = messages(locale).article;
 {(previous || next) && (
   <nav class="prevnext" aria-label={t.more}>
     {previous ? (
-      <a rel="prev" href={previous.href}><small>{t.previous}</small><span lang={contentLang(previous.title)}>{previous.title}</span></a>
+      <a rel="prev" href={localePath(previous.href, locale)}><small>{t.previous}</small><span lang={contentLang(previous.title)}>{previous.title}</span></a>
     ) : <span />}
     {next ? (
-      <a rel="next" href={next.href}><small>{t.next}</small><span lang={contentLang(next.title)}>{next.title}</span></a>
+      <a rel="next" href={localePath(next.href, locale)}><small>{t.next}</small><span lang={contentLang(next.title)}>{next.title}</span></a>
     ) : <span />}
   </nav>
 )}
