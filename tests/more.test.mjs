@@ -263,6 +263,24 @@ test('Files: uploads used on /more are marked, and renaming one updates the page
   assert.deepEqual(after.data.files.find((f) => f.name === 'red-room-cover.png').usedBy, ['more']);
 });
 
+test('a database failure during file rename leaves both the saved references and source intact', async () => {
+  const { connection } = await import('../src/server/db/connection.ts');
+  const { saveStream } = await import('../src/server/storage/uploads.ts');
+  const { existsSync } = await import('node:fs');
+  const uploaded = await saveStream(new Blob(['image']).stream(), 'failure-cover.png');
+  const doc = sampleDoc(); doc.publications[0].cover = uploaded.url;
+  await call(endpoints.writeMoreDocument, { method: 'PUT', json: doc, token: TOKEN });
+  connection().exec(`CREATE TRIGGER fail_more_rename BEFORE UPDATE ON more_page BEGIN SELECT RAISE(ABORT, 'injected failure'); END`);
+  try {
+    const result = await call(files.rename, { method: 'PATCH', params: { name: uploaded.name }, json: { name: 'should-not-exist.png' }, token: TOKEN });
+    assert.equal(result.status, 500);
+    invalidateMoreCache();
+    assert.equal(queries.getMore('en').publications[0].cover, uploaded.url);
+    assert.ok(existsSync(path.join(process.env.UPLOAD_DIR, uploaded.name)));
+    assert.ok(!existsSync(path.join(process.env.UPLOAD_DIR, 'should-not-exist.png')));
+  } finally { connection().exec('DROP TRIGGER fail_more_rename'); }
+});
+
 test('data safety: a full Notion resync and a credentials change leave /more alone', async () => {
   await call(endpoints.writeMoreDocument, { method: 'PUT', json: sampleDoc(), token: TOKEN });
   const before = (await call(endpoints.readMoreDocument, { token: TOKEN })).data;

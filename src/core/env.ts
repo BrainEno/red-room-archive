@@ -42,9 +42,6 @@ function fromFiles(): Record<string, string> {
   return merged;
 }
 
-/** 供测试使用：清掉 .env 缓存。 */
-export const resetEnvCache = () => { cache = null; };
-
 export function readEnv(key: string): string | undefined {
   const fromProcess = typeof process !== 'undefined' ? process.env[key] : undefined;
   if (fromProcess) return fromProcess;

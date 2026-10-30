@@ -6,7 +6,7 @@ import type { ArticleSummary, SyncStatus } from '../../../../shared/contracts.ts
 import type { ApiClient } from '../../lib/api-client.ts';
 import { $, busy, dateLabel, esc, fail, timeLabel, toast } from '../dom.ts';
 
-export const describeStatus = (status: SyncStatus) =>
+const describeStatus = (status: SyncStatus) =>
   [
     status.demo ? 'Notion not configured — showing demo articles' : 'Notion connected',
     `${status.articles} published`,

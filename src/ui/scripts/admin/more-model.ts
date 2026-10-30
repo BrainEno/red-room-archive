@@ -4,7 +4,7 @@
  */
 import type { LocalizedText, MoreChannelDoc, MoreDocument, MorePublicationDoc } from '../../../shared/contracts.ts';
 
-export const emptyText = (): LocalizedText => ({ en: '', 'zh-CN': '' });
+const emptyText = (): LocalizedText => ({ en: '', 'zh-CN': '' });
 
 let counter = 0;
 const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}${(counter++).toString(36)}`;

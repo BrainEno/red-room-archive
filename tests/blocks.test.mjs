@@ -1,7 +1,8 @@
 // Notion block renderer (pure): coverage, safety and the render context.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { blocksToHtml, renderBlocks } from '../src/core/blocks.ts';
+import { renderBlocks } from '../src/core/blocks.ts';
+const blocksToHtml = (blocks, ctx) => renderBlocks(blocks, ctx).html;
 
 const rt = (text, extra = {}) => [{ type: 'text', plain_text: text, annotations: {}, ...extra }];
 const para = (text, extra = {}) => ({ type: 'paragraph', paragraph: { rich_text: rt(text), ...extra } });
@@ -134,4 +135,14 @@ test('embeds, bookmarks and the table of contents block', () => {
 test('plain text is collected for search and reading time', () => {
   const { text } = renderBlocks([heading(1, 'Owls'), para('are not'), { type: 'code', code: { rich_text: rt('what they seem') } }]);
   assert.equal(text, 'Owls\nare not\nwhat they seem');
+});
+
+test('intentional blank paragraphs and authored line breaks survive rendering', () => {
+  const { html, text } = renderBlocks([
+    para('First line\nsecond line'), para(''), para('Last line'),
+    bullet('List line one\nline two'),
+  ]);
+  assert.match(html, /<p>First line\nsecond line<\/p><p class="notion-blank-line" aria-hidden="true"><br><\/p><p>Last line<\/p>/);
+  assert.match(html, /<li>List line one\nline two<\/li>/);
+  assert.equal(text, 'First line\nsecond line\nLast line\nList line one\nline two');
 });

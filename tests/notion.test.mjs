@@ -6,7 +6,7 @@ import { API, ID, compact, createNotionMock } from './fixtures/notion-mock.mjs';
 process.env.NOTION_API_BASE = API;
 process.env.TZ = 'UTC';
 const { NotionClient } = await import('../src/server/notion/client.ts');
-const { coverSource, describeSchema, isPageId, parseNotionId, resolveMapping, toArticles } = await import('../src/server/notion/mapper.ts');
+const { coverSource, describeSchema, parseNotionId, resolveMapping, toArticles } = await import('../src/server/notion/mapper.ts');
 const { fetchBlockTree } = await import('../src/server/notion/tree.ts');
 const { legacyTarget } = await import('../src/server/http/endpoints/legacy.ts');
 
@@ -69,6 +69,16 @@ test('resolveMapping matches aliases by name *and* type, title by type', () => {
   assert.equal(mapping.slug, null);
 });
 
+test('Published formula is treated as a privacy flag rather than a date', () => {
+  const mapping = resolveMapping({ Name: 'title', Published: 'formula' });
+  assert.equal(mapping.published.property, 'Published');
+  assert.equal(mapping.date, null);
+  const base = { created_time: '2020-01-01T00:00:00Z', last_edited_time: '2020-01-01T00:00:00Z' };
+  const page = (id, formula) => ({ ...base, id, properties: { Name: { type: 'title', title: [{ plain_text: id }] }, Published: { type: 'formula', formula } } });
+  const result = toArticles([page('on', { type: 'boolean', boolean: true }), page('off', { type: 'boolean', boolean: false }), page('unknown', { type: 'number', number: 1 })], NOW);
+  assert.deepEqual(result.rows.map((row) => row.id), ['on']);
+});
+
 test('status/select publish flags, first-seen date fallback and page covers', () => {
   const base = { created_time: '2026-01-02T03:04:05.000Z', last_edited_time: '2026-01-02T03:04:05.000Z' };
   const title = (t) => ({ type: 'title', title: [{ plain_text: t }] });
@@ -79,7 +89,7 @@ test('status/select publish flags, first-seen date fallback and page covers', ()
     { ...base, id: 'd'.repeat(32), archived: true, properties: { Name: title('Archived') } },
   ];
   const { rows } = toArticles(pages, NOW);
-  assert.deepEqual(rows.map((r) => r.title).sort(), ['Live one', 'No flag']);
+  assert.deepEqual(rows.map((r) => r.title).sort(), ['Live one']);
   assert.equal(rows.find((r) => r.title === 'Live one').cover, 'https://img.test/a.jpg', "falls back to the page's own cover");
   assert.equal(rows[0].date, '2026-10-27');
   assert.equal(coverSource({ ...pages[0], cover: { type: 'file', file: { url: 'https://s3.test/x' } } }).kind, 'file');
@@ -94,7 +104,7 @@ test('describeSchema warns about missing Published/Date and mistyped columns', (
   assert.equal(schema.mapping.title.property, 'Name');
   assert.equal(schema.mapping.tags.property, null);
   assert.equal(schema.warnings.length, 3);
-  assert.match(schema.warnings.join('\n'), /every page in this database will be public/);
+  assert.match(schema.warnings.join('\n'), /no pages will be public/);
   assert.match(schema.warnings.join('\n'), /"Tags" is a rich_text column/);
 });
 
@@ -105,7 +115,7 @@ test('parseNotionId accepts ids, dashed ids and pasted links; rejects the rest',
   assert.equal(parseNotionId(`https://www.notion.so/team/My-Blog-${id}?v=ffffffffffffffffffffffffffffffff`), id);
   assert.equal(parseNotionId('https://www.notion.so/team/My-Blog'), null);
   assert.equal(parseNotionId(''), null);
-  assert.ok(isPageId(id) && !isPageId('../x'));
+  assert.equal(parseNotionId('../x'), null);
 });
 
 test('client retries 429/5xx, then reports failures without leaking bodies', async () => {
@@ -165,4 +175,78 @@ test('database-page error is actionable without echoing Notion details', async (
       return true;
     });
   } finally { globalThis.fetch = realFetch; }
+});
+
+test('block tree limits concurrency across the whole article and preserves sibling order', async () => {
+  let active = 0, peak = 0;
+  const block = (id, children = true) => ({ id, type: 'toggle', has_children: children });
+  const client = { async blockChildren(id) {
+    active++; peak = Math.max(peak, active);
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    active--;
+    if (id === 'root') return ['a', 'b', 'c', 'd'].map((x) => block(x));
+    if (id.length === 1) return [block(id + '1'), block(id + '2')];
+    return [block(id + 'leaf', false)];
+  } };
+  const tree = await fetchBlockTree(client, 'root');
+  assert.equal(peak, 3);
+  assert.deepEqual(tree.map((b) => b.id), ['a', 'b', 'c', 'd']);
+  assert.deepEqual(tree[0].children.map((b) => b.id), ['a1', 'a2']);
+  assert.equal(tree[3].children[1].children[0].id, 'd2leaf');
+});
+
+test('block tree rejects depth and block overflow, but accepts exact limits', async () => {
+  const chain = (last) => ({ async blockChildren(id) {
+    const depth = Number(id);
+    return [{ id: String(depth + 1), type: 'toggle', has_children: depth < last }];
+  } });
+  await fetchBlockTree(chain(8), '0');
+  await assert.rejects(fetchBlockTree(chain(9), '0'), /nesting depth limit/);
+  const blocks = (count) => Array.from({ length: count }, (_, i) => ({ id: String(i), type: 'paragraph' }));
+  await fetchBlockTree({ async blockChildren() { return blocks(5000); } }, 'root');
+  await assert.rejects(fetchBlockTree({ async blockChildren() { return blocks(5001); } }, 'root'), /5000 block limit/);
+  // Concurrent branches may each fit their initial remaining budget but exceed it together.
+  const nested = { async blockChildren(id) {
+    if (id === 'root') return [{ id: 'a', type: 'toggle', has_children: true }, { id: 'b', type: 'toggle', has_children: true }];
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    return blocks(3000);
+  } };
+  await assert.rejects(fetchBlockTree(nested, 'root'), /5000 block limit/);
+});
+
+test('client rejects missing, repeated and unbounded pagination cursors', async () => {
+  const client = new NotionClient('t');
+  let count = 0;
+  globalThis.fetch = async () => { count++; return Response.json({ results: [], has_more: true, next_cursor: 'same' }); };
+  await assert.rejects(client.queryDatabase('db'), /repeated Notion pagination cursor/);
+  assert.equal(count, 2);
+  count = 0;
+  await assert.rejects(client.blockChildren('block'), /repeated Notion pagination cursor/);
+  assert.equal(count, 2);
+  globalThis.fetch = async () => Response.json({ results: [], has_more: true, next_cursor: null });
+  await assert.rejects(client.queryDatabase('db'), /pagination cursor/);
+  count = 0;
+  globalThis.fetch = async () => Response.json({ results: [], has_more: true, next_cursor: String(++count) });
+  await assert.rejects(client.blockChildren('block'), /1000 page limit/);
+  assert.equal(count, 1000);
+  globalThis.fetch = async () => Response.json({ results: [{ id: 'a' }, { id: 'b' }], has_more: false, next_cursor: null });
+  await assert.rejects(client.blockChildren('block', 1), /5000 block limit/);
+});
+
+test('a failed tree walk waits for in-flight siblings and starts no further work', async () => {
+  let active = 0;
+  const calls = [];
+  const client = { async blockChildren(id) {
+    calls.push(id);
+    if (id === 'root') return ['a', 'b', 'c', 'd'].map((id) => ({ id, type: 'toggle', has_children: true }));
+    active++;
+    try {
+      if (id === 'a') throw new Error('upstream failure');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return [];
+    } finally { active--; }
+  } };
+  await assert.rejects(fetchBlockTree(client, 'root'), /upstream failure/);
+  assert.equal(active, 0);
+  assert.ok(!calls.includes('d'));
 });

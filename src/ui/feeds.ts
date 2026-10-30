@@ -15,8 +15,6 @@ const rfc822 = (value: string) => {
   return Number.isNaN(date.getTime()) ? new Date(0).toUTCString() : date.toUTCString();
 };
 
-const absolute = (origin: string, url: string) => (/^https?:\/\//i.test(url) ? url : `${origin}${url}`);
-
 export function rssFeed(input: { origin: string; title: string; description: string; articles: ArticleSummary[] }): string {
   const { origin, title, description, articles } = input;
   const items = articles
@@ -28,9 +26,7 @@ export function rssFeed(input: { origin: string; title: string; description: str
       <guid isPermaLink="true">${xml(link)}</guid>
       <pubDate>${rfc822(article.date)}</pubDate>
       ${article.tags.map((tag) => `<category>${xml(tag)}</category>`).join('')}
-      <description>${xml(article.excerpt)}</description>${
-        article.cover ? `\n      <enclosure url="${xml(absolute(origin, article.cover))}" type="image/jpeg" length="0" />` : ''
-      }
+      <description>${xml(article.excerpt)}</description>
     </item>`;
     })
     .join('\n');

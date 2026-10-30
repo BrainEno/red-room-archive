@@ -105,7 +105,7 @@ export const demoArticles: DemoArticle[] = [
       p(t('This site publishes the pages of '), t('one Notion database', { bold: true }), t('. Until it is connected you are looking at demo content.')),
       { type: 'table_of_contents', table_of_contents: {} },
       h(2, 'Database columns'),
-      p(t('Only a title column is required. Everything else is optional and recognised by name:')),
+      p(t('A title and a recognized Published column are required. Other columns are optional:')),
       {
         type: 'table',
         table: { table_width: 3, has_column_header: true, has_row_header: true },

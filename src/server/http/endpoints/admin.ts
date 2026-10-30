@@ -14,7 +14,7 @@ import type {
 } from '../../../shared/contracts.ts';
 import { describeSchema } from '../../notion/mapper.ts';
 import { notion, syncArticles, warmBodies } from '../../services/articles.ts';
-import { adminToken, authenticate, requireAdmin } from '../../services/auth.ts';
+import { adminToken, authenticate, requestPeer, requireAdmin } from '../../services/auth.ts';
 import { adminSettings, notionReady, updateSettings } from '../../services/settings.ts';
 import { syncStatus } from '../../services/status.ts';
 import { NO_STORE, json, readJson, route, truthy } from '../respond.ts';
@@ -27,7 +27,7 @@ export const authStatus = route(() => json<AuthStatusResponse>({ configured: Boo
 /** POST /api/auth { token } — validate a token for the admin login form. */
 export const login = route(async (context) => {
   const { token } = await readJson(context.request);
-  authenticate(context.request, token);
+  authenticate(context.request, token, requestPeer(context));
   return json<AuthResponse>({ ok: true }, { headers: NO_STORE });
 });
 
@@ -37,7 +37,7 @@ const settingsBody = (): SettingsResponse => ({ ...adminSettings(), status: sync
 
 /** GET /api/settings */
 export const readSettings = route((context) => {
-  requireAdmin(context.request);
+  requireAdmin(context.request, requestPeer(context));
   return json(settingsBody(), { headers: NO_STORE });
 });
 
@@ -46,7 +46,7 @@ export const readSettings = route((context) => {
  * Empty string clears an override; a masked/empty NOTION_TOKEN keeps the stored one.
  */
 export const writeSettings = route(async (context) => {
-  requireAdmin(context.request);
+  requireAdmin(context.request, requestPeer(context));
   updateSettings(await readJson(context.request));
   return json(settingsBody(), { headers: NO_STORE });
 });
@@ -55,7 +55,7 @@ export const writeSettings = route(async (context) => {
 
 /** GET /api/sync — last sync time, in-flight flag, last error, cache counts. */
 export const readSync = route((context) => {
-  requireAdmin(context.request);
+  requireAdmin(context.request, requestPeer(context));
   return json<SyncStatusResponse>({ status: syncStatus() }, { headers: NO_STORE });
 });
 
@@ -65,7 +65,7 @@ export const readSync = route((context) => {
  *   ?bodies=1  then fetch every missing body (slower; makes search cover full text)
  */
 export const runSync = route(async (context) => {
-  requireAdmin(context.request);
+  requireAdmin(context.request, requestPeer(context));
   if (!notionReady()) throw badRequest('Notion is not configured (NOTION_TOKEN and NOTION_DATABASE_ID)');
   const synced = await syncArticles({ full: truthy(context.url.searchParams.get('full')) });
   const bodies = truthy(context.url.searchParams.get('bodies')) ? await warmBodies() : 0;
@@ -76,7 +76,7 @@ export const runSync = route(async (context) => {
 
 /** GET /api/notion/schema — the database's columns and how they map to article fields. */
 export const notionSchema = route(async (context) => {
-  requireAdmin(context.request);
+  requireAdmin(context.request, requestPeer(context));
   if (!notionReady()) throw badRequest('Notion is not configured (NOTION_TOKEN and NOTION_DATABASE_ID)');
   const { client, databaseId } = notion();
   return json<NotionSchemaResponse>(describeSchema(databaseId, await client.database(databaseId)), { headers: NO_STORE });

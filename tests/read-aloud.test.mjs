@@ -1,0 +1,90 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { articleSpeechText, speechChunks, speechLanguage, matchingVoice, initReadAloud } from '../src/ui/scripts/site/read-aloud.ts';
+
+const text = (value) => ({ nodeType: 3, textContent: value });
+const element = (tag, children = [], excluded = false) => ({
+  nodeType: 1, tagName: tag.toUpperCase(), childNodes: children,
+  matches: () => excluded,
+});
+
+test('speech extracts article blocks in order without duplicating nested text or navigation', () => {
+  const body = element('div', [
+    element('p', [text('第一行\n第二行 '), element('strong', [text('强调')])]),
+    element('nav', [text('Do not read the table of contents')], true),
+    element('ul', [element('li', [text('One'), element('ul', [element('li', [text('Nested')])])]), element('li', [text('Two')])]),
+    element('div', [text('bookmark title'), element('span', [text('https://unnecessary.example')], true)]),
+    element('figure', [element('figcaption', [text('A caption')])]),
+  ]);
+  assert.equal(articleSpeechText(body), '第一行\n第二行 强调\nOne\nNested\nTwo\nbookmark title\nA caption');
+});
+
+test('speech chunks preserve words and Unicode, choose content language and matching voices', () => {
+  assert.deepEqual(speechChunks('One. Two. Three.\n你好，世界。', 10), ['One. Two.', 'Three.', '你好，世界。']);
+  const long = '甲'.repeat(230) + '😀' + '乙'.repeat(230);
+  const chunks = speechChunks(long);
+  assert.equal(chunks.join(''), long);
+  assert.ok(chunks.every((chunk) => Array.from(chunk).length <= 220));
+  assert.equal(speechLanguage('中文标题 notes', 'en'), 'zh-CN');
+  assert.equal(speechLanguage('English paragraph', 'zh-CN'), 'en');
+  assert.equal(speechLanguage('123', 'zh-CN'), 'zh-CN');
+  const voices = [{ lang: 'en-US', name: 'English' }, { lang: 'zh-TW', name: 'Chinese' }];
+  assert.equal(matchingVoice(voices, 'zh-CN').name, 'Chinese');
+  assert.equal(matchingVoice(voices, 'en').name, 'English');
+  assert.equal(matchingVoice(voices, 'fr'), undefined);
+});
+
+function fakeControl() {
+  const events = {};
+  return { hidden: false, textContent: '', value: '1', events, classList: { state: {}, toggle(name, enabled) { this.state[name] = enabled; } },
+    addEventListener(name, fn) { events[name] = fn; }, click() { events.click(); } };
+}
+
+test('player pauses, resumes, changes speed, ignores cancelled callbacks and stops on pagehide', () => {
+  const oldWindow = globalThis.window, oldDocument = globalThis.document, oldUtterance = globalThis.SpeechSynthesisUtterance;
+  const listeners = {};
+  globalThis.window = { addEventListener(name, fn) { listeners[name] = fn; } };
+  globalThis.document = { documentElement: { lang: 'en' } };
+  globalThis.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+  const play = fakeControl(), label = fakeControl(), stop = fakeControl(), speed = fakeControl(), status = fakeControl();
+  const body = element('div', [element('p', [text('First paragraph.')]), element('p', [text('第二段。')])]);
+  const title = { textContent: 'Title' };
+  const article = { getAttribute: () => 'en', querySelector: (selector) => selector === '.article-body' ? body : title };
+  const controls = { '[data-play]': play, '[data-play-label]': label, '[data-stop]': stop, '[data-speed]': speed, '[data-status]': status };
+  const root = { hidden: true, dataset: { listen: 'Listen', pause: 'Pause', resume: 'Resume', listening: 'Reading', paused: 'Paused', finished: 'Finished', stopped: 'Stopped', error: 'Error' },
+    closest: () => article, querySelector: (selector) => controls[selector] };
+  const synth = { paused: false, spoken: [], cancels: 0, getVoices: () => [{ lang: 'en-US' }, { lang: 'zh-CN' }],
+    speak(utterance) { this.spoken.push(utterance); }, cancel() { this.cancels++; }, pause() { this.paused = true; }, resume() { this.paused = false; } };
+  try {
+    initReadAloud(root, synth);
+    assert.equal(root.hidden, false);
+    play.click();
+    assert.equal(synth.spoken[0].text, 'Title');
+    assert.equal(label.textContent, 'Pause');
+    assert.equal(root.dataset.state, 'playing');
+    play.click(); assert.equal(synth.paused, true); assert.equal(label.textContent, 'Resume');
+    play.click(); assert.equal(synth.paused, false);
+    speed.value = '1.5';
+    synth.spoken[0].onend();
+    assert.equal(synth.spoken[1].text, 'First paragraph.');
+    assert.equal(synth.spoken[1].rate, 1.5);
+    synth.spoken[1].onend();
+    assert.equal(synth.spoken[2].lang, 'zh-CN');
+    assert.equal(synth.spoken[2].voice.lang, 'zh-CN');
+    stop.click();
+    synth.spoken[2].onend();
+    assert.equal(synth.spoken.length, 3, 'late events cannot restart playback');
+    assert.equal(status.textContent, 'Stopped');
+    play.click();
+    synth.spoken.at(-1).onerror();
+    assert.equal(status.textContent, 'Error');
+    assert.equal(status.classList.state['read-aloud-error'], true, 'errors are visible as well as announced');
+    play.click();
+    assert.equal(status.classList.state['read-aloud-error'], false);
+    listeners.pagehide();
+    assert.equal(label.textContent, 'Listen');
+    assert.ok(synth.cancels >= 3);
+  } finally {
+    globalThis.window = oldWindow; globalThis.document = oldDocument; globalThis.SpeechSynthesisUtterance = oldUtterance;
+  }
+});

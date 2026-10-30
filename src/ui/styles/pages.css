@@ -225,3 +225,49 @@
 .prose .article-list { list-style: none; padding-left: 0; margin: 0; }
 .prose .article-list li + li { margin-top: 0; }
 .prose .article-entry, .prose .filters a, .prose .pager a { text-decoration: none; }
+
+/* Long-form reading: comfortable measure, breathing room and faithful Notion line breaks. */
+.article-wrap .prose { min-width: 0; }
+.article-wrap .prose h1 { overflow-wrap: anywhere; text-wrap: balance; }
+.article-body { font-size: clamp(1.08rem, 1.1vw + .8rem, 1.2rem); line-height: 1.8; overflow-wrap: anywhere; }
+.article-body:lang(zh) { line-height: 1.95; }
+.article-body :is(p, li, h2, h3, h4, summary, figcaption, td, th) { white-space: pre-wrap; }
+.article-body :is(pre, code) { overflow-wrap: normal; }
+.article-body p { margin-bottom: 1.4em; }
+.article-body .notion-blank-line { min-height: 1em; margin: 0; }
+.article-body :is(h2, h3, h4) { text-wrap: balance; }
+.article-body a { text-decoration-thickness: 1px; }
+.article-body a:hover { color: #e7a395; }
+
+/* The desktop contents rail collapses into an accessible disclosure on smaller screens. */
+.prose .article-inline-toc { display: none; }
+@media (max-width: 1100px) {
+  .prose .article-inline-toc { display: block; margin: 0 0 2.6rem; padding: .9rem 0; border-top: 1px solid rgba(241,238,230,.22); border-bottom: 1px solid rgba(241,238,230,.22); font-size: .9rem; }
+  .article-inline-toc summary { cursor: pointer; }
+  .article-inline-toc summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+  .prose .article-inline-toc ol { list-style: none; display: grid; gap: .5rem; margin: 1rem 0 0; padding-left: 0; }
+  .article-inline-toc .toc-l2 { padding-left: .8rem; }
+  .article-inline-toc .toc-l3 { padding-left: 1.6rem; }
+}
+
+/* An understated player: editorial typography with a single warm-red control. */
+.read-aloud[hidden], .read-aloud [hidden] { display: none; }
+.read-aloud { margin: 0 0 2.6rem; padding: .85rem 0; border-top: 1px solid rgba(241,238,230,.16); border-bottom: 1px solid rgba(241,238,230,.16); }
+.read-aloud-controls { display: flex; align-items: center; gap: .65rem; }
+.read-aloud button, .read-aloud select { font: inherit; color: var(--ink); cursor: pointer; }
+.read-aloud-play { display: inline-flex; align-items: center; gap: .7rem; border: 0; padding: 0; background: none; font-size: .85rem; letter-spacing: .02em; }
+.read-aloud-icon { display: grid; place-items: center; width: 2.35rem; height: 2.35rem; border: 1px solid rgba(231,163,149,.55); border-radius: 50%; color: #e7a395; transition: color .2s, background .2s, border-color .2s; }
+.read-aloud-icon svg, .read-aloud-stop svg { width: 1.1rem; height: 1.1rem; }
+.read-aloud .icon-pause, .read-aloud[data-state="playing"] .icon-play { display: none; }
+.read-aloud[data-state="playing"] .icon-pause { display: block; }
+.read-aloud-play:hover .read-aloud-icon { background: #e7a395; border-color: #e7a395; color: var(--void); }
+.read-aloud-stop { display: grid; place-items: center; width: 2rem; height: 2rem; border: 0; background: transparent; color: rgba(241,238,230,.7) !important; }
+.read-aloud-stop:hover { color: var(--ink) !important; }
+.read-aloud-speed { margin-left: auto; }
+.read-aloud .read-aloud-error { position: static; display: block; width: auto; height: auto; clip: auto; clip-path: none; overflow: visible; margin: .6rem 0 0; color: #e7a395; font-size: .78rem; }
+.read-aloud select { border: 0; background: var(--void); font-size: .78rem; padding: .5rem .25rem; color: rgba(241,238,230,.75); }
+.read-aloud :is(button, select):focus-visible { outline: 2px solid #e7a395; outline-offset: 3px; }
+@media (max-width: 720px) {
+  .article-body { font-size: 1.08rem; line-height: 1.8; }
+  .article-body:lang(zh) { line-height: 1.95; }
+}

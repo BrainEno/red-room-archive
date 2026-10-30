@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyMedia, isAudioUrl } from '../src/core/media.ts';
+import { classifyMedia } from '../src/core/media.ts';
 import { formatBytes, formatDate, readingMinutes, truncate } from '../src/core/text.ts';
 import { rssFeed, robots, sitemap } from '../src/ui/feeds.ts';
 import { articlePath, notionMediaPath, tagPath } from '../src/shared/routes.ts';
@@ -15,7 +15,8 @@ test('classifyMedia picks native players, embeds or links', () => {
   assert.deepEqual(classifyMedia('https://example.test/page'), { kind: 'link', href: 'https://example.test/page' });
   assert.deepEqual(classifyMedia('javascript:alert(1)'), { kind: 'none' });
   assert.deepEqual(classifyMedia(null), { kind: 'none' });
-  assert.ok(isAudioUrl('x.flac') && !isAudioUrl('x.mp4'));
+  assert.equal(classifyMedia('x.flac').kind, 'audio');
+  assert.equal(classifyMedia('x.mp4').kind, 'video');
 });
 
 test('text helpers', () => {
@@ -44,10 +45,18 @@ test('rss and sitemap escape content and use absolute URLs', () => {
   assert.match(rss, /<title>Fish &amp; &lt;Chips&gt;<\/title>/);
   assert.match(rss, /<link>https:\/\/site\.test\/articles\/a<\/link>/);
   assert.match(rss, /<pubDate>Fri, 02 Jan 2026 00:00:00 GMT<\/pubDate>/);
-  assert.match(rss, /<enclosure url="https:\/\/site\.test\/media\/notion\/abc"/);
+  assert.doesNotMatch(rss, /<enclosure/, 'unknown MIME and length are not invented');
   const map = sitemap({ origin: 'https://site.test', articles: [article], tags: [{ key: 'x', name: 'X', count: 1 }] });
   assert.match(map, /<loc>https:\/\/site\.test\/articles<\/loc>/);
   assert.match(map, /<loc>https:\/\/site\.test\/articles\?tag=x<\/loc>/);
   assert.match(map, /<lastmod>2026-01-03<\/lastmod>/);
   assert.match(robots('https://site.test'), /Disallow: \/api\//);
+});
+
+test('RSS does not invent a MIME type or size for PNG, WebP, JPEG or extensionless covers', () => {
+  const covers = ['/media/notion/abc', 'https://images.test/photo.png', 'https://images.test/photo.webp', 'https://images.test/photo.jpg'];
+  const articles = covers.map((cover, i) => ({ id: String(i), slug: String(i), title: 'Article', tags: [], date: '2020-01-01', updated: '2020-01-01', excerpt: '', href: `/articles/${i}`, cover, rank: 0 }));
+  const feed = rssFeed({ origin: 'https://site.test', title: 'Test', description: '', articles });
+  assert.equal((feed.match(/<item>/g) || []).length, covers.length);
+  assert.doesNotMatch(feed, /<enclosure/);
 });

@@ -5,7 +5,8 @@
  * Public pages should read the site profile from here, never from `process.env`
  * directly, so a value edited in /admin takes effect everywhere.
  */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { config } from '../config.ts';
 import { readEnv } from '../../core/env.ts';
 import { badRequest } from '../../core/errors.ts';
 import { copy, site as identity } from '../../content/site.ts';
@@ -17,7 +18,7 @@ import { metaRepository } from '../db/meta.repository.ts';
 import { articlesRepository } from '../db/articles.repository.ts';
 import { parseNotionId } from '../notion/mapper.ts';
 
-export const SETTING_KEYS: readonly SettingKey[] = [
+const SETTING_KEYS: readonly SettingKey[] = [
   'site_name',
   'site_email',
   'site_about',
@@ -132,7 +133,35 @@ export function adminSettings(): { values: SettingValues & { hasToken: boolean }
   return { values: { ...values, hasToken: Boolean(notion.token) } };
 }
 
-export const notionGeneration = () => metaRepository.get('notion_generation') ?? '0';
+// Source identity is salted and hashed; never persist the effective token itself.
+// A policy version also invalidates caches created before fail-closed publishing.
+const sourceFingerprint = (salt: string): string => {
+  const { token, databaseId } = notionConfig();
+  return createHash('sha256').update(JSON.stringify(['publication-v1', salt, token ?? '', databaseId ?? '', config.notionApiBase()])).digest('hex');
+};
+
+function recordSource(): void {
+  let salt = metaRepository.get('notion_source_salt');
+  if (!salt) { salt = randomUUID(); metaRepository.set('notion_source_salt', salt); }
+  metaRepository.set('notion_source_fingerprint', sourceFingerprint(salt));
+}
+
+/** Detect environment changes, including across restarts, before using cache. */
+export function notionGeneration(): string {
+  return transaction(() => {
+    let salt = metaRepository.get('notion_source_salt');
+    if (!salt) { salt = randomUUID(); metaRepository.set('notion_source_salt', salt); }
+    const fingerprint = sourceFingerprint(salt);
+    if (metaRepository.get('notion_source_fingerprint') !== fingerprint) {
+      articlesRepository.clear();
+      metaRepository.remove('synced');
+      metaRepository.remove('sync_error');
+      metaRepository.set('notion_generation', randomUUID());
+      metaRepository.set('notion_source_fingerprint', fingerprint);
+    }
+    return metaRepository.get('notion_generation') ?? '0';
+  });
+}
 
 type Listener = (previousGeneration: string) => void;
 const listeners: Listener[] = [];
@@ -187,6 +216,7 @@ export function updateSettings(patch: Record<string, unknown>): void {
       metaRepository.remove('sync_error');
       articlesRepository.clear();
       metaRepository.set('notion_generation', randomUUID());
+      recordSource();
     }
   });
   if (notionChanged) {

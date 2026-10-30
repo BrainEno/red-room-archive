@@ -6,7 +6,7 @@
  * column type, so a "Date" text column can never be misread as a date. The
  * defaults follow the conventions of the original astro-notion blog (Page,
  * Slug, Date, Published, Tags, Excerpt, FeaturedImage, Rank), so that
- * database works unchanged — but none of them except the title is required.
+ * database works unchanged. A recognized publication field is required for visibility.
  */
 import { cleanSlug, slugify } from '../../core/slug.ts';
 import { safeUrl } from '../../core/safety.ts';
@@ -25,7 +25,7 @@ interface FieldSpec {
   fallback: string;
 }
 
-export const FIELDS: Record<ArticleField, FieldSpec> = {
+const FIELDS: Record<ArticleField, FieldSpec> = {
   title: { aliases: [], accepts: ['title'], required: true, fallback: 'pages without a title are skipped' },
   slug: { aliases: ['slug', 'url', 'path', '链接', '网址'], accepts: ['rich_text', 'formula'], required: false, fallback: 'derived from the title' },
   date: {
@@ -37,8 +37,8 @@ export const FIELDS: Record<ArticleField, FieldSpec> = {
   published: {
     aliases: ['published', 'publish', 'public', 'ispublished', 'status', '发布', '已发布', '公开', '状态'],
     accepts: ['checkbox', 'status', 'select', 'formula'],
-    required: false,
-    fallback: 'every page in the database is public',
+    required: true,
+    fallback: 'pages without a recognized publication value are private',
   },
   tags: { aliases: ['tags', 'tag', 'topics', 'category', 'categories', '标签', '分类'], accepts: ['multi_select', 'select'], required: false, fallback: 'no tags' },
   excerpt: {
@@ -67,7 +67,10 @@ export function resolveMapping(columns: Record<string, string>): Mapping {
   const entries = Object.entries(columns);
   const taken = new Set<string>();
   const mapping = {} as Mapping;
-  for (const field of ARTICLE_FIELDS) {
+  // Resolve publication before date: a formula named Published may be a
+  // boolean flag, not a date, and the privacy boundary takes precedence.
+  const order: ArticleField[] = ['title', 'published', ...ARTICLE_FIELDS.filter((field) => field !== 'title' && field !== 'published')];
+  for (const field of order) {
     const spec = FIELDS[field];
     let found: [string, string] | undefined;
     if (field === 'title') {
@@ -112,7 +115,7 @@ const dateOf = (property: NotionProperty | undefined): string | null => {
 const PUBLISHED_WORDS = /^(published|publish|public|live|done|yes|true|on|已发布|发布|公开|完成)$/i;
 
 const publishedOf = (property: NotionProperty | undefined): boolean => {
-  if (!property) return true;
+  if (!property) return false;
   switch (property.type) {
     case 'checkbox':
       return property.checkbox === true;
@@ -123,7 +126,7 @@ const publishedOf = (property: NotionProperty | undefined): boolean => {
     case 'formula':
       return property.formula?.boolean === true || PUBLISHED_WORDS.test(property.formula?.string ?? '');
     default:
-      return true;
+      return false;
   }
 };
 
@@ -202,7 +205,8 @@ export function toArticles(
       result.skipped.push({ id: page.id, reason: 'untitled' });
       continue;
     }
-    if (!publishedOf(field('published'))) {
+    const published = field('published');
+    if (!publishedOf(published)) {
       result.skipped.push({ id: page.id, reason: 'unpublished' });
       continue;
     }
@@ -265,7 +269,7 @@ export function describeSchema(databaseId: string, database: NotionDatabase): No
 
   const warnings: string[] = [];
   if (!resolved.title) warnings.push('No title column found — nothing can be published.');
-  if (!resolved.published) warnings.push('No "Published" checkbox found: every page in this database will be public.');
+  if (!resolved.published) warnings.push('No recognized Published field found: no pages will be public.');
   if (!resolved.date) warnings.push('No "Date" column found: articles use the first observed publication date (server local time) and cannot be scheduled.');
   for (const field of ARTICLE_FIELDS) {
     if (resolved[field] || field === 'title') continue;
@@ -279,11 +283,8 @@ export function describeSchema(databaseId: string, database: NotionDatabase): No
 
 /* ── ids ───────────────────────────────────────────────────────────── */
 
-export const PAGE_ID_PATTERN =
+const PAGE_ID_PATTERN =
   /^([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
-
-/** Notion ids are 32 hex chars, optionally dashed. Rejects path injection. */
-export const isPageId = (value: unknown): value is string => typeof value === 'string' && PAGE_ID_PATTERN.test(value);
 
 /**
  * Accept what people paste: a bare id, a dashed id, or a Notion URL such as

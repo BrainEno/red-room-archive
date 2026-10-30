@@ -9,6 +9,7 @@ const { articlesRepository } = await import('../src/server/db/articles.repositor
 const { metaRepository } = await import('../src/server/db/meta.repository.ts');
 const { closeConnection } = await import('../src/server/db/connection.ts');
 const { featuredArticles } = await import('../src/server/services/articles.ts');
+const { notionGeneration } = await import('../src/server/services/settings.ts');
 const { getHome } = await import('../src/server/queries.ts');
 test.after(() => closeConnection());
 
@@ -21,6 +22,7 @@ const row = (n, rank = n) => ({
 test('home latest and featured cap at ten, with date and positive rank ordering', async () => {
   // Deliberately out of order; 0 and negative ranks must never be featured.
   const rows = Array.from({ length: 15 }, (_, i) => row(15 - i, i === 13 ? 0 : i === 14 ? -1 : i + 1));
+  notionGeneration();
   articlesRepository.replaceAll(rows, []);
   metaRepository.set('synced', String(Date.now()));
   const home = await getHome('en');

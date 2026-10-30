@@ -15,7 +15,7 @@ import type { APIContext } from 'astro';
 import { badRequest, payloadTooLarge } from '../../../core/errors.ts';
 import type { UploadFile, UploadListResponse, UploadResponse } from '../../../shared/contracts.ts';
 import { config } from '../../config.ts';
-import { requireAdmin } from '../../services/auth.ts';
+import { requestPeer, requireAdmin } from '../../services/auth.ts';
 import { renameUploadOnMore, uploadsUsedOnMore } from '../../services/more.ts';
 import {
   listUploads,
@@ -28,19 +28,21 @@ import {
   statUpload,
   usage,
 } from '../../storage/uploads.ts';
-import { NO_STORE, created, json, param, readJson, route } from '../respond.ts';
+import { NO_STORE, created, json, param, readJson, readLimited, route } from '../respond.ts';
 
 export const list = route((context) => {
-  requireAdmin(context.request);
+  requireAdmin(context.request, requestPeer(context));
   const used = uploadsUsedOnMore();
   const files = listUploads().map((file) => (used.has(file.name) ? { ...file, usedBy: ['more'] } : file));
   return json<UploadListResponse>({ files, usage: usage(files) }, { headers: NO_STORE });
 });
 
 const MULTIPART_OVERHEAD = 1024 * 1024;
+// The admin client streams larger files as raw bodies. Bound form buffering.
+const MULTIPART_FILE_LIMIT = 8 * 1024 * 1024;
 
 export const upload = route(async (context) => {
-  requireAdmin(context.request);
+  requireAdmin(context.request, requestPeer(context));
   const { request, url } = context;
   const max = config.maxUploadBytes();
   const declared = Number(request.headers.get('content-length') ?? 0);
@@ -49,17 +51,18 @@ export const upload = route(async (context) => {
   let saved: UploadFile;
 
   if (contentType.includes('multipart/form-data')) {
-    if (declared && declared > max + MULTIPART_OVERHEAD) throw payloadTooLarge('file too large');
+    const multipartMax = Math.min(max, MULTIPART_FILE_LIMIT);
+    const bytes = await readLimited(request, multipartMax + MULTIPART_OVERHEAD);
     let form: FormData;
     try {
-      form = await request.formData();
+      form = await new Response(Uint8Array.from(bytes), { headers: { 'Content-Type': contentType } }).formData();
     } catch {
       throw badRequest('invalid multipart body');
     }
     const file = form.get('file');
     if (!(file instanceof File)) throw badRequest('multipart uploads need a `file` field');
     asModel ||= form.get('as') === 'model';
-    saved = await saveFile(file, { asModel, maxBytes: max });
+    saved = await saveFile(file, { asModel, maxBytes: multipartMax });
   } else {
     const name = url.searchParams.get('name') ?? '';
     if (!name) throw badRequest('raw uploads need ?name=<file.ext>');
@@ -72,23 +75,22 @@ export const upload = route(async (context) => {
 });
 
 export const info = route((context) => {
-  requireAdmin(context.request);
+  requireAdmin(context.request, requestPeer(context));
   return json<UploadFile>(statUpload(param(context, 'name')), { headers: NO_STORE });
 });
 
 export const rename = route(async (context) => {
-  requireAdmin(context.request);
+  requireAdmin(context.request, requestPeer(context));
   const { name: to } = await readJson(context.request);
   if (!to || typeof to !== 'string') throw badRequest('new name is required');
   const from = param(context, 'name');
-  const next = renameUpload(from, to);
+  const next = renameUpload(from, to, (name) => renameUploadOnMore(from, `/uploads/${encodeURIComponent(name)}`));
   const file = statUpload(next);
-  if (next !== from) renameUploadOnMore(from, file.url);
   return json<UploadFile>(file, { headers: NO_STORE });
 });
 
 export const remove = route((context) => {
-  requireAdmin(context.request);
+  requireAdmin(context.request, requestPeer(context));
   removeUpload(param(context, 'name'));
   return new Response(null, { status: 204, headers: NO_STORE });
 });

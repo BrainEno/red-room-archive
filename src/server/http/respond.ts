@@ -30,6 +30,8 @@ export function errorResponse(error: unknown): Response {
     const headers: Record<string, string> = { ...NO_STORE };
     if (error.status === 401) headers['WWW-Authenticate'] = 'Bearer';
     if (error.status === 429) headers['Retry-After'] = '600';
+    // The remaining body was deliberately not drained; do not reuse the socket.
+    if (error.status === 413) headers.Connection = 'close';
     return Response.json(body, { status: error.status, headers });
   }
   console.error('[api] unhandled', error);
@@ -48,12 +50,32 @@ export function route(handler: (context: APIContext) => Response | Promise<Respo
   };
 }
 
+/** Read at most maxBytes before parsing. The response closes the connection on 413;
+ * leaving the unread stream alone avoids aborting the socket before the response. */
+export async function readLimited(request: Request, maxBytes: number): Promise<Uint8Array> {
+  const declared = Number(request.headers.get('content-length') ?? 0);
+  if (declared > maxBytes) throw payloadTooLarge();
+  if (!request.body) return new Uint8Array();
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) throw payloadTooLarge();
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, size);
+}
+
 /** Read a JSON object body with a size cap. Empty bodies become `{}`. */
 export async function readJson(request: Request, maxBytes = config.maxJsonBytes()): Promise<Record<string, unknown>> {
-  const declared = Number(request.headers.get('content-length') ?? 0);
-  if (declared && declared > maxBytes) throw payloadTooLarge();
-  const text = await request.text();
-  if (Buffer.byteLength(text) > maxBytes) throw payloadTooLarge();
+  const text = new TextDecoder().decode(await readLimited(request, maxBytes));
   if (!text.trim()) return {};
   let parsed: unknown;
   try {

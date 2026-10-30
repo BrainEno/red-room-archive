@@ -2,15 +2,7 @@ name: Validate
 
 on:
   push:
-    branches:
-      - main
-      - "fix/**"
-      - "feature/**"
-      - "task/**"
-      - "claude/**"
-      - "chore/**"
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -43,3 +35,5 @@ jobs:
         run: npm run build
       - name: Test rendered article pages
         run: npm run test:render
+      - name: Build static snapshot (demo)
+        run: SITE_URL=https://example.invalid STATIC_DEMO=1 node scripts/static-snapshot.mjs
