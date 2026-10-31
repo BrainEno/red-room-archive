@@ -1,3 +1,4 @@
 /* Loaded only inside <noscript> (no inline styles, so a strict CSP can apply).
-   Without JavaScript the loader counter never finishes: hide it. */
+   Without JavaScript the intro never finishes: hide it. */
 .loader { display: none; }
+.article-share { display: none; }

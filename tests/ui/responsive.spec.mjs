@@ -93,6 +93,24 @@ test('home navigation is not blocked by the loader with reduced motion', async (
   await expect(page.locator('#latest')).toBeInViewport();
 });
 
+test('home opening uses the bilingual room reveal without a counter or extra assets', async ({ page }) => {
+  const requests = [];
+  page.on('request', (request) => requests.push(request.url()));
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.loader-panel')).toHaveCount(2);
+  await expect(page.locator('.loader-name')).toHaveText('SureShot Studio');
+  await expect(page.locator('.loader-tagline')).toHaveText('Fiction, poetry and other writings');
+  await expect(page.locator('.count')).toHaveCount(0);
+  await expect(page.locator('.loader')).toBeHidden({ timeout: 25_000 });
+  expect(requests.some((url) => url.includes('vendor-three') || url.includes('/models/'))).toBe(false);
+  await noHorizontalOverflow(page);
+  await page.goto('/zh-CN/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.loader-tagline')).toHaveText('小说、诗歌以及其他');
+  await expect(page.locator('.loader')).toBeHidden({ timeout: 25_000 });
+  await noHorizontalOverflow(page);
+});
+
 test('the forthcoming-book notice sits on the first screen beside the sign and links to email', async ({ page }) => {
   const overlap = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
   for (const [path, title] of [['/', 'A book of fiction is going to print.'], ['/zh-CN/', '小说集，即将付印。']]) {
@@ -176,9 +194,22 @@ test('read aloud controls respond to supported and unsupported speech APIs', asy
     await expect(page.locator('[data-read-aloud]')).toHaveAttribute('data-state', 'playing');
     await expect(page.locator('[data-caption]')).toContainText(/Reading aloud|正在朗读/);
     await expect(page.locator('[data-stop]')).toBeVisible();
-    await page.locator('[data-speed]').selectOption('1.5');
+    await page.locator('[data-speed]').selectOption('2');
     await expect.poll(() => page.evaluate(() => window.speechSynthesis.spoken.length)).toBe(2);
-    expect(await page.evaluate(() => window.speechSynthesis.spoken.at(-1).rate)).toBe(1.5);
+    expect(await page.evaluate(() => window.speechSynthesis.spoken.at(-1).rate)).toBe(2);
+    const seek = page.locator('[data-seek]');
+    await expect(seek).toBeEnabled();
+    await seek.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(() => page.evaluate(() => window.speechSynthesis.spoken.length)).toBe(3);
+    await expect(seek).toHaveValue('0');
+    expect(await page.evaluate(() => window.speechSynthesis.spoken.at(-1).rate)).toBe(2);
+    await page.keyboard.press('End');
+    await expect(page.locator('[data-read-aloud]')).toHaveAttribute('data-state', 'idle');
+    await expect(seek).toHaveValue('1000');
+    await expect(seek).toBeDisabled();
+    await page.locator('[data-play]').click();
+    await expect(page.locator('[data-read-aloud]')).toHaveAttribute('data-state', 'playing');
     await page.locator('[data-play]').click();
     await expect(page.locator('[data-read-aloud]')).toHaveAttribute('data-state', 'paused');
     await page.locator('[data-stop]').click();
@@ -193,6 +224,42 @@ test('read aloud controls respond to supported and unsupported speech APIs', asy
     await expect(page.locator('[data-read-aloud]')).toBeHidden();
   } finally { await unsupported.close(); }
 });
+
+for (const base of ['', 'http://127.0.0.1:4179']) {
+  test(`home warms article and directory HTML only after navigation intent (${base ? 'static' : 'SSR'})`, async ({ page }, testInfo) => {
+    const prefetches = [];
+    // Firefox's touch viewport does not synthesize pointer intent from hover().
+    const intend = (locator) => testInfo.project.use.hasTouch ? locator.focus() : locator.hover();
+    let analytics = 0;
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === '/api/analytics/collect') analytics++;
+      if (request.resourceType() === 'fetch' && /^\/(?:zh-CN\/)?articles(?:\/[^/]+)?\/?$/.test(url.pathname)) prefetches.push(url.pathname);
+    });
+    await page.goto(`${base}/`, { waitUntil: 'networkidle' });
+    await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
+    const initialAnalytics = analytics;
+    const article = page.locator('#latest a.row').first();
+    const articleUrl = new URL(await article.getAttribute('href'), page.url()).href;
+    expect(prefetches).toEqual([]);
+    const warmedArticle = page.waitForResponse((response) => response.url() === articleUrl && response.request().resourceType() === 'fetch');
+    await intend(article);
+    expect((await warmedArticle).status()).toBe(200);
+    await expect.poll(() => prefetches.filter((path) => path === new URL(articleUrl).pathname).length).toBe(1);
+    await article.evaluate((node) => node.blur());
+    await article.focus();
+    await page.waitForTimeout(180);
+    expect(prefetches.filter((path) => path === new URL(articleUrl).pathname)).toHaveLength(1);
+    const directory = page.locator('#latest a.more');
+    const directoryUrl = new URL(await directory.getAttribute('href'), page.url()).href;
+    const warmedDirectory = page.waitForResponse((response) => response.url() === directoryUrl && response.request().resourceType() === 'fetch');
+    await intend(directory);
+    expect((await warmedDirectory).status()).toBe(200);
+    expect(analytics, 'prefetched pages do not execute their analytics collector').toBe(initialAnalytics);
+    await article.click();
+    await expect(page.locator('.article-body')).toBeVisible();
+  });
+}
 
 test('home defers the 3D renderer until the reader scrolls', async ({ page }) => {
   const requests = [];

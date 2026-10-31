@@ -18,7 +18,7 @@ import type {
 } from '../shared/contracts.ts';
 import { config } from './config.ts';
 import { presentArticle, presentArticleDetail } from './presenters.ts';
-import { articleBody, featuredArticles, findArticle, listArticles, neighbours } from './services/articles.ts';
+import { articleBody, featuredArticles, listArticles, neighbours } from './services/articles.ts';
 import { moreFor } from './services/more.ts';
 import { search } from './services/search.ts';
 import { tagIndex, tagLangOf, tagNamer, topicCounts } from './services/tags.ts';
@@ -170,9 +170,11 @@ export interface ArticleView {
 }
 
 export async function getArticle(slug: string, locale: Locale = DEFAULT_LOCALE): Promise<ArticleView | undefined> {
-  const row = await findArticle(slug);
-  if (!row) return undefined;
+  // Neighbours need the full list anyway: use one consistent read instead of
+  // looking up the slug and then immediately reading the same table again.
   const all = await listArticles();
+  const row = all.find((article) => article.slug === slug);
+  if (!row) return undefined;
   const names = tagNamer(all, locale);
   try {
     const body = await articleBody(row);

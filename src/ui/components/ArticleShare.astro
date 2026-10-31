@@ -1,0 +1,44 @@
+---
+import { messages } from '../i18n.ts';
+import type { Locale } from '../../shared/i18n.ts';
+
+const { locale, title, excerpt, date, slug, siteName, tags } = Astro.props as {
+  locale: Locale;
+  title: string;
+  excerpt: string;
+  date: string;
+  slug: string;
+  siteName: string;
+  tags: string[];
+};
+const t = messages(locale).article;
+---
+<div class="article-share" lang={locale} data-article-share data-pending
+  data-title={title} data-excerpt={excerpt} data-date={date} data-slug={slug}
+  data-site={siteName} data-tags={tags.join(' · ')} data-ready={t.cardSize}
+  data-preparing={t.preparingCard} data-shared={t.sharedCard} data-copied={t.copied}
+  data-share-error={t.shareError} data-copy-error={t.copyError} data-card-error={t.cardError}>
+  <p class="article-share-hint">{t.shareHint}</p>
+  <button class="article-share-open" type="button" data-share-open>
+    <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5M5 12v7h14v-7" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    <span>{t.share}</span>
+  </button>
+  <dialog class="share-dialog" data-share-dialog aria-labelledby="share-dialog-title">
+    <div class="share-dialog-head">
+      <h2 id="share-dialog-title">{t.shareTitle}</h2>
+      <button type="button" class="share-dialog-close" data-share-close aria-label={t.close} title={t.close}>×</button>
+    </div>
+    <canvas class="share-canvas" data-share-canvas width="1200" height="630" role="img" aria-label={t.cardPreview}></canvas>
+    <div class="share-dialog-foot">
+      <p class="share-status" role="status" aria-live="polite" data-share-status>{t.cardSize}</p>
+      <div class="share-actions">
+        <button type="button" class="share-primary" data-share-native hidden>{t.shareCard}</button>
+        <button type="button" data-share-download disabled>{t.downloadCard}</button>
+        <button type="button" data-share-copy>{t.copyLink}</button>
+      </div>
+    </div>
+  </dialog>
+</div>
+<script>
+  import '../scripts/site/article-share.ts';
+</script>

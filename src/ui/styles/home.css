@@ -8,9 +8,29 @@
 .sign .cam::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,.28) 0 1px, transparent 1px 3px); }
 .sign canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
 
-/* 加载计数 */
-.loader { position: fixed; inset: 0; z-index: 100; background: var(--void); display: flex; align-items: flex-end; padding: var(--page-gutter); }
-.count { font-stretch: 62%; font-weight: 800; font-size: clamp(6rem, 24vw, 22rem); line-height: .75; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+/* Opening: a thin red seam lights the site name, then the two dark room
+   panels part like curtains. No asset, counter or extra animation library. */
+.loader { position: fixed; inset: 0; z-index: 100; overflow: hidden; }
+.loader-panel { position: absolute; top: 0; bottom: 0; width: 50.1%; background: var(--void); will-change: transform; }
+.loader-panel-left { left: 0; }
+.loader-panel-right { right: 0; }
+.loader-seam { position: absolute; left: 50%; top: 12%; bottom: 12%; width: 1px; background: #ff3a26;
+  box-shadow: 0 0 10px rgba(255, 40, 20, .9), 0 0 42px rgba(255, 40, 20, .36); transform-origin: center; }
+.loader-room { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; padding: var(--page-gutter); text-align: center; }
+.loader-room::before, .loader-room::after { content: ""; position: absolute; left: var(--page-gutter); right: var(--page-gutter); height: 1px; background: rgba(241, 238, 230, .16); }
+.loader-room::before { top: var(--page-gutter); }
+.loader-room::after { bottom: var(--page-gutter); }
+.loader-name { max-width: min(1100px, 92vw); padding: .12em .18em; background: var(--void); font-stretch: 62%; font-weight: 800;
+  font-size: clamp(2.8rem, 9vw, 9rem); line-height: .88; letter-spacing: -.025em; text-transform: uppercase; overflow-wrap: anywhere; }
+.loader-tagline { max-width: 42rem; margin-top: 1.4rem; padding: .3em .8em; background: var(--void); font-size: 12px; font-weight: 600;
+  letter-spacing: .13em; line-height: 1.6; text-transform: uppercase; overflow-wrap: anywhere; }
+.loader-rule { position: absolute; left: var(--page-gutter); right: var(--page-gutter); bottom: var(--page-gutter); height: 1px;
+  background: #ff3a26; transform-origin: left; box-shadow: 0 0 12px rgba(255, 40, 20, .45); }
+@media (max-width: 720px) {
+  .loader-seam { top: 18%; bottom: 18%; }
+  .loader-name { font-size: clamp(2.4rem, 14vw, 4.8rem); }
+  .loader-tagline { max-width: 28ch; margin-top: 1.1rem; font-size: 11px; letter-spacing: .08em; }
+}
 
 /* 12 列瑞士网格 */
 .bar, .s { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 16px; padding-inline: var(--page-gutter); }

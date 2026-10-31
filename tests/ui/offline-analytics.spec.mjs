@@ -56,6 +56,11 @@ for (const origin of [OFFLINE_SSR, OFFLINE_STATIC]) {
       expect(fallback?.fromServiceWorker()).toBe(true);
       await expect(page.locator('h1')).toHaveText('The connection is out');
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
+      // WebKit can reject a second top-level navigation when consecutive
+      // origin sockets are destroyed. Keep connection-refusal coverage above;
+      // a 503 exercises the same worker catch/localisation path without that
+      // driver-specific transport race (and without retrying the assertion).
+      await setOutage(page, base, id, 503);
       const localizedFallback = await page.goto(`${base}/zh-CN/topics`, { waitUntil: 'domcontentloaded' });
       expect(localizedFallback?.fromServiceWorker()).toBe(true);
       await expect(page.locator('h1')).toHaveText('连接已中断');
