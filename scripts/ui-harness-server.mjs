@@ -35,22 +35,27 @@ staticServer.listen(4181, '127.0.0.1');
 // requests (and WebKit can fail the reload itself). These local proxies can
 // refuse the origin connection instead, exercising the real worker fallback in
 // every engine. The control route remains available so tests can restore it.
-const outage = { ssr: new Set(), static: new Set() };
-function proxy(port, target, key) {
+const outage = { ssr: new Map(), static: new Map(), 'offline-ssr': new Map(), 'offline-static': new Map() };
+function proxy(port, target, key, exclusive = false) {
   const server = createServer((req, res) => {
     const url = new URL(req.url || '/', 'http://localhost');
     if (url.pathname === '/__harness/outage' && req.method === 'POST') {
       const id = url.searchParams.get('id') || '';
       if (!/^[a-z0-9-]+$/.test(id)) { res.writeHead(400).end(); return; }
-      if (url.searchParams.get('value') === '1') outage[key].add(id);
+      const value = url.searchParams.get('value');
+      if (value === '1' || value === '503') outage[key].set(id, value);
       else outage[key].delete(id);
       res.writeHead(204, { 'cache-control': 'no-store' }).end();
       return;
     }
     // Only the context carrying this test-only cookie is disconnected. CI runs
     // two workers against the same origins, so a global switch would race.
-    const id = /(?:^|;\s*)rra_harness_outage=([a-z0-9-]+)/.exec(req.headers.cookie || '')?.[1];
-    if (id && outage[key].has(id)) { req.socket.destroy(); return; }
+    // Dedicated offline origins do not rely on WebKit preserving a test cookie
+    // across a service-worker/network transition. Other proxies stay per-test.
+    const id = exclusive ? 'exclusive' : /(?:^|;\s*)rra_harness_outage=([a-z0-9-]+)/.exec(req.headers.cookie || '')?.[1];
+    const mode = id && outage[key].get(id);
+    if (mode === '503') { res.writeHead(503, { 'content-type': 'text/html', 'cache-control': 'no-store' }).end('<h1>Origin unavailable</h1>'); return; }
+    if (mode) { req.socket.destroy(); return; }
     const upstream = httpRequest({ host: '127.0.0.1', port: target, path: req.url, method: req.method, headers: req.headers }, (response) => {
       res.writeHead(response.statusCode || 502, response.headers);
       response.pipe(res);
@@ -61,7 +66,11 @@ function proxy(port, target, key) {
   server.listen(port, '127.0.0.1');
   return server;
 }
-const proxies = [proxy(4178, 4180, 'ssr'), proxy(4179, 4181, 'static')];
+const proxies = [
+  proxy(4178, 4180, 'ssr'), proxy(4179, 4181, 'static'),
+  // Only offline-analytics.spec.mjs uses these origins, sequentially in one file.
+  proxy(4182, 4180, 'offline-ssr', true), proxy(4183, 4181, 'offline-static', true),
+];
 
 let stopping = false;
 async function shutdown(code = 0) {

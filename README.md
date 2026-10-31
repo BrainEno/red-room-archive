@@ -179,8 +179,8 @@ JSON-LD 是浏览器不会执行的数据块，不受 CSP 影响，所有 `<` �
 
 ## 性能、离线与浏览数据
 
-- 公共页面支持 Service Worker 离线重载：在线读过的页面优先联网更新，断网时使用保存的副本；未缓存页面显示中英文离线回退。后台、API、订阅令牌页和带查询的页面不进入离线缓存。
-- `/_astro` 指纹资源长期缓存，HTML 需要重新验证；首页场景保留。Analytics 后台报表按需加载，不让未打开报表的后台首屏承担完整面板成本。
+- 公共页面支持 Service Worker 离线重载：在线读过的页面优先联网更新，断网或源站 5xx 时使用保存的副本；未缓存页面显示中英文离线回退。后台、API、订阅令牌页和带查询的页面不进入离线缓存。
+- `/_astro` 指纹资源长期缓存，HTML 需要重新验证；首页场景保留，Three.js 和模型只在首次滚动时加载。开场不会长时间等待慢字体。Analytics 后台报表按需加载，不让未打开报表的后台首屏承担完整面板成本。
 - `/admin → Pageviews / 浏览数据` 提供第一方每日 pageview 聚合：7／30／90 天、路径、来源主机、语言、CSV 和清除／暂停开关。Node 用 SQLite，Netlify 静态站用 Functions + Blobs；不引入第三方 analytics，不保存独立访客标识或 IP，尊重 DNT/GPC。
 - SEO／GEO 的缓存、离线限制、构建体积对比和上线后测速方法见 **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)**；统计指标、隐私、API 和部署见 **[docs/ANALYTICS.md](docs/ANALYTICS.md)**。
 

@@ -80,6 +80,10 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): boolea
   let generation = 0;
   let current: SpeechSynthesisUtterance | undefined;
   let done = 0;
+  let activeIndex = 0;
+  // Last spoken boundary within the active chunk (UTF-16, as specified by
+  // SpeechSynthesisEvent.charIndex). Engines without boundary events use 0.
+  let offset = 0;
   /** Progress as the share of passages already spoken (CSSOM, allowed by the strict CSP). */
   const setProgress = (ratio: number) => {
     progress?.style?.setProperty('--p', String(Math.max(0, Math.min(1, ratio))));
@@ -102,23 +106,34 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): boolea
     synth.cancel();
     current = undefined;
     done = 0;
+    activeIndex = 0;
+    offset = 0;
     showState('idle', message);
     setProgress(0);
   };
-  const speakChunk = (index: number, run: number) => {
+  const speakChunk = (index: number, run: number, from = 0) => {
     if (run !== generation) return;
     done = index;
+    activeIndex = index;
+    offset = from;
     setProgress(index / chunks.length);
-    if (index >= chunks.length) { current = undefined; done = 0; showState('idle', root.dataset.finished); return; }
+    if (index >= chunks.length) { current = undefined; done = 0; offset = 0; showState('idle', root.dataset.finished); return; }
     try {
-      const text = chunks[index]!;
-      const utterance = new SpeechSynthesisUtterance(text);
+      const source = chunks[index]!;
+      if (from >= source.length) { speakChunk(index + 1, run); return; }
+      const start = Math.max(0, from);
+      const utterance = new SpeechSynthesisUtterance(source.slice(start));
       current = utterance; // retain a reference on browsers that collect queued utterances
-      utterance.lang = speechLanguage(text, fallbackLang);
+      // Keep the passage's original language even when a rate change resumes
+      // after a boundary near text in another language.
+      utterance.lang = speechLanguage(source, fallbackLang);
       const voice = matchingVoice(synth.getVoices(), utterance.lang);
       if (voice) utterance.voice = voice;
       utterance.rate = Number(speed.value) || 1;
-      utterance.onend = () => { if (run === generation) speakChunk(index + 1, run); };
+      utterance.onboundary = (event) => {
+        if (run === generation && Number.isFinite(event.charIndex)) offset = Math.min(source.length, start + event.charIndex);
+      };
+      utterance.onend = () => { if (run === generation) { offset = 0; speakChunk(index + 1, run); } };
       utterance.onerror = () => { if (run === generation) stop(root.dataset.error); };
       synth.speak(utterance);
     } catch { if (run === generation) stop(root.dataset.error); }
@@ -133,6 +148,22 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): boolea
     done = 0;
     showState('playing', root.dataset.listening);
     speakChunk(0, generation);
+  });
+  speed.addEventListener('change', () => {
+    if (state === 'idle' || !current) return;
+    // Most engines snapshot utterance.rate when speak() is called. Cancel only
+    // the active passage and resume it at the latest boundary so the new speed
+    // is audible now instead of taking effect after the next passage.
+    const index = activeIndex, from = offset, paused = state === 'paused';
+    generation++;
+    const run = generation;
+    synth.cancel();
+    current = undefined;
+    speakChunk(index, run, from);
+    if (run !== generation) return; // an engine error already showed the stop state
+    if (paused && !synth.paused) synth.pause();
+    else if (!paused && synth.paused) synth.resume();
+    showState(paused ? 'paused' : 'playing');
   });
   stopButton.addEventListener('click', () => stop(root.dataset.stopped));
   window.addEventListener('pagehide', () => { if (state !== 'idle' || current) stop(); });

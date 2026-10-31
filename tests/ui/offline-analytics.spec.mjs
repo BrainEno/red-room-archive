@@ -3,6 +3,8 @@ import AxeBuilder from '@axe-core/playwright';
 
 const SSR = 'http://127.0.0.1:4178';
 const STATIC = 'http://127.0.0.1:4179';
+const OFFLINE_SSR = 'http://127.0.0.1:4182';
+const OFFLINE_STATIC = 'http://127.0.0.1:4183';
 const json = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 const summary = (enabled = true) => ({
   enabled, storage: 'netlify-blobs', retentionDays: 90,
@@ -21,15 +23,16 @@ async function waitForWorker(page) {
 }
 
 async function setOutage(page, base, id, value) {
-  const response = await page.request.post(`${base || SSR}/__harness/outage?id=${id}&value=${value ? 1 : 0}`);
+  const mode = value === true ? 1 : value === false ? 0 : value;
+  const response = await page.request.post(`${base || SSR}/__harness/outage?id=${id}&value=${mode}`);
   expect(response.status()).toBe(204);
 }
 
-for (const origin of ['', STATIC]) {
-  test(`offline reload and uncached fallback (${origin ? 'static' : 'SSR'})`, async ({ page }) => {
-    const base = origin || '';
-    const id = `offline-${origin ? 'static' : 'ssr'}-${test.info().project.name}-${test.info().workerIndex}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-    await page.context().addCookies([{ name: 'rra_harness_outage', value: id, url: base || SSR }]);
+for (const origin of [OFFLINE_SSR, OFFLINE_STATIC]) {
+  test(`offline reload and uncached fallback (${origin === OFFLINE_STATIC ? 'static' : 'SSR'})`, async ({ page }) => {
+    const base = origin;
+    // These exclusive origins are used only by this sequential test file.
+    const id = 'exclusive';
     await setOutage(page, base, id, false);
     try {
       await page.goto(`${base}/articles/notes-on-light`, { waitUntil: 'networkidle' });
@@ -44,11 +47,17 @@ for (const origin of ['', STATIC]) {
       expect(saved?.fromServiceWorker()).toBe(true);
       await expect(page.locator('[data-article-title]')).toHaveText('Notes on light');
       await expect(page.locator('h1')).toHaveText('Notes on light');
+      await setOutage(page, base, id, 503);
+      const degraded = await page.reload({ waitUntil: 'domcontentloaded' });
+      expect(degraded?.fromServiceWorker()).toBe(true);
+      await expect(page.locator('h1')).toHaveText('Notes on light');
+      await setOutage(page, base, id, true);
       const fallback = await page.goto(`${base}/topics`, { waitUntil: 'domcontentloaded' });
       expect(fallback?.fromServiceWorker()).toBe(true);
       await expect(page.locator('h1')).toHaveText('The connection is out');
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
-      await page.goto(`${base}/zh-CN/topics`, { waitUntil: 'domcontentloaded' });
+      const localizedFallback = await page.goto(`${base}/zh-CN/topics`, { waitUntil: 'domcontentloaded' });
+      expect(localizedFallback?.fromServiceWorker()).toBe(true);
       await expect(page.locator('h1')).toHaveText('连接已中断');
     } finally {
       await setOutage(page, base, id, false);

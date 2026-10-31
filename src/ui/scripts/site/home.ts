@@ -1,7 +1,7 @@
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
-import { initScene, world } from './scene.ts';
+import { world } from './scene-state.ts';
 import { initNeon } from './neon.ts';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -27,9 +27,18 @@ document.querySelectorAll<HTMLAnchorElement>('[data-lang-switch]').forEach((a) =
     try { sessionStorage.setItem(RESUME_KEY, JSON.stringify({ y: scrollY, at: Date.now() })); } catch { /* private mode */ }
   }));
 
-// The content and navigation must remain usable when WebGL is unavailable.
-try { initScene($<HTMLCanvasElement>('#gl')); }
-catch (error) { console.warn('[scene] WebGL unavailable; showing the static page', error); }
+// The first screen is the 2D neon sign, not the 3D room. Load Three.js and the
+// model only when the reader scrolls (or returns to a saved scroll position),
+// keeping navigation usable when WebGL or the dynamic import is unavailable.
+let scenePromise: Promise<void> | undefined;
+const startScene = () => {
+  if (scenePromise) return;
+  scenePromise = import('./scene.ts').then(({ initScene }) => {
+    initScene($<HTMLCanvasElement>('#gl'));
+  }).catch((error) => { console.warn('[scene] unavailable; showing the static page', error); });
+};
+addEventListener('scroll', startScene, { once: true, passive: true });
+if (location.hash) startScene();
 const neon = initNeon($<HTMLCanvasElement>('#neon canvas'));
 const fx = neon.fx;
 world.fade.v = 1; world.dolly.v = 1;   // 开场不再用 3D 房间做“亮起”，首页由纯黑 + 招牌承担；房间在滚动中显现
@@ -202,8 +211,8 @@ if (!reduce) {
 // 5) 开场：计数 → 幕布上推，露出纯黑 → 镜头从斜侧方甩入对焦，灯管依次从黑暗中点亮 → 导航与元信息淡入
 const count = $('.count'), n = { v: 0 };
 const intro = gsap.timeline({ paused: true });
-intro.to(n, { v: 100, duration: 2.2, ease: 'power2.inOut', onUpdate: () => (count.textContent = String(Math.round(n.v)).padStart(3, '0')) })
-  .to('.loader', { yPercent: -100, duration: 1.1, ease: 'expo.inOut' }, '+=0.15')
+intro.to(n, { v: 100, duration: 0.55, ease: 'power2.inOut', onUpdate: () => (count.textContent = String(Math.round(n.v)).padStart(3, '0')) })
+  .to('.loader', { yPercent: -100, duration: 0.65, ease: 'expo.inOut' }, '+=0.05')
   .add(() => neon.ignite(), '>-0.3')
   .fromTo(cam, { rotationY: 46, rotationX: 14, rotation: -13, scale: 1.2, x: innerWidth * 0.06 }, { ...POSE, duration: 3.4, ease: 'expo.out' }, '<')
   .fromTo(cam, { '--b1': '10px' }, { '--b1': '0px', duration: 2.6, ease: 'power2.out' }, '<')                // 对焦
@@ -214,14 +223,25 @@ intro.to(n, { v: 100, duration: 2.2, ease: 'power2.inOut', onUpdate: () => (coun
 // 告示：红竖线先从上往下画出，三行字再依次亮出
 if (document.querySelector('.notice')) intro.fromTo('.notice', { '--rule': 0 }, { '--rule': 1, duration: 1.2, ease: 'expo.out' }, '<0.1')
   .from('.notice > *', { autoAlpha: 0, x: 14, stagger: 0.12, duration: 1.1, ease: 'expo.out' }, '<0.2');
-document.fonts.ready.then(() => {
+let entered = false;
+const enter = () => {
+  if (entered) return;
+  entered = true;
   if (reduce || resumeY !== null) { intro.progress(1); neon.ignite(); } else intro.play();
+  if (resumeY !== null) startScene();
   if (resumeY !== null) requestAnimationFrame(() => {
     lenis?.start();
     if (lenis) lenis.scrollTo(resumeY, { immediate: true, force: true }); else scrollTo(0, resumeY);
     ScrollTrigger.update();
   });
-});
+};
+if (reduce || resumeY !== null) enter();
+else {
+  // Font loading must not hold the whole page behind a loader. Normally the
+  // preloaded Latin cut wins; a slow font gets at most this short grace period.
+  const timer = setTimeout(enter, 300);
+  document.fonts.ready.then(() => { clearTimeout(timer); enter(); });
+}
 
 // 6) 列表行：分隔线逐行画出；悬停时地板亮起
 ScrollTrigger.batch('.row', { start: 'top 92%', once: true,

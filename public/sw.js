@@ -43,6 +43,9 @@ const networkPage = async (request) => {
     // to the saved copy instead of waiting for a network timeout.
     if (self.navigator.onLine === false) throw new Error('offline');
     const response = await fetch(request);
+    // A temporary origin/server failure must not replace a good saved page or
+    // hide it behind an error response. Real 404s and 429s still pass through.
+    if (response.status >= 500) throw new Error(`origin ${response.status}`);
     // Query URLs (including search terms) are never written to Cache Storage.
     if (!url.search) await save(PAGES, request, response.clone(), MAX_PAGES);
     return response;

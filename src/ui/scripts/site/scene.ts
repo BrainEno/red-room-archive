@@ -2,16 +2,10 @@ import * as THREE from 'three';
 import gsap from 'gsap';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { world } from './scene-state.ts';
 
-/**
- * 可被 GSAP 补间的状态；sv = 滚动速度（Lenis），驱动窗帘物理。
- * cam.ry 现在是“相对镜头的朝向偏移”（弧度，建议 ±0.6 以内），不再是绝对旋转：
- * 雕像始终自动转向镜头，ry 只在此基础上做小幅侧转。
- */
-export const world = {
-  cam: { px: 0, py: 2, pz: 10, lx: 0.3, ly: 1.6, lz: 0, open: 0, ry: -0.3, lum: 0, st: 0 },
-  fade: { v: 0 }, dolly: { v: 0 }, hover: { v: 0 }, sv: 0,
-};
+// sv = 滚动速度（Lenis），驱动窗帘物理。cam.ry 是雕像相对镜头的朝向偏移；
+// 雕像始终自动转向镜头，ry 只在此基础上做小幅侧转。
 const SX = 2.4;
 /** 如果你的 GLB 默认脸朝后（背对镜头），把它改成 Math.PI；侧着就改 ±Math.PI/2 */
 const MODEL_YAW = 0;
