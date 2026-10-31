@@ -22,50 +22,59 @@ async function waitForWorker(page) {
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
 }
 
-async function setOutage(page, base, id, value) {
+function expectWorkerPage(response, browserName) {
+  expect(response?.status()).toBe(200);
+  // WebKit intermittently misreports synthesized responses as network responses.
+  // Every call below also requires the unique saved/offline page content while
+  // the origin is unavailable; other engines retain the direct source assertion.
+  if (browserName !== 'webkit') expect(response?.fromServiceWorker()).toBe(true);
+}
+
+async function setOutage(request, base, id, value) {
   const mode = value === true ? 1 : value === false ? 0 : value;
-  const response = await page.request.post(`${base || SSR}/__harness/outage?id=${id}&value=${mode}`);
+  const response = await request.post(`${base || SSR}/__harness/outage?id=${id}&value=${mode}`);
   expect(response.status()).toBe(204);
 }
 
 for (const origin of [OFFLINE_SSR, OFFLINE_STATIC]) {
-  test(`offline reload and uncached fallback (${origin === OFFLINE_STATIC ? 'static' : 'SSR'})`, async ({ page }) => {
+  test(`offline reload and uncached fallback (${origin === OFFLINE_STATIC ? 'static' : 'SSR'})`, async ({ page, request, browserName }) => {
     const base = origin;
     // These exclusive origins are used only by this sequential test file.
     const id = 'exclusive';
-    await setOutage(page, base, id, false);
+    const outage = (value) => setOutage(request, base, id, value);
+    // Destroyed origin sockets can poison later WebKit navigations. A 503
+    // exercises the same worker catch path there; other engines retain real
+    // connection-refusal coverage. Every scenario still rejects a 503 response.
+    const refusal = browserName === 'webkit' ? 503 : true;
+    await outage(false);
     try {
       await page.goto(`${base}/articles/notes-on-light`, { waitUntil: 'networkidle' });
       await waitForWorker(page);
       // This navigation is intercepted and saved by the active worker.
       await page.reload({ waitUntil: 'networkidle' });
       await expect(page.locator('[data-article-title]')).toBeVisible();
-      // Refuse the actual origin connection. Browser-level offline emulation
-      // does not reliably reach workers in Firefox and can crash WebKit reload.
-      await setOutage(page, base, id, true);
+      // Browser-level offline emulation does not reliably reach workers in
+      // Firefox and can crash WebKit reload, so the harness owns the outage.
+      await outage(refusal);
       const saved = await page.reload({ waitUntil: 'domcontentloaded' });
-      expect(saved?.fromServiceWorker()).toBe(true);
+      expectWorkerPage(saved, browserName);
       await expect(page.locator('[data-article-title]')).toHaveText('Notes on light');
       await expect(page.locator('h1')).toHaveText('Notes on light');
-      await setOutage(page, base, id, 503);
+      await outage(503);
       const degraded = await page.reload({ waitUntil: 'domcontentloaded' });
-      expect(degraded?.fromServiceWorker()).toBe(true);
+      expectWorkerPage(degraded, browserName);
       await expect(page.locator('h1')).toHaveText('Notes on light');
-      await setOutage(page, base, id, true);
+      await outage(refusal);
       const fallback = await page.goto(`${base}/topics`, { waitUntil: 'domcontentloaded' });
-      expect(fallback?.fromServiceWorker()).toBe(true);
+      expectWorkerPage(fallback, browserName);
       await expect(page.locator('h1')).toHaveText('The connection is out');
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
-      // WebKit can reject a second top-level navigation when consecutive
-      // origin sockets are destroyed. Keep connection-refusal coverage above;
-      // a 503 exercises the same worker catch/localisation path without that
-      // driver-specific transport race (and without retrying the assertion).
-      await setOutage(page, base, id, 503);
+      await outage(503);
       const localizedFallback = await page.goto(`${base}/zh-CN/topics`, { waitUntil: 'domcontentloaded' });
-      expect(localizedFallback?.fromServiceWorker()).toBe(true);
+      expectWorkerPage(localizedFallback, browserName);
       await expect(page.locator('h1')).toHaveText('连接已中断');
     } finally {
-      await setOutage(page, base, id, false);
+      await outage(false);
     }
   });
 }

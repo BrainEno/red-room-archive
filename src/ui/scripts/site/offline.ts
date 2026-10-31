@@ -1,4 +1,6 @@
 /** Public offline status + service-worker registration. Never used by /admin. */
+import { publicPath } from '../lib/public-path.ts';
+
 const note = document.querySelector<HTMLElement>('[data-offline-status]');
 if (note) {
   const update = () => { note.hidden = navigator.onLine; };
@@ -7,7 +9,7 @@ if (note) {
   addEventListener('offline', update);
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) {
     addEventListener('load', () => {
-      void navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
+      void navigator.serviceWorker.register(publicPath('/sw.js'), { scope: publicPath('/') }).catch(() => {
         // Offline is progressive enhancement; a blocked worker never breaks reading.
       });
     }, { once: true });

@@ -21,7 +21,7 @@ const t = messages(locale).article;
   data-highlight-saved={t.highlightSaved} data-note-saved={t.noteSaved}
   data-annotation-deleted={t.annotationDeleted} data-storage-error={t.storageError} data-annotation-limit={t.annotationLimit}
   data-copy-watermark={t.copyWatermark} data-full-copy-blocked={t.fullCopyBlocked}
-  data-edit-label={t.addNote} data-share-label={t.share} data-delete-label={t.deleteAnnotation}
+  data-edit-label={t.addNote} data-share-label={t.share} data-read-label={t.readPassage} data-delete-label={t.deleteAnnotation}
   data-confirm-delete-label={t.confirmDelete}>
   <div class="selection-tools" data-selection-tools role="group" aria-label={t.selectionActions} hidden>
     <span class="selection-count" data-selection-count aria-live="polite"></span>
@@ -29,6 +29,15 @@ const t = messages(locale).article;
       <button type="button" data-selection-highlight>{t.highlight}</button>
       <button type="button" data-selection-note>{t.addNote}</button>
       <button type="button" data-selection-share>{t.share}</button>
+    </div>
+  </div>
+
+  <div class="selection-tools saved-passage-tools" data-saved-tools role="group" aria-label={t.savedPassageActions} hidden>
+    <span class="selection-count">{t.savedPassage}</span>
+    <div class="selection-actions">
+      <button type="button" data-saved-note>{t.addNote}</button>
+      <button type="button" data-saved-share>{t.share}</button>
+      <button type="button" data-saved-read>{t.readPassage}</button>
     </div>
   </div>
 
@@ -55,6 +64,21 @@ const t = messages(locale).article;
       <div class="annotation-note-actions">
         <button type="button" class="annotation-note-delete" data-note-delete hidden>{t.deleteAnnotation}</button>
         <button type="button" class="annotation-note-save" data-note-save>{t.saveNote}</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="annotation-dialog passage-dialog" data-read-dialog aria-labelledby="passage-dialog-title">
+    <div class="annotation-dialog-head">
+      <h2 id="passage-dialog-title">{t.readPassageTitle}</h2>
+      <button type="button" class="annotation-dialog-close" data-read-close aria-label={t.close} title={t.close}>×</button>
+    </div>
+    <div class="annotation-dialog-body">
+      <p class="passage-dialog-article">{title}</p>
+      <blockquote class="passage-dialog-quote" data-read-quote></blockquote>
+      <p class="passage-dialog-note" data-read-note hidden></p>
+      <div class="annotation-note-actions">
+        <button type="button" data-read-locate>{t.findInArticle}</button>
       </div>
     </div>
   </dialog>

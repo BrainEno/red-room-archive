@@ -22,6 +22,13 @@ test('article rows use a typographic hover/focus without a panel or pink arrow',
   expect(styles.titleDecoration).toContain('underline');
   expect(styles.excerptOpacity).toBeGreaterThan(before);
   expect(styles.excerptTransition).toBe('0s');
+  if ((testInfo.project.use.viewport?.width || 0) >= 1000) {
+    const widths = await entry.evaluate((node) => ({
+      copy: node.querySelector('.article-copy').getBoundingClientRect().width,
+      excerpt: node.querySelector('.article-excerpt').getBoundingClientRect().width,
+    }));
+    expect(widths.excerpt, 'the excerpt keeps its narrower editorial measure').toBeLessThan(widths.copy);
+  }
 });
 
 for (const base of ['', 'http://127.0.0.1:4179']) {

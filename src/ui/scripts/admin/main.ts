@@ -8,6 +8,7 @@
  * only the server-backed modules that actually respond.
  */
 import { ApiError, createApiClient } from '../lib/api-client.ts';
+import { publicPath } from '../lib/public-path.ts';
 import { $, esc } from './dom.ts';
 import { errorText, lang, setLang, t, type AdminLang, type TabId } from './i18n.ts';
 import { articlesPanel } from './panels/articles.ts';
@@ -142,7 +143,7 @@ async function boot() {
       <div class="tabs-list" role="tablist" aria-label="${esc(t.shell.sections)}">
         ${TABS.map((tab, index) => `<button id="tab-${tab}" role="tab" data-tab="${tab}" aria-controls="panel-${tab}" aria-selected="${index === 0}" tabindex="${index === 0 ? '0' : '-1'}" class="${index ? '' : 'on'}">${esc(t.shell.tabs[tab])}</button>`).join('')}
       </div>
-      <a href="/" class="tabs-site">${esc(t.shell.site)}</a>
+      <a href="${publicPath('/')}" class="tabs-site">${esc(t.shell.site)}</a>
       ${langSwitch()}
       <button type="button" id="logout" class="ghost">${esc(t.shell.signOut)}</button>
     </nav>

@@ -9,6 +9,7 @@ static-dist/
 
 # Playwright diagnostics (may contain test content)
 .ui-test-snapshot/
+.ui-test-pages-snapshot/
 test-results/
 playwright-report/
 visual-candidates/

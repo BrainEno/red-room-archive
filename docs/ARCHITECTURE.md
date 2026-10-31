@@ -109,4 +109,4 @@ GET /media/notion/<id>
 
 ## 静态快照构建
 
-`scripts/static-snapshot.mjs` 在临时目录启动构建后的 Node SSR，校验 Notion 标题和发布列，拉取已发布文章及媒体，生成仅公开内容的 `static-dist/`；构建失败时删除输出。此模式没有运行时数据库，也没有文章/设置 API；运行时服务端部分只有邮件订阅和浏览统计的 Netlify Functions（分别在 Netlify Blobs 保存加密名单和每日聚合），`/admin` 外壳按可用 Function 显示对应模块。构建会去掉 `NEWSLETTER_*` 环境变量，并在发布前扫描输出中的服务端密钥和数据库文件。可选的非机密 `site-profile.json` 在构建时通过认证的临时管理 API 导入；静态离线编辑器只能导入/导出本地文件，不能更改已部署站点。双语页面使用 `/zh-CN/` 路径，列表筛选及分页生成独立静态路径，搜索在浏览器读取公开索引。快照还包括双语离线页、`llms.txt`、sitemap alternate／lastmod、SW 和缓存头。详细限制和部署流程见 README「静态部署」。
+`scripts/static-snapshot.mjs` 在临时目录启动构建后的 Node SSR，校验 Notion 标题和发布列，拉取已发布文章及媒体，生成仅公开内容的 `static-dist/`；构建失败时删除输出。此模式没有运行时数据库，也没有文章/设置 API；运行时服务端部分只有邮件订阅和浏览统计的 Netlify Functions（分别在 Netlify Blobs 保存加密名单和每日聚合），`/admin` 外壳按可用 Function 显示对应模块。构建会去掉 `NEWSLETTER_*` 环境变量，并在发布前扫描输出中的服务端密钥和数据库文件。可选的非机密 `site-profile.json` 在构建时通过认证的临时管理 API 导入；静态离线编辑器只能导入/导出本地文件，不能更改已部署站点。双语页面使用 `/zh-CN/` 路径，列表筛选及分页生成独立静态路径，搜索在浏览器读取公开索引。快照还包括双语离线页、`llms.txt`、sitemap alternate／lastmod、SW 和缓存头。GitHub Pages 由独立 Actions 工作流发布同一产物，导出器可为项目子路径改写公开 URL，SW 按注册 scope 隔离缓存；Pages 不运行 Functions，也不发送浏览统计。详细限制和部署流程见 README「静态部署」与 `docs/DEPLOYMENT.md`。

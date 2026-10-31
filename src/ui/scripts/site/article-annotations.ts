@@ -18,6 +18,10 @@ type HighlightWindow = Window & {
   Highlight?: new (...ranges: Range[]) => unknown;
   CSS?: { highlights?: HighlightRegistry };
 };
+type CaretDocument = Document & {
+  caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+};
 
 const SAVED_HIGHLIGHT = 'rra-saved-passage';
 const NOTE_HIGHLIGHT = 'rra-saved-passage-note';
@@ -30,6 +34,10 @@ function initialize(root: HTMLElement): void {
   const highlightButton = root.querySelector<HTMLButtonElement>('[data-selection-highlight]');
   const noteButton = root.querySelector<HTMLButtonElement>('[data-selection-note]');
   const shareButton = root.querySelector<HTMLButtonElement>('[data-selection-share]');
+  const savedTools = root.querySelector<HTMLElement>('[data-saved-tools]');
+  const savedNote = root.querySelector<HTMLButtonElement>('[data-saved-note]');
+  const savedShare = root.querySelector<HTMLButtonElement>('[data-saved-share]');
+  const savedRead = root.querySelector<HTMLButtonElement>('[data-saved-read]');
   const shelf = root.querySelector<HTMLDetailsElement>('[data-annotation-shelf]');
   const shelfCount = root.querySelector<HTMLElement>('[data-annotation-count]');
   const list = root.querySelector<HTMLElement>('[data-annotation-list]');
@@ -41,8 +49,13 @@ function initialize(root: HTMLElement): void {
   const noteStatus = root.querySelector<HTMLElement>('[data-note-status]');
   const noteSave = root.querySelector<HTMLButtonElement>('[data-note-save]');
   const noteDelete = root.querySelector<HTMLButtonElement>('[data-note-delete]');
+  const readDialog = root.querySelector<HTMLDialogElement>('[data-read-dialog]');
+  const readClose = root.querySelector<HTMLButtonElement>('[data-read-close]');
+  const readQuote = root.querySelector<HTMLElement>('[data-read-quote]');
+  const readNote = root.querySelector<HTMLElement>('[data-read-note]');
+  const readLocate = root.querySelector<HTMLButtonElement>('[data-read-locate]');
   const toast = root.querySelector<HTMLElement>('[data-article-toast]');
-  if (!body || !articleTitle || !tools || !count || !highlightButton || !noteButton || !shareButton || !shelf || !shelfCount || !list || !noteDialog || !noteClose || !noteQuote || !noteInput || !noteCount || !noteStatus || !noteSave || !noteDelete || !toast || typeof noteDialog.showModal !== 'function') return;
+  if (!body || !articleTitle || !tools || !count || !highlightButton || !noteButton || !shareButton || !savedTools || !savedNote || !savedShare || !savedRead || !shelf || !shelfCount || !list || !noteDialog || !noteClose || !noteQuote || !noteInput || !noteCount || !noteStatus || !noteSave || !noteDelete || !readDialog || !readClose || !readQuote || !readNote || !readLocate || !toast || typeof noteDialog.showModal !== 'function' || typeof readDialog.showModal !== 'function') return;
 
   const passageLimit = Number(root.dataset.passageLimit) || PASSAGE_LIMIT;
   const noteLimit = Number(root.dataset.noteLimit) || NOTE_LIMIT;
@@ -76,6 +89,9 @@ function initialize(root: HTMLElement): void {
   try { records = parseAnnotations(window.localStorage.getItem(storageKey)); } catch { /* Memory still works for this visit. */ }
   let current: SelectionInfo | null = null;
   let draft: { anchor: PassageAnchor; id?: string } | undefined;
+  let savedRecord: ArticleAnnotation | null = null;
+  let savedRange: Range | undefined;
+  let readingRecord: ArticleAnnotation | null = null;
   let modalOpen = false;
   let selectionFrame = 0;
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -189,13 +205,13 @@ function initialize(root: HTMLElement): void {
     const highlightWindow = window as HighlightWindow;
     const registry = highlightWindow.CSS?.highlights;
     const Highlight = highlightWindow.Highlight;
-    if (!registry || !Highlight) return;
     const plain: Range[] = [];
     const noted: Range[] = [];
     for (const record of records) {
       const range = locateRecord(record);
       if (range) (record.note ? noted : plain).push(range);
     }
+    if (!registry || !Highlight) return;
     if (plain.length) registry.set(SAVED_HIGHLIGHT, new Highlight(...plain));
     else registry.delete(SAVED_HIGHLIGHT);
     if (noted.length) registry.set(NOTE_HIGHLIGHT, new Highlight(...noted));
@@ -210,6 +226,7 @@ function initialize(root: HTMLElement): void {
   };
   const shareRecord = (record: PassageAnchor & { note: string }) => {
     modalOpen = true;
+    hideSavedTools();
     tools.hidden = true;
     document.dispatchEvent(new CustomEvent('rra:share-passage', { detail: { ...record } }));
   };
@@ -242,6 +259,10 @@ function initialize(root: HTMLElement): void {
       share.type = 'button';
       share.textContent = root.dataset.shareLabel || '';
       share.addEventListener('click', () => shareRecord(record));
+      const read = document.createElement('button');
+      read.type = 'button';
+      read.textContent = root.dataset.readLabel || '';
+      read.addEventListener('click', () => openRead(record));
       const remove = document.createElement('button');
       remove.type = 'button';
       remove.textContent = root.dataset.deleteLabel || '';
@@ -258,12 +279,13 @@ function initialize(root: HTMLElement): void {
         renderAll();
         showToast(root.dataset.annotationDeleted || '');
       });
-      actions.append(edit, share, remove);
+      actions.append(edit, share, read, remove);
       item.append(actions);
       list.append(item);
     }
   };
   function renderAll(): void {
+    if (savedRecord && !records.includes(savedRecord)) hideSavedTools();
     renderHighlights();
     renderShelf();
   }
@@ -271,6 +293,67 @@ function initialize(root: HTMLElement): void {
   const hideTools = () => {
     tools.hidden = true;
     current = null;
+  };
+  const hideSavedTools = () => {
+    savedTools.hidden = true;
+    savedRecord = null;
+    savedRange = undefined;
+  };
+  const positionSavedTools = () => {
+    if (!savedRecord || savedTools.hidden) return;
+    if (window.innerWidth <= 520) {
+      savedTools.style.left = '';
+      savedTools.style.top = '';
+      return;
+    }
+    const range = savedRange || locateRecord(savedRecord);
+    if (!range) { hideSavedTools(); return; }
+    savedRange = range;
+    const rect = range.getBoundingClientRect();
+    const width = savedTools.offsetWidth;
+    const height = savedTools.offsetHeight;
+    const left = Math.max(12, Math.min(window.innerWidth - width - 12, rect.left + rect.width / 2 - width / 2));
+    const above = rect.top - height - 12;
+    const top = above >= 12 ? above : Math.min(window.innerHeight - height - 12, rect.bottom + 12);
+    savedTools.style.left = `${Math.round(left)}px`;
+    savedTools.style.top = `${Math.round(Math.max(12, top))}px`;
+  };
+  const showSavedTools = (record: ArticleAnnotation, range?: Range) => {
+    hideTools();
+    document.getSelection()?.removeAllRanges();
+    savedRecord = record;
+    savedRange = range;
+    savedTools.hidden = false;
+    positionSavedTools();
+  };
+  const recordAtPoint = (x: number, y: number): { record: ArticleAnnotation; range?: Range } | null => {
+    const caretDocument = document as CaretDocument;
+    let node: Node | null = null;
+    let offset = 0;
+    const caretRange = caretDocument.caretRangeFromPoint?.(x, y);
+    if (caretRange) {
+      node = caretRange.startContainer;
+      offset = caretRange.startOffset;
+    } else {
+      const position = caretDocument.caretPositionFromPoint?.(x, y);
+      if (position) { node = position.offsetNode; offset = position.offset; }
+    }
+    if (!node) {
+      const selection = document.getSelection();
+      if (selection?.isCollapsed && selection.rangeCount) {
+        const range = selection.getRangeAt(0);
+        node = range.startContainer;
+        offset = range.startOffset;
+      }
+    }
+    if (!node || node.nodeType !== Node.TEXT_NODE) return null;
+    const point = points.find((entry) => entry.node === node);
+    if (!point) return null;
+    const sourceOffset = point.start + Math.min(offset, point.node.data.length);
+    const record = records
+      .filter((entry) => sourceOffset >= entry.start && sourceOffset < entry.end)
+      .sort((a, b) => (a.end - a.start) - (b.end - b.start) || b.updatedAt - a.updatedAt)[0];
+    return record ? { record, range: locateRecord(record) } : null;
   };
   const positionTools = () => {
     if (!current || tools.hidden) return;
@@ -292,6 +375,7 @@ function initialize(root: HTMLElement): void {
     if (modalOpen) return;
     const selection = document.getSelection();
     if (!selection || selection.isCollapsed || !selection.rangeCount) { hideTools(); return; }
+    hideSavedTools();
     const range = selection.getRangeAt(0);
     const withinBody = body.contains(range.startContainer) && body.contains(range.endContainer);
     if (!withinBody) { hideTools(); return; }
@@ -312,10 +396,11 @@ function initialize(root: HTMLElement): void {
   };
   const scheduleTools = () => {
     cancelAnimationFrame(selectionFrame);
-    selectionFrame = requestAnimationFrame(updateTools);
+    selectionFrame = requestAnimationFrame(() => { updateTools(); positionSavedTools(); });
   };
 
   const openNote = (anchor: PassageAnchor, existing?: ArticleAnnotation): void => {
+    hideSavedTools();
     draft = { anchor, id: existing?.id };
     modalOpen = true;
     tools.hidden = true;
@@ -329,8 +414,22 @@ function initialize(root: HTMLElement): void {
     noteDialog.showModal();
     noteInput.focus();
   };
+  const openRead = (record: ArticleAnnotation): void => {
+    readingRecord = record;
+    readQuote.textContent = record.text;
+    readQuote.lang = body.closest('article')?.getAttribute('lang') || root.lang;
+    readNote.textContent = record.note;
+    readNote.hidden = !record.note;
+    modalOpen = true;
+    hideSavedTools();
+    hideTools();
+    readDialog.showModal();
+  };
 
   tools.addEventListener('pointerdown', (event) => {
+    if ((event.target as Element).closest('button')) event.preventDefault();
+  });
+  savedTools.addEventListener('pointerdown', (event) => {
     if ((event.target as Element).closest('button')) event.preventDefault();
   });
   highlightButton.addEventListener('click', () => {
@@ -349,6 +448,18 @@ function initialize(root: HTMLElement): void {
     if (!current || characterCount(current.text) > passageLimit) return;
     const existing = exactRecord(current);
     shareRecord({ ...current, note: existing?.note || '' });
+  });
+  savedNote.addEventListener('click', () => {
+    const record = savedRecord;
+    if (record) openNote(record, record);
+  });
+  savedShare.addEventListener('click', () => {
+    const record = savedRecord;
+    if (record) shareRecord(record);
+  });
+  savedRead.addEventListener('click', () => {
+    const record = savedRecord;
+    if (record) openRead(record);
   });
   noteInput.addEventListener('input', () => {
     noteCount.textContent = `${characterCount(noteInput.value)} / ${noteLimit} ${root.dataset.countUnit || ''}`;
@@ -379,6 +490,17 @@ function initialize(root: HTMLElement): void {
     document.getSelection()?.removeAllRanges();
     hideTools();
   });
+  readClose.addEventListener('click', () => readDialog.close());
+  readLocate.addEventListener('click', () => {
+    const record = readingRecord;
+    readDialog.close();
+    if (record) scrollToRecord(record);
+  });
+  readDialog.addEventListener('close', () => {
+    modalOpen = false;
+    readingRecord = null;
+    hideTools();
+  });
   document.addEventListener('rra:share-closed', () => {
     modalOpen = false;
     document.getSelection()?.removeAllRanges();
@@ -389,11 +511,28 @@ function initialize(root: HTMLElement): void {
     if (!detail?.text || characterCount(detail.text) > passageLimit) return;
     upsert(detail, detail.note || '');
   });
+  body.addEventListener('click', (event) => {
+    if (modalOpen || event.button !== 0) return;
+    const target = event.target as Element;
+    if (target.closest('a, button, input, textarea, select, summary, pre')) return;
+    const selection = document.getSelection();
+    if (selection && !selection.isCollapsed) { hideSavedTools(); return; }
+    const hit = recordAtPoint(event.clientX, event.clientY);
+    if (hit) showSavedTools(hit.record, hit.range);
+    else hideSavedTools();
+  });
+  document.addEventListener('click', (event) => {
+    if (savedTools.hidden) return;
+    const target = event.target as Node;
+    if (!savedTools.contains(target) && !body.contains(target)) hideSavedTools();
+  });
   document.addEventListener('selectionchange', scheduleTools);
   window.addEventListener('resize', scheduleTools);
   window.addEventListener('scroll', scheduleTools, { passive: true, capture: true });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !modalOpen && !tools.hidden) hideTools();
+    if (event.key !== 'Escape' || modalOpen) return;
+    if (!savedTools.hidden) hideSavedTools();
+    else if (!tools.hidden) hideTools();
   });
   window.addEventListener('storage', (event) => {
     if (event.key !== storageKey) return;

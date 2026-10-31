@@ -324,11 +324,13 @@ cp -a /absolute/path/uploads "$backup/uploads"
 
 **数据库可能包含明文 Notion token 和私有信息**；这不是上面不含密钥的 JSON 导出。备份与传输需限制权限、使用可信的加密方式并妥善保存密钥，绝不能提交到 Git、静态发布目录或发送给他人。`.env` 与平台环境变量不在这份备份里，应在目标安全重设；保留旧站并实际测试恢复后才能确认迁移成功。此方法仅适用于有持久磁盘的 Node 动态部署，无法直接恢复到静态 Netlify/Cloudflare。
 
-### 静态部署：Netlify / Cloudflare
+### 静态部署：Netlify / Cloudflare / GitHub Pages
 
 `npm run build:static` 在**构建时**读取 Notion，导出可直接托管的 `static-dist/`；它不是 SSR 的无服务器适配器。已有 Node 模式不受影响。
 
-1. 在平台的构建环境中设置 `NOTION_TOKEN` 和 `NOTION_DATABASE_ID`。Netlify 未设置 `SITE_URL` 时，静态构建自动使用 Netlify 内置的 `URL`（站点主地址）；Cloudflare 和其他环境必须设置 `SITE_URL`。如需指定自定义域名，可显式设置 `SITE_URL`（公开站点的完整 origin，例如 `https://archive.example`），它优先于 Netlify 的 `URL`。此地址用于 canonical、RSS、sitemap 等，必须是不含路径的 HTTP(S) origin；设置自定义域名或地址改变后需重新构建。token 是服务端构建密钥，不要提交或放在 `PUBLIC_` 变量中；使用独立的只读 Notion integration 并仅授权需要发布的数据库。
+GitHub Pages 使用 `.github/workflows/deploy-pages.yml`：自动适配 `github.io/<仓库名>/` 项目子路径、生成 `.nojekyll`，并在发布前运行检查。首次 secrets、Pages 设置、自定义域名和功能限制见 [docs/DEPLOYMENT.md → GitHub Pages 静态站](docs/DEPLOYMENT.md#github-pages-静态站)。
+
+1. 在平台的构建环境中设置 `NOTION_TOKEN` 和 `NOTION_DATABASE_ID`。Netlify 未设置 `SITE_URL` 时，静态构建自动使用 Netlify 内置的 `URL`（站点主地址）；GitHub Pages 工作流自动设置公开 origin 和项目子路径；Cloudflare 和其他手动构建环境必须设置 `SITE_URL`。如需指定自定义域名，可显式设置 `SITE_URL`（公开站点的完整 origin，例如 `https://archive.example`），它优先于 Netlify 的 `URL`。此地址用于 canonical、RSS、sitemap 等，必须是不含路径的 HTTP(S) origin；设置自定义域名或地址改变后需重新构建。token 是服务端构建密钥，不要提交或放在 `PUBLIC_` 变量中；使用独立的只读 Notion integration 并仅授权需要发布的数据库。
 2. 数据库必须有可识别的标题列和 Published 列（checkbox、status/select 或 formula），构建会拒绝缺少发布列的数据库，避免将全部页面意外公开。先在 Notion 确认草稿未发布，再触发构建。
 3. Netlify 自动读取仓库的 `netlify.toml`。Cloudflare Workers 的 **Static Assets** 或 Cloudflare Pages 选择 Git 仓库后，将构建命令设为 `npm run build:static`、输出目录设为 `static-dist`、Node 版本设为 **22.23.4**（可用构建环境变量 `NODE_VERSION`）。不需要绑定 D1/R2 或安装 Astro Workers adapter。
 4. Netlify 的 Deploy Preview 和分支部署默认也使用站点主地址 `URL`，而不是临时预览地址；要使用其他 canonical 地址可按构建上下文设置 `SITE_URL`。Deploy Preview 若两个 Notion 变量都未提供，会生成明显标注 **DEMO PREVIEW**、禁止索引的演示站点；只设置其中一个仍会失败，设置 `STATIC_DEMO=0` 可关闭预览回退。有完整凭据时预览构建真实文章。生产环境不会因缺少凭据自动使用演示内容。检查 Notion 密钥的构建作用域和上下文，**不要向不可信的 PR/预览构建提供生产凭据**；即使生成演示内容，也无法阻止 PR 自己的构建脚本读取已注入的密钥。
@@ -357,7 +359,7 @@ cp -a /absolute/path/uploads "$backup/uploads"
 
 动态 Node 版 `/admin → Settings → Export site profile` 下载 `site-profile.json`（导出的是上次保存的值，不含 Notion token、数据库 ID、后台 token、More 内容或上传文件）。在另一 Node 版的 Settings 选择 **Import site profile** 可直接保存，空字段回退到目标环境变量或内置默认值；Notion 凭据仍须在目标环境安全配置。
 
-静态 Netlify/Cloudflare **没有在线后台**。可访问 `/profile-editor.html` 在浏览器本地导入、编辑和下载相同格式的 JSON；它不会保存到网站。将导出的 `site-profile.json` 放到 Git 仓库根目录（不是 `public/`），提交后触发部署；构建时自动导入到隔离的临时数据库，每次构建都会读取。迁移时将同一文件带到新站点仓库根目录，再分别设置平台构建所需的 `SITE_URL`（Netlify 可自动检测）、Notion token 和数据库 ID。也可通过构建环境变量 `SITE_PROFILE_PATH` 指定相对于仓库根目录的其他文件路径，建议同时设置 `SITE_PROFILE_PATH=site-profile.json`，这样文件意外缺失时会让构建失败，而不是悄悄回到默认值；指定文件格式错误也会让构建失败。文件本身不会被复制到站点产物，但字段内容会显示在公开页面/RSS 中；不要放任何密码或私人内容，公开仓库中根目录文件本身也是公开的。备份原文件；更改 JSON 后仍须重新构建，不能实时更新。
+静态部署**没有文章或设置管理后台**；Netlify 可另用 Functions 管理订阅与统计，GitHub Pages 不提供这些服务端模块。各静态主机都可访问 `/profile-editor.html` 在浏览器本地导入、编辑和下载相同格式的 JSON；它不会保存到网站。将导出的 `site-profile.json` 放到 Git 仓库根目录（不是 `public/`），提交后触发部署；构建时自动导入到隔离的临时数据库，每次构建都会读取。迁移时将同一文件带到新站点仓库根目录，再分别设置平台构建所需的 `SITE_URL`（Netlify 可自动检测）、Notion token 和数据库 ID。也可通过构建环境变量 `SITE_PROFILE_PATH` 指定相对于仓库根目录的其他文件路径，建议同时设置 `SITE_PROFILE_PATH=site-profile.json`，这样文件意外缺失时会让构建失败，而不是悄悄回到默认值；指定文件格式错误也会让构建失败。文件本身不会被复制到站点产物，但字段内容会显示在公开页面/RSS 中；不要放任何密码或私人内容，公开仓库中根目录文件本身也是公开的。备份原文件；更改 JSON 后仍须重新构建，不能实时更新。
 
 该 JSON 仅覆盖网站名、联系邮箱、中英文简介/引言/标语、首页信息栏和标签对照，**不包含** More 内容、文章、上传文件、雕像模型或任何凭据，不是完整站点备份（静态部署要带上 More 和图片请用上文的内容包）。格式版本为 2（新增首页信息栏）；旧的版本 1 文件仍可导入，信息栏视为留空（使用内置默认）。Node 动态版仍应同时备份数据库与上传目录。
 

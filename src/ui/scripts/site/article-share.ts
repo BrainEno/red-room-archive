@@ -46,8 +46,10 @@ function initialize(root: HTMLElement): void {
   const note = root.querySelector<HTMLTextAreaElement>('[data-share-note]');
   const clear = root.querySelector<HTMLButtonElement>('[data-share-clear]');
   const copyPassage = root.querySelector<HTMLButtonElement>('[data-share-copy-passage]');
+  const bluesky = root.querySelector<HTMLAnchorElement>('[data-share-bluesky]');
   const coverOption = root.querySelector<HTMLInputElement>('[data-share-cover]');
-  if (!open || !dialog || !close || !canvas || !status || !nativeShare || !download || !copy || !passage || !quote || !note || !clear || !copyPassage || typeof dialog.showModal !== 'function') return;
+  if (!open || !dialog || !close || !canvas || !status || !nativeShare || !download || !copy || !passage || !quote || !note || !clear || !copyPassage || !bluesky || typeof dialog.showModal !== 'function') return;
+  const previewLabel = canvas.getAttribute('aria-label') || '';
 
   root.removeAttribute('data-pending');
   let selection: PassageDetail | null = null;
@@ -58,13 +60,17 @@ function initialize(root: HTMLElement): void {
   let noteTimer: ReturnType<typeof setTimeout> | undefined;
   let noteDirty = false;
   const filename = () => `${(root.dataset.slug || 'article').replace(/[^a-z0-9_-]+/gi, '-')}${selection ? '-passage' : ''}-share.png`;
-  const shareUrl = (): string => {
+  const articleUrl = (): string => {
     const url = new URL(window.location.href);
     url.hash = '';
-    if (!selection) return url.href;
-    const text = selection.text.replace(/\s+/gu, ' ').trim();
-    return `${url.href}#:~:text=${encodeURIComponent(text)}`;
+    return url.href;
   };
+  const shareUrl = (): string => {
+    if (!selection) return articleUrl();
+    const text = selection.text.replace(/\s+/gu, ' ').trim();
+    return `${articleUrl()}#:~:text=${encodeURIComponent(text)}`;
+  };
+  bluesky.href = `https://bsky.app/intent/compose?text=${encodeURIComponent(articleUrl())}`;
   const watermark = (text: string): string => watermarkedCopy(text, {
     title: root.dataset.title || document.title,
     siteName: root.dataset.site || '',
@@ -133,7 +139,7 @@ function initialize(root: HTMLElement): void {
         date: root.dataset.date || '',
         siteName: root.dataset.site || '',
         tags: root.dataset.tags || '',
-        hostname: window.location.hostname,
+        articleUrl: articleUrl(),
         locale: root.lang || document.documentElement.lang || 'en',
         quote: selection?.text,
         note: selection ? note.value.trim() : undefined,
@@ -143,6 +149,7 @@ function initialize(root: HTMLElement): void {
         coverWidth: cover?.naturalWidth,
         coverHeight: cover?.naturalHeight,
       })) throw new Error('Canvas is unavailable');
+      canvas.setAttribute('aria-label', [previewLabel, root.dataset.title, selection?.text, selection ? note.value.trim() : '', articleUrl()].filter(Boolean).join('. '));
       const blob = await shareCardPng(canvas);
       if (run !== revision) return null;
       let file: File | undefined;
@@ -202,7 +209,7 @@ function initialize(root: HTMLElement): void {
     noteDirty = true;
     invalidate();
     clearTimeout(noteTimer);
-    noteTimer = setTimeout(() => { persistNote(); if (dialog.open) void prepare(); }, 180);
+    noteTimer = setTimeout(() => { persistNote(); if (dialog.open) void prepare(); }, 100);
   });
   coverOption?.addEventListener('change', () => { invalidate(); void prepare(); });
   download.addEventListener('click', async () => {
