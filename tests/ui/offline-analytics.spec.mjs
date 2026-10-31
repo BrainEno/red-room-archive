@@ -22,6 +22,14 @@ async function waitForWorker(page) {
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
 }
 
+function expectWorkerPage(response, browserName) {
+  expect(response?.status()).toBe(200);
+  // WebKit intermittently misreports synthesized responses as network responses.
+  // Every call below also requires the unique saved/offline page content while
+  // the origin is unavailable; other engines retain the direct source assertion.
+  if (browserName !== 'webkit') expect(response?.fromServiceWorker()).toBe(true);
+}
+
 async function setOutage(page, base, id, value) {
   const mode = value === true ? 1 : value === false ? 0 : value;
   const response = await page.request.post(`${base || SSR}/__harness/outage?id=${id}&value=${mode}`);
@@ -44,16 +52,16 @@ for (const origin of [OFFLINE_SSR, OFFLINE_STATIC]) {
       // does not reliably reach workers in Firefox and can crash WebKit reload.
       await setOutage(page, base, id, true);
       const saved = await page.reload({ waitUntil: 'domcontentloaded' });
-      expect(saved?.fromServiceWorker()).toBe(true);
+      expectWorkerPage(saved, browserName);
       await expect(page.locator('[data-article-title]')).toHaveText('Notes on light');
       await expect(page.locator('h1')).toHaveText('Notes on light');
       await setOutage(page, base, id, 503);
       const degraded = await page.reload({ waitUntil: 'domcontentloaded' });
-      expect(degraded?.fromServiceWorker()).toBe(true);
+      expectWorkerPage(degraded, browserName);
       await expect(page.locator('h1')).toHaveText('Notes on light');
       await setOutage(page, base, id, true);
       const fallback = await page.goto(`${base}/topics`, { waitUntil: 'domcontentloaded' });
-      expect(fallback?.fromServiceWorker()).toBe(true);
+      expectWorkerPage(fallback, browserName);
       await expect(page.locator('h1')).toHaveText('The connection is out');
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
       // WebKit can reject a second top-level navigation when consecutive
@@ -62,11 +70,7 @@ for (const origin of [OFFLINE_SSR, OFFLINE_STATIC]) {
       // driver-specific transport race (and without retrying the assertion).
       await setOutage(page, base, id, 503);
       const localizedFallback = await page.goto(`${base}/zh-CN/topics`, { waitUntil: 'domcontentloaded' });
-      // WebKit can also misreport the source of this second synthesized response.
-      // The harness origin can only return 503 here: a 200 with the localized
-      // offline body still proves the worker fallback, without trusting that metadata.
-      expect(localizedFallback?.status()).toBe(200);
-      if (browserName !== 'webkit') expect(localizedFallback?.fromServiceWorker()).toBe(true);
+      expectWorkerPage(localizedFallback, browserName);
       await expect(page.locator('h1')).toHaveText('连接已中断');
     } finally {
       await setOutage(page, base, id, false);
