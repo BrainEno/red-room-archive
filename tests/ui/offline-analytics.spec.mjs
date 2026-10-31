@@ -3,6 +3,8 @@ import AxeBuilder from '@axe-core/playwright';
 
 const SSR = 'http://127.0.0.1:4178';
 const STATIC = 'http://127.0.0.1:4179';
+const OFFLINE_SSR = 'http://127.0.0.1:4182';
+const OFFLINE_STATIC = 'http://127.0.0.1:4183';
 const json = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 const summary = (enabled = true) => ({
   enabled, storage: 'netlify-blobs', retentionDays: 90,
@@ -26,11 +28,11 @@ async function setOutage(page, base, id, value) {
   expect(response.status()).toBe(204);
 }
 
-for (const origin of ['', STATIC]) {
-  test(`offline reload and uncached fallback (${origin ? 'static' : 'SSR'})`, async ({ page }) => {
-    const base = origin || '';
-    const id = `offline-${origin ? 'static' : 'ssr'}-${test.info().project.name}-${test.info().workerIndex}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-    await page.context().addCookies([{ name: 'rra_harness_outage', value: id, url: base || SSR }]);
+for (const origin of [OFFLINE_SSR, OFFLINE_STATIC]) {
+  test(`offline reload and uncached fallback (${origin === OFFLINE_STATIC ? 'static' : 'SSR'})`, async ({ page }) => {
+    const base = origin;
+    // These exclusive origins are used only by this sequential test file.
+    const id = 'exclusive';
     await setOutage(page, base, id, false);
     try {
       await page.goto(`${base}/articles/notes-on-light`, { waitUntil: 'networkidle' });
@@ -55,11 +57,7 @@ for (const origin of ['', STATIC]) {
       await expect(page.locator('h1')).toHaveText('The connection is out');
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
       const localizedFallback = await page.goto(`${base}/zh-CN/topics`, { waitUntil: 'domcontentloaded' });
-      const diagnostics = localizedFallback ? JSON.stringify({
-        url: localizedFallback.url(), status: localizedFallback.status(),
-        headers: await localizedFallback.allHeaders(), h1: await page.locator('h1').textContent(),
-      }) : 'no navigation response';
-      expect(localizedFallback?.fromServiceWorker(), diagnostics).toBe(true);
+      expect(localizedFallback?.fromServiceWorker()).toBe(true);
       await expect(page.locator('h1')).toHaveText('连接已中断');
     } finally {
       await setOutage(page, base, id, false);
