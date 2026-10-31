@@ -21,6 +21,11 @@ async function selectPassage(page, length = 42) {
   }, length);
 }
 
+async function clickSavedPassage(page) {
+  await page.locator('.article-body p').first().click({ position: { x: 12, y: 12 } });
+  await expect(page.locator('[data-saved-tools]')).toBeVisible();
+}
+
 async function dispatchCopy(page) {
   return page.evaluate(() => {
     const clipboardData = new DataTransfer();
@@ -59,8 +64,8 @@ for (const mode of ['ssr', 'static']) {
     await expect(page.locator('.annotation-quote')).toHaveText(selected);
     expect(await storedRecords(page)).toHaveLength(1);
 
-    await selectPassage(page);
-    await page.locator('[data-selection-note]').click();
+    await clickSavedPassage(page);
+    await page.locator('[data-saved-note]').click();
     const noteDialog = page.locator('[data-note-dialog]');
     await expect(noteDialog).toBeVisible();
     if (mode === 'ssr') {
@@ -72,10 +77,20 @@ for (const mode of ['ssr', 'static']) {
     await expect(noteDialog).not.toBeVisible();
     await expect.poll(async () => (await storedRecords(page))[0]?.note).toBe('A private reading note');
 
-    await selectPassage(page);
-    await page.locator('[data-selection-share]').click();
+    await clickSavedPassage(page);
+    await page.locator('[data-saved-read]').click();
+    const readDialog = page.locator('[data-read-dialog]');
+    await expect(readDialog).toBeVisible();
+    await expect(page.locator('[data-read-quote]')).toHaveText(selected);
+    await expect(page.locator('[data-read-note]')).toHaveText('A private reading note');
+    await page.locator('[data-read-close]').click();
+    await expect(readDialog).not.toBeVisible();
+
+    await clickSavedPassage(page);
+    await page.locator('[data-saved-share]').click();
     const shareDialog = page.locator('[data-share-dialog]');
     await expect(shareDialog).toBeVisible();
+    await expect(page.locator('.share-preview-label')).toContainText('Card preview');
     await expect(page.locator('[data-share-quote]')).toHaveText(selected);
     await expect(page.locator('[data-share-note]')).toHaveValue('A private reading note');
     const downloadButton = page.locator('[data-share-download]');
@@ -85,6 +100,7 @@ for (const mode of ['ssr', 'static']) {
     await expect(downloadButton).toBeEnabled({ timeout: 15_000 });
     await expect.poll(async () => (await storedRecords(page))[0]?.note).toBe('A note for the card');
     await expect.poll(() => page.locator('[data-share-canvas]').evaluate((canvas) => canvas.toDataURL())).not.toBe(beforeNote);
+    await expect(page.locator('[data-share-canvas]')).toHaveAttribute('aria-label', /A note for the card/);
 
     await page.evaluate(() => {
       window.__copiedAnnotation = '';

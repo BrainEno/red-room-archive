@@ -5,7 +5,8 @@ import AxeBuilder from '@axe-core/playwright';
 for (const mode of ['ssr', 'static']) {
   const base = mode === 'ssr' ? '' : 'http://127.0.0.1:4179';
   test(`${mode}: article generates a real PNG card, downloads it and copies the clean URL`, async ({ page }) => {
-    await page.goto(`${base}/articles/connect-notion#reader`);
+    const articleUrl = `${base || 'http://127.0.0.1:4178'}/articles/connect-notion`;
+    await page.goto(`${articleUrl}#reader`);
     await page.evaluate(() => {
       window.__copiedShareUrl = '';
       Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => { window.__copiedShareUrl = text; } } });
@@ -15,6 +16,11 @@ for (const mode of ['ssr', 'static']) {
     await open.click();
     const dialog = page.locator('[data-share-dialog]');
     await expect(dialog).toBeVisible();
+    await expect(page.locator('.share-preview-label')).toContainText('Card preview');
+    await expect(page.locator('[data-share-bluesky]')).toHaveAttribute('href', `https://bsky.app/intent/compose?text=${encodeURIComponent(articleUrl)}`);
+    expect(await page.locator('meta[property="og:title"]').getAttribute('content')).toBeTruthy();
+    expect(await page.locator('meta[property="og:description"]').getAttribute('content')).toBeTruthy();
+    expect(await page.locator('meta[property="og:image"]').getAttribute('content')).toBeTruthy();
     const downloadButton = page.locator('[data-share-download]');
     await expect(downloadButton).toBeEnabled({ timeout: 15_000 });
     const canvas = page.locator('[data-share-canvas]');
@@ -41,7 +47,7 @@ for (const mode of ['ssr', 'static']) {
     expect(bytes.length).toBeLessThan(1_000_000);
     await page.locator('[data-share-copy]').click();
     await expect(page.locator('[data-share-status]')).toHaveText('Link copied.');
-    expect(await page.evaluate(() => window.__copiedShareUrl)).toBe(`${base || 'http://127.0.0.1:4178'}/articles/connect-notion`);
+    expect(await page.evaluate(() => window.__copiedShareUrl)).toBe(articleUrl);
     await page.evaluate(() => {
       Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('permission denied'); } } });
       Object.defineProperty(document, 'execCommand', { configurable: true, value: (command) => {
@@ -50,7 +56,7 @@ for (const mode of ['ssr', 'static']) {
       } });
     });
     await page.locator('[data-share-copy]').click();
-    expect(await page.evaluate(() => window.__fallbackShareUrl)).toBe(`${base || 'http://127.0.0.1:4178'}/articles/connect-notion`);
+    expect(await page.evaluate(() => window.__fallbackShareUrl)).toBe(articleUrl);
     await expect(page.locator('[data-share-copy]')).toBeFocused();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
     await page.keyboard.press('Escape');

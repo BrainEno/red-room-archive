@@ -46,16 +46,21 @@ const t = messages(locale).article;
       <textarea id="share-note-input" data-share-note maxlength={NOTE_LIMIT} rows="3" placeholder={t.notePlaceholder}></textarea>
       <p>{t.localAnnotations}</p>
     </div>
-    <canvas class="share-canvas" data-share-canvas width="1200" height="630" role="img" aria-label={t.cardPreview}></canvas>
+    <div class="share-preview">
+      <div class="share-preview-label"><span>{t.previewTitle}</span><span id="share-preview-live">{t.previewLive}</span></div>
+      <canvas class="share-canvas" data-share-canvas width="1200" height="630" role="img" aria-label={t.cardPreview} aria-describedby="share-preview-live"></canvas>
+    </div>
     {cover && <label class="share-cover-option"><input type="checkbox" data-share-cover checked /><span>{t.includeCover}</span></label>}
     <div class="share-dialog-foot">
       <p class="share-status" role="status" aria-live="polite" data-share-status>{t.cardSize}</p>
       <div class="share-actions">
         <button type="button" class="share-primary" data-share-native hidden>{t.shareCard}</button>
+        <a data-share-bluesky target="_blank" rel="noopener noreferrer">{t.shareBluesky}</a>
         <button type="button" data-share-download disabled>{t.downloadCard}</button>
         <button type="button" data-share-copy-passage hidden>{t.copyPassage}</button>
         <button type="button" data-share-copy>{t.copyLink}</button>
       </div>
+      <p class="share-link-hint">{t.linkPreviewHint}</p>
     </div>
   </dialog>
 </div>

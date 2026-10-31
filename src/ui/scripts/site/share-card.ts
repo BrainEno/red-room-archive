@@ -1,5 +1,6 @@
 export const SHARE_CARD_WIDTH = 1200;
 export const SHARE_CARD_HEIGHT = 630;
+export const SHARE_CARD_TEXT_LIMIT = 200;
 
 export interface ShareCardData {
   title: string;
@@ -7,9 +8,10 @@ export interface ShareCardData {
   date: string;
   siteName: string;
   tags: string;
-  hostname: string;
+  /** Canonical article address, without a text fragment or local note. */
+  articleUrl: string;
   locale: string;
-  /** Optional passage / reader note mode; the ordinary article card stays unchanged. */
+  /** Optional passage / reader note mode; the ordinary article card stays available. */
   quote?: string;
   note?: string;
   passageLabel?: string;
@@ -21,6 +23,8 @@ export interface ShareCardData {
 }
 
 type TextMeasurer = Pick<CanvasRenderingContext2D, 'measureText'>;
+type CardTextContext = Pick<CanvasRenderingContext2D, 'measureText' | 'font'>;
+type BlockKind = 'title' | 'quote' | 'body' | 'note' | 'meta' | 'url';
 
 function segments(text: string, locale: string, granularity: 'word' | 'grapheme'): string[] {
   if (typeof Intl.Segmenter === 'function') {
@@ -29,16 +33,9 @@ function segments(text: string, locale: string, granularity: 'word' | 'grapheme'
   return Array.from(text);
 }
 
-/** Wrap by words where possible, and by Unicode code points for long CJK or unbroken runs. */
-export function wrapCardText(
-  context: TextMeasurer,
-  value: string,
-  maxWidth: number,
-  maxLines: number,
-  locale = 'en',
-): string[] {
+function allLines(context: TextMeasurer, value: string, maxWidth: number, locale: string): string[] {
   const text = value.replace(/\s+/gu, ' ').trim();
-  if (!text || maxLines < 1) return [];
+  if (!text) return [];
   const lines: string[] = [];
   let line = '';
   for (const token of segments(text, locale, 'word')) {
@@ -60,6 +57,40 @@ export function wrapCardText(
     }
   }
   if (line.trim()) lines.push(line.trim());
+  // Avoid a final orphaned punctuation mark or one-character CJK line. Move
+  // whole word segments from the previous line instead of shrinking everything.
+  if (lines.length > 1) {
+    const last = lines[lines.length - 1]!;
+    if (segments(last, locale, 'grapheme').length <= 2) {
+      const previousTokens = segments(lines[lines.length - 2]!, locale, 'word');
+      const moved: string[] = [];
+      let movedLength = 0;
+      while (previousTokens.length && movedLength < 10) {
+        const token = previousTokens.pop()!;
+        moved.unshift(token);
+        movedLength += segments(token, locale, 'grapheme').length;
+      }
+      const previous = previousTokens.join('').trimEnd();
+      const tail = `${moved.join('').trimStart()}${last}`;
+      if (previous && moved.length && context.measureText(tail).width <= maxWidth) {
+        lines[lines.length - 2] = previous;
+        lines[lines.length - 1] = tail;
+      }
+    }
+  }
+  return lines;
+}
+
+/** Wrap by words where possible, and by graphemes for long CJK or unbroken runs. */
+export function wrapCardText(
+  context: TextMeasurer,
+  value: string,
+  maxWidth: number,
+  maxLines: number,
+  locale = 'en',
+): string[] {
+  if (maxLines < 1) return [];
+  const lines = allLines(context, value, maxWidth, locale);
   const result = lines.slice(0, maxLines);
   if (lines.length > maxLines && result.length) {
     let last = result[result.length - 1];
@@ -73,147 +104,211 @@ function oneLine(context: TextMeasurer, text: string, width: number, locale: str
   return wrapCardText(context, text, width, 1, locale)[0] || '';
 }
 
-function titleFont(size: number): string {
-  return `700 ${size}px "Noto Serif TC", "Songti TC", "PMingLiU", "Times New Roman", serif`;
+function cardFont(kind: BlockKind, size: number): string {
+  if (kind === 'title' || kind === 'quote') return `700 ${size}px "Noto Serif TC", "Songti TC", "PMingLiU", "Times New Roman", serif`;
+  if (kind === 'meta' || kind === 'url') return `${size}px "SFMono-Regular", Consolas, "Liberation Mono", monospace`;
+  return `${size}px "Noto Serif TC", "Songti TC", "PMingLiU", "Times New Roman", serif`;
 }
 
-function fittedLines(context: CanvasRenderingContext2D, value: string, width: number, maxLines: number, locale: string, start: number, minimum: number): { lines: string[]; size: number } {
-  let size = start;
-  let lines: string[] = [];
-  while (size >= minimum) {
-    context.font = titleFont(size);
-    lines = wrapCardText(context, value, width, maxLines, locale);
-    if (!lines.at(-1)?.endsWith('…') || size === minimum) break;
-    size -= 4;
+interface CardBlock {
+  text: string;
+  kind: BlockKind;
+  startSize: number;
+  minimumSize: number;
+  lineHeight: number;
+  gapAfter?: number;
+  label?: string;
+  indent?: number;
+  rawLength?: number;
+  truncateAfter?: number;
+}
+
+interface CardLayout extends CardBlock {
+  lines: string[];
+  size: number;
+  lineHeightPixels: number;
+  height: number;
+}
+
+const lengthOf = (value: string): number => Array.from(value).length;
+
+function layoutAt(
+  context: CardTextContext,
+  blocks: CardBlock[],
+  sizes: number[],
+  width: number,
+  locale: string,
+): { layouts: CardLayout[]; height: number } {
+  let height = 0;
+  const layouts = blocks.map((block, index) => {
+    const size = sizes[index]!;
+    context.font = cardFont(block.kind, size);
+    const lines = allLines(context, block.text, width - (block.indent || 0), locale);
+    const lineHeightPixels = Math.max(12, Math.round(size * block.lineHeight));
+    const blockHeight = (block.label ? 25 : 0) + lines.length * lineHeightPixels + (index < blocks.length - 1 ? block.gapAfter || 0 : 0);
+    height += blockHeight;
+    return { ...block, lines, size, lineHeightPixels, height: blockHeight };
+  });
+  return { layouts, height };
+}
+
+/**
+ * Fit complete text before considering an ellipsis. Reader excerpts/passages up
+ * to 200 characters are never cut; notes use their existing 280-character
+ * allowance. Only an over-limit block can lose lines in the final fallback.
+ */
+function fitBlocks(
+  context: CardTextContext,
+  blocks: CardBlock[],
+  width: number,
+  availableHeight: number,
+  locale: string,
+): CardLayout[] {
+  const normalMinimum = Math.max(...blocks.map((block) => block.minimumSize));
+  const canTruncate = blocks.some((block) => (block.rawLength ?? lengthOf(block.text)) > (block.truncateAfter ?? SHARE_CARD_TEXT_LIMIT));
+  const floor = canTruncate ? normalMinimum : 10;
+  for (let reduction = 0; reduction <= 100; reduction += 2) {
+    const sizes = blocks.map((block) => Math.max(canTruncate ? block.minimumSize : 10, block.startSize - reduction));
+    const result = layoutAt(context, blocks, sizes, width, locale);
+    if (result.height <= availableHeight) return result.layouts;
+    if (sizes.every((size, index) => size <= (canTruncate ? blocks[index]!.minimumSize : floor))) break;
   }
-  return { lines, size };
+
+  const sizes = blocks.map((block) => canTruncate ? block.minimumSize : 10);
+  const result = layoutAt(context, blocks, sizes, width, locale);
+  let remainingHeight = result.height;
+  for (let index = result.layouts.length - 1; index >= 0 && remainingHeight > availableHeight; index--) {
+    const layout = result.layouts[index]!;
+    const rawLength = layout.rawLength ?? lengthOf(layout.text);
+    if (rawLength <= (layout.truncateAfter ?? SHARE_CARD_TEXT_LIMIT)) continue;
+    while (layout.lines.length > 1 && remainingHeight > availableHeight) {
+      context.font = cardFont(layout.kind, layout.size);
+      const nextLines = wrapCardText(context, layout.text, width - (layout.indent || 0), layout.lines.length - 1, locale);
+      const nextHeight = layout.height - layout.lineHeightPixels;
+      layout.lines = nextLines;
+      remainingHeight -= layout.height - nextHeight;
+      layout.height = nextHeight;
+    }
+  }
+  return result.layouts;
+}
+
+function drawBlocks(
+  context: CanvasRenderingContext2D,
+  layouts: CardLayout[],
+  x: number,
+  y: number,
+): void {
+  let cursor = y;
+  for (const layout of layouts) {
+    const indent = layout.indent || 0;
+    if (layout.kind === 'note') {
+      context.fillStyle = 'rgba(244,237,227,0.035)';
+      context.fillRect(x - 12, cursor - 12, 1068, layout.height + 18);
+      context.fillStyle = '#ff2b3d';
+      context.fillRect(x - 12, cursor - 12, 3, layout.height + 18);
+    }
+    if (layout.label) {
+      context.font = '16px "SFMono-Regular", Consolas, "Liberation Mono", monospace';
+      context.fillStyle = '#e7a395';
+      context.fillText(layout.label, x + indent, cursor);
+      cursor += 25;
+    }
+    context.font = cardFont(layout.kind, layout.size);
+    context.fillStyle = layout.kind === 'body' || layout.kind === 'note' ? 'rgba(244,237,227,0.76)' : layout.kind === 'meta' || layout.kind === 'url' ? 'rgba(244,237,227,0.62)' : '#f4ede3';
+    for (const line of layout.lines) {
+      context.fillText(line, x + indent, cursor);
+      cursor += layout.lineHeightPixels;
+    }
+    cursor += layout.gapAfter || 0;
+  }
 }
 
 function drawCover(context: CanvasRenderingContext2D, data: ShareCardData): void {
   const naturalWidth = data.coverWidth || 0;
   const naturalHeight = data.coverHeight || 0;
   if (!data.cover || naturalWidth <= 0 || naturalHeight <= 0) return;
-  const x = 840; const y = 0; const width = 360; const height = SHARE_CARD_HEIGHT;
-  const scale = Math.max(width / naturalWidth, height / naturalHeight);
-  const sourceWidth = width / scale;
-  const sourceHeight = height / scale;
+  const scale = Math.max(SHARE_CARD_WIDTH / naturalWidth, SHARE_CARD_HEIGHT / naturalHeight);
+  const sourceWidth = SHARE_CARD_WIDTH / scale;
+  const sourceHeight = SHARE_CARD_HEIGHT / scale;
   const sourceX = (naturalWidth - sourceWidth) / 2;
   const sourceY = (naturalHeight - sourceHeight) / 2;
   context.save();
-  context.beginPath();
-  context.rect(x, y, width, height);
-  context.clip();
-  context.drawImage(data.cover, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
-  const shade = context.createLinearGradient(x, 0, x + 150, 0);
-  shade.addColorStop(0, '#0a0506');
-  shade.addColorStop(1, 'rgba(10,5,6,0)');
+  context.drawImage(data.cover, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, SHARE_CARD_WIDTH, SHARE_CARD_HEIGHT);
+  context.fillStyle = 'rgba(10,5,6,0.68)';
+  context.fillRect(0, 0, SHARE_CARD_WIDTH, SHARE_CARD_HEIGHT);
+  const shade = context.createLinearGradient(0, 0, SHARE_CARD_WIDTH, 0);
+  shade.addColorStop(0, 'rgba(10,5,6,0.68)');
+  shade.addColorStop(0.62, 'rgba(10,5,6,0.22)');
+  shade.addColorStop(1, 'rgba(10,5,6,0.08)');
   context.fillStyle = shade;
-  context.fillRect(x, y, 150, height);
+  context.fillRect(0, 0, SHARE_CARD_WIDTH, SHARE_CARD_HEIGHT);
   context.restore();
-  context.strokeStyle = 'rgba(244,237,227,0.18)';
-  context.beginPath();
-  context.moveTo(840, 42);
-  context.lineTo(840, 588);
-  context.stroke();
 }
 
-/** A self-contained drawing: local fonts and an optional already loaded, CORS-safe cover. */
+/** A self-contained editorial card with a live-preview counterpart in the dialog. */
 export function drawShareCard(canvas: HTMLCanvasElement, data: ShareCardData): boolean {
   canvas.width = SHARE_CARD_WIDTH;
   canvas.height = SHARE_CARD_HEIGHT;
   const context = canvas.getContext('2d');
   if (!context) return false;
-  context.textBaseline = 'alphabetic';
+  context.textBaseline = 'top';
+  context.textAlign = 'left';
   context.fillStyle = '#0a0506';
   context.fillRect(0, 0, canvas.width, canvas.height);
 
-  const glow = context.createRadialGradient(80, 160, 0, 80, 160, 520);
-  glow.addColorStop(0, 'rgba(255,43,61,0.13)');
+  const hasCover = Boolean(data.cover && (data.coverWidth || 0) > 0 && (data.coverHeight || 0) > 0);
+  if (hasCover) drawCover(context, data);
+  const glow = context.createRadialGradient(72, 140, 0, 72, 140, 560);
+  glow.addColorStop(0, 'rgba(255,43,61,0.14)');
   glow.addColorStop(1, 'rgba(255,43,61,0)');
   context.fillStyle = glow;
   context.fillRect(0, 0, canvas.width, canvas.height);
-  const hasCover = Boolean(data.cover && (data.coverWidth || 0) > 0 && (data.coverHeight || 0) > 0);
-  if (hasCover) drawCover(context, data);
-  context.strokeStyle = 'rgba(244,237,227,0.18)';
-  context.lineWidth = 2;
-  context.strokeRect(41, 41, 1118, 548);
+  context.strokeStyle = 'rgba(244,237,227,0.22)';
+  context.lineWidth = 1;
+  context.strokeRect(36.5, 36.5, 1127, 557);
 
-  const contentWidth = hasCover ? 680 : 1000;
-  const contentRight = hasCover ? 760 : 1120;
-  context.font = '800 30px "Archivo Variable", "Red Room Display SC", sans-serif';
+  const x = 72;
+  const width = 1056;
+  context.font = '800 27px "Archivo Variable", "Red Room Display SC", sans-serif';
   context.fillStyle = '#f4ede3';
-  context.fillText(oneLine(context, data.siteName, hasCover ? 400 : 760, data.locale), 80, 105);
+  context.fillText(oneLine(context, data.siteName, 720, data.locale), x, 62);
   if (data.date) {
-    context.font = '24px "SFMono-Regular", Consolas, "Liberation Mono", monospace';
-    context.fillStyle = 'rgba(244,237,227,0.58)';
+    context.font = '20px "SFMono-Regular", Consolas, "Liberation Mono", monospace';
+    context.fillStyle = 'rgba(244,237,227,0.62)';
     context.textAlign = 'right';
-    context.fillText(oneLine(context, data.date, 260, data.locale), contentRight, 103);
+    context.fillText(oneLine(context, data.date, 280, data.locale), 1128, 66);
     context.textAlign = 'left';
   }
-
-  context.save();
+  context.font = '17px "SFMono-Regular", Consolas, "Liberation Mono", monospace';
+  context.fillStyle = '#e7a395';
+  const overline = data.quote ? data.passageLabel || (data.locale.startsWith('zh') ? '选段' : 'SELECTED PASSAGE') : data.tags;
+  if (overline) context.fillText(oneLine(context, overline, width, data.locale), x, 112);
   context.fillStyle = '#ff2b3d';
-  context.shadowColor = 'rgba(255,43,61,0.7)';
-  context.shadowBlur = 24;
-  context.fillRect(78, 143, 5, 42);
-  context.restore();
+  context.fillRect(x, 140, 34, 3);
 
-  if (data.quote) {
-    context.font = '18px "SFMono-Regular", Consolas, "Liberation Mono", monospace';
-    context.fillStyle = '#e7a395';
-    context.fillText(oneLine(context, data.passageLabel || (data.locale.startsWith('zh') ? '选段' : 'SELECTED PASSAGE'), contentWidth - 24, data.locale), 100, 168);
-    context.font = '24px "Archivo Variable", "Red Room Display SC", sans-serif';
-    context.fillStyle = 'rgba(244,237,227,0.62)';
-    context.fillText(oneLine(context, data.title || data.siteName, contentWidth, data.locale), 80, 215);
+  const blocks: CardBlock[] = data.quote
+    ? [
+        { text: data.title || data.siteName, kind: 'meta', startSize: 22, minimumSize: 16, lineHeight: 1.3, gapAfter: 16, truncateAfter: Number.POSITIVE_INFINITY },
+        { text: `“${data.quote}”`, kind: 'quote', startSize: 42, minimumSize: 18, lineHeight: 1.22, gapAfter: data.note ? 22 : 0, rawLength: lengthOf(data.quote) },
+        ...(data.note ? [{ text: data.note, kind: 'note' as const, startSize: 24, minimumSize: 15, lineHeight: 1.38, label: data.noteLabel || (data.locale.startsWith('zh') ? '笔记' : 'NOTE'), indent: 18, truncateAfter: Number.POSITIVE_INFINITY }] : []),
+      ]
+    : [
+        { text: data.title || data.siteName, kind: 'title', startSize: 64, minimumSize: 28, lineHeight: 1.1, gapAfter: data.excerpt ? 26 : 0 },
+        ...(data.excerpt ? [{ text: data.excerpt, kind: 'body' as const, startSize: 28, minimumSize: 16, lineHeight: 1.42 }] : []),
+      ];
+  const content = fitBlocks(context, blocks, width, 344, data.locale);
+  drawBlocks(context, content, x, 160);
 
-    const quoteSize = data.note ? (hasCover ? 34 : 40) : (hasCover ? 36 : 44);
-    const quote = fittedLines(context, `“${data.quote}”`, contentWidth, data.note ? 4 : 5, data.locale, quoteSize, 26);
-    const lineHeight = Math.round(quote.size * 1.22);
-    context.font = titleFont(quote.size);
-    context.fillStyle = '#f4ede3';
-    quote.lines.forEach((line, index) => context.fillText(line, 80, 272 + index * lineHeight));
-
-    if (data.note && quote.lines.length) {
-      const quoteBottom = 272 + (quote.lines.length - 1) * lineHeight;
-      const labelY = quoteBottom + 38;
-      context.font = '16px "SFMono-Regular", Consolas, "Liberation Mono", monospace';
-      context.fillStyle = '#e7a395';
-      context.fillText(oneLine(context, data.noteLabel || (data.locale.startsWith('zh') ? '笔记' : 'NOTE'), contentWidth, data.locale), 80, labelY);
-      context.font = `${hasCover ? 22 : 24}px "Noto Serif TC", "Songti TC", "PMingLiU", "Times New Roman", serif`;
-      context.fillStyle = 'rgba(244,237,227,0.72)';
-      const notes = wrapCardText(context, data.note, contentWidth, 2, data.locale);
-      notes.forEach((line, index) => context.fillText(line, 80, labelY + 36 + index * 32));
-    }
-  } else {
-    const title = fittedLines(context, data.title || data.siteName, contentWidth, 4, data.locale, hasCover ? 56 : 76, hasCover ? 36 : 48);
-    context.font = titleFont(title.size);
-    context.fillStyle = '#f4ede3';
-    const titleLineHeight = Math.round(title.size * 1.1);
-    title.lines.forEach((line, index) => context.fillText(line, 80, 240 + index * titleLineHeight));
-
-    const excerptLines = title.lines.length >= 4 ? 0 : title.lines.length === 3 ? 1 : 2;
-    if (data.excerpt && excerptLines) {
-      const titleBottom = 240 + (title.lines.length - 1) * titleLineHeight;
-      context.font = `${hasCover ? 24 : 28}px "Noto Serif TC", "Songti TC", "PMingLiU", "Times New Roman", serif`;
-      context.fillStyle = 'rgba(244,237,227,0.64)';
-      const lines = wrapCardText(context, data.excerpt, contentWidth, excerptLines, data.locale);
-      lines.forEach((line, index) => context.fillText(line, 80, titleBottom + 70 + index * 40));
-    }
+  context.fillStyle = 'rgba(244,237,227,0.18)';
+  context.fillRect(x, 528, width, 1);
+  context.fillStyle = '#ff2b3d';
+  context.fillRect(x, 528, 30, 3);
+  if (data.articleUrl) {
+    const urlBlock: CardBlock = { text: data.articleUrl, kind: 'url', startSize: 18, minimumSize: 14, lineHeight: 1.35, truncateAfter: Number.POSITIVE_INFINITY };
+    const url = fitBlocks(context, [urlBlock], width, 60, data.locale);
+    drawBlocks(context, url, x, 548);
   }
-
-  context.strokeStyle = 'rgba(244,237,227,0.18)';
-  context.beginPath();
-  context.moveTo(80, 535);
-  context.lineTo(contentRight, 535);
-  context.stroke();
-  context.fillStyle = '#ff2b3d';
-  context.fillRect(80, 571, 24, 3);
-  context.font = '22px "SFMono-Regular", Consolas, "Liberation Mono", monospace';
-  context.fillStyle = 'rgba(244,237,227,0.58)';
-  if (data.tags) context.fillText(oneLine(context, data.tags, hasCover ? 360 : 560, data.locale), 122, 580);
-  context.textAlign = 'right';
-  context.fillText(oneLine(context, data.hostname, hasCover ? 250 : 360, data.locale), contentRight, 580);
-  context.textAlign = 'left';
   return true;
 }
 

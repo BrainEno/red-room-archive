@@ -20,7 +20,7 @@
   border: 1px solid rgba(241,238,230,.28); border-radius: 0; background: transparent; color: var(--ink); font: 600 .78rem/1 var(--font-body); cursor: pointer; }
 .article-share-open svg { width: 1.1rem; height: 1.1rem; }
 .article-share-open:hover { border-color: var(--accent-soft); color: var(--accent-soft); }
-.share-dialog { inset: 0; width: min(720px, calc(100vw - 32px)); max-width: none; max-height: calc(100svh - 32px); margin: auto; padding: 0; overflow: auto;
+.share-dialog { inset: 0; width: min(760px, calc(100vw - 32px)); max-width: none; max-height: calc(100svh - 32px); margin: auto; padding: 0; overflow: auto;
   border: 1px solid rgba(241,238,230,.28); border-radius: 0; background: var(--void); color: var(--ink); font-family: var(--font-body); }
 .share-dialog::backdrop { background: rgba(0,0,0,.78); }
 .share-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .8rem 1rem; border-bottom: 1px solid rgba(241,238,230,.16); }
@@ -28,17 +28,22 @@
 .share-dialog-close { display: grid; flex: none; place-items: center; width: 2.75rem; height: 2.75rem; margin: -.45rem -.55rem -.45rem 0; padding: 0;
   border: 0; background: transparent; color: var(--ink); font: 300 1.8rem/1 var(--font-body); cursor: pointer; }
 .share-dialog-close:hover { color: var(--accent-soft); }
+.share-preview { border-bottom: 1px solid rgba(241,238,230,.12); }
+.share-preview-label { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem 1rem; padding: .85rem 1rem .75rem; }
+.share-preview-label span:first-child { flex: none; color: var(--accent-soft); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; }
+.share-preview-label span:last-child { color: rgba(241,238,230,.58); font-size: .68rem; line-height: 1.45; text-align: right; }
 .share-canvas { display: block; width: 100%; height: auto; aspect-ratio: 1200 / 630; background: #0a0506; }
 .share-dialog-foot { padding: 1rem; }
 .prose .share-status { min-height: 1.5em; margin: 0 0 .85rem; color: rgba(241,238,230,.58); font-size: .75rem; line-height: 1.5; white-space: normal; }
 .share-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
-.share-actions button { min-height: 2.75rem; padding: .65rem .85rem; border: 1px solid rgba(241,238,230,.28); border-radius: 0;
-  background: transparent; color: var(--ink); font: 600 .78rem/1.2 var(--font-body); cursor: pointer; }
-.share-actions button:hover { border-color: var(--accent-soft); }
+.share-actions :is(button, a) { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: .65rem .85rem; border: 1px solid rgba(241,238,230,.28); border-radius: 0;
+  background: transparent; color: var(--ink); font: 600 .78rem/1.2 var(--font-body); text-decoration: none; cursor: pointer; }
+.share-actions :is(button, a):hover { border-color: var(--accent-soft); }
 .share-actions .share-primary { border-color: var(--red); background: var(--red); color: var(--ink); }
 .share-actions .share-primary[hidden] { display: none; }
 .share-actions button:disabled { opacity: .45; cursor: wait; }
-.article-share :is(button):focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
+.prose .share-link-hint { margin: .85rem 0 0; color: rgba(241,238,230,.58); font-size: .68rem; line-height: 1.55; white-space: normal; }
+.article-share :is(button, a):focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
 .share-copy-fallback { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .share-passage { padding: 1rem; border-bottom: 1px solid rgba(241,238,230,.16); }
 .share-passage[hidden], .annotation-shelf[hidden], .selection-tools[hidden], .article-toast[hidden] { display: none; }
@@ -56,11 +61,12 @@
 /* Reader-owned marginalia: quiet custom highlights never rewrite Notion HTML. */
 ::highlight(rra-saved-passage), ::highlight(rra-saved-passage-note) {
   color: var(--ink); background-color: rgba(231,163,149,.055); text-decoration: underline;
-  text-decoration-color: rgba(231,163,149,.68); text-decoration-thickness: 1px; text-underline-offset: .2em;
+  text-decoration-color: rgba(231,163,149,.68); text-decoration-thickness: 1px; text-underline-offset: .36em;
 }
 ::highlight(rra-saved-passage-note) { background-color: rgba(231,163,149,.1); text-decoration-color: rgba(231,163,149,.9); }
 .selection-tools { position: fixed; z-index: 70; display: grid; gap: .45rem; min-width: 19rem; padding: .55rem .65rem;
   border: 1px solid rgba(241,238,230,.3); background: rgba(10,5,6,.98); box-shadow: 0 12px 42px rgba(0,0,0,.42); color: var(--ink); }
+.saved-passage-tools { min-width: 21rem; }
 .selection-count { color: rgba(241,238,230,.55); font-size: .66rem; line-height: 1.3; }
 .selection-tools[data-too-long="true"] .selection-count { color: var(--accent-soft); }
 .selection-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; }
@@ -88,6 +94,10 @@
 .annotation-dialog-close { display: grid; flex: none; place-items: center; width: 2.75rem; height: 2.75rem; margin: -.45rem -.55rem -.45rem 0; padding: 0;
   border: 0; background: transparent; color: var(--ink); font: 300 1.8rem/1 var(--font-body); cursor: pointer; }
 .annotation-dialog-body { padding: 1rem; }
+.prose .passage-dialog-article { margin: 0 0 1rem; color: rgba(241,238,230,.55); font-size: .72rem; line-height: 1.5; white-space: normal; }
+.prose .passage-dialog-quote { margin: 0; padding: 0; border: 0; color: var(--ink); font-size: 1.2rem; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
+.prose .passage-dialog-note { margin: 1.4rem 0 0; padding-top: 1rem; border-top: 1px solid rgba(241,238,230,.16); color: rgba(241,238,230,.72); font-size: .86rem; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.prose .passage-dialog-note[hidden] { display: none; }
 .prose .annotation-note-quote { max-height: 8rem; margin: 0 0 1rem; padding: 0 0 0 .8rem; overflow: auto; border-left: 1px solid var(--accent-soft); color: rgba(241,238,230,.75); font-size: .86rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .annotation-note-label { display: block; margin-bottom: .45rem; color: rgba(241,238,230,.68); font-size: .75rem; }
 .annotation-dialog textarea { width: 100%; min-height: 7rem; max-height: 32svh; padding: .7rem .75rem; resize: vertical;
@@ -112,7 +122,9 @@
   .article-share { align-items: flex-start; }
   .article-share-hint { max-width: 28ch; }
   .share-dialog { width: calc(100vw - 20px); max-height: calc(100svh - 20px); }
-  .share-actions button { flex: 1 1 100%; }
+  .share-actions :is(button, a) { flex: 1 1 100%; }
+  .share-preview-label { align-items: flex-start; flex-direction: column; }
+  .share-preview-label span:last-child { text-align: left; }
 }
 .prose p { white-space: pre-wrap; margin-bottom: 1.2em; } .prose h3 { margin: 2em 0 .6em; }
 .prose blockquote { border-left: 2px solid var(--red); padding-left: 1em; margin: 1.5em 0; }
@@ -129,7 +141,7 @@
 .article-date { padding-top: .25rem; font-size: .78rem; opacity: .55; font-variant-numeric: tabular-nums; }
 .article-copy { display: block; min-width: 0; overflow-wrap: anywhere; }
 .article-title { display: block; font-size: clamp(1.15rem, 2.8vw, 2rem); font-weight: 650; line-height: 1.15; }
-.article-excerpt { display: block; max-width: 58ch; margin-top: .5rem; font-size: .92rem; opacity: .65; line-height: 1.5; }
+.article-excerpt { display: block; max-width: 42ch; margin-top: .5rem; font-size: .92rem; opacity: .65; line-height: 1.5; }
 .article-tags { display: block; margin-top: .6rem; font-size: .75rem; opacity: .55; }
 .article-list .article-cover { display: block; width: 100%; aspect-ratio: 4 / 3; height: auto; object-fit: cover; align-self: center; margin: 0; background: rgba(241,238,230,.06); }
 .article-arrow { justify-self: end; align-self: center; opacity: .45; transition: transform .25s var(--ease), opacity .2s; }
@@ -457,8 +469,8 @@
 .read-aloud-follow input { width: .9rem; height: .9rem; margin: 0; accent-color: var(--ink); }
 /* A Range highlight never wraps or rewrites the Notion DOM. Keep it typographic,
    not a solid marker block; engines without boundaries use the block fallback. */
-::highlight(read-aloud-current) { color: var(--ink); text-decoration: underline; text-decoration-color: rgba(241,238,230,.9); text-decoration-thickness: 1px; text-underline-offset: .2em; }
-.article-body .read-aloud-current-block, [data-article-title].read-aloud-current-block { text-decoration: underline; text-decoration-color: rgba(241,238,230,.5); text-decoration-thickness: 1px; text-underline-offset: .2em; }
+::highlight(read-aloud-current) { color: var(--ink); text-decoration: underline; text-decoration-color: rgba(241,238,230,.9); text-decoration-thickness: 1px; text-underline-offset: .36em; }
+.article-body .read-aloud-current-block, [data-article-title].read-aloud-current-block { text-decoration: underline; text-decoration-color: rgba(241,238,230,.5); text-decoration-thickness: 1px; text-underline-offset: .36em; }
 .read-aloud-seek { --p: 0%; appearance: none; -webkit-appearance: none; display: block; width: 100%; height: 1.75rem; margin: .55rem 0 -.45rem;
   padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); cursor: pointer; }
 .read-aloud-seek:disabled { cursor: default; opacity: .5; }
