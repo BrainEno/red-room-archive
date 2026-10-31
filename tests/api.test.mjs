@@ -501,7 +501,10 @@ test('content bundle: admin-only ZIP with profile, saved More page, its uploads 
   });
   assert.equal(cover.status, 201);
   const document = { intro: { en: 'Hello', 'zh-CN': '' }, channels: [],
-    publications: [{ title: { en: 'Zine', 'zh-CN': '' }, cover: cover.data.url }, { title: { en: 'Remote', 'zh-CN': '' }, cover: 'https://example.com/c.jpg' }] };
+    publications: [
+      { title: { en: 'Zine', 'zh-CN': '' }, cover: cover.data.url, availability: 'contact', description: { en: 'Publication note', 'zh-CN': '出版说明' }, year: { en: '2026–2027 (planned)', 'zh-CN': '2026–2027（预计）' } },
+      { title: { en: 'Remote', 'zh-CN': '' }, cover: 'https://example.com/c.jpg' },
+    ] };
   assert.equal((await call(more.writeMoreDocument, { method: 'PUT', token: TOKEN, json: document })).status, 200);
   await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_facts: 'Based in: Taipei' } });
 
@@ -520,6 +523,11 @@ test('content bundle: admin-only ZIP with profile, saved More page, its uploads 
   const moreFile = JSON.parse(zip.get('more.json'));
   assert.equal(moreFile.format, 'red-room-more');
   assert.equal(moreFile.document.publications[0].cover, cover.data.url);
+  assert.equal(moreFile.document.publications[0].availability, 'contact');
+  assert.equal(moreFile.document.publications[0].description['zh-CN'], '出版说明');
+  assert.equal(moreFile.document.publications[0].year.en, '2026–2027 (planned)');
+  assert.deepEqual(moreFile.document.publications[1].description, { en: '', 'zh-CN': '' });
+  assert.equal(moreFile.document.publications[1].availability, undefined, 'legacy entries stay compatible');
   assert.deepEqual([...zip.get(`uploads/${cover.data.name}`)], [0x89, 0x50, 0x4e, 0x47]);
   await call(more.resetMoreDocument, { method: 'DELETE', token: TOKEN });
   await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_facts: '' } });

@@ -1,6 +1,6 @@
 ---
 /**
- * /more — self-published books with excerpts, then ways to get in touch.
+ * /more — print editions with optional excerpts, then ways to get in touch.
  * Same 12-column Swiss grid and condensed display type as the homepage;
  * numbered section rules (01 / 02) like the homepage rows.
  */
@@ -10,6 +10,7 @@ import '../styles/more.css';
 import { contentLang, type Locale } from '../../shared/i18n.ts';
 import { MORE_PATH } from '../../shared/routes.ts';
 import type { MorePublication, MoreResponse } from '../../shared/contracts.ts';
+import { moreAction } from '../more-action.ts';
 
 type Publication = MorePublication;
 
@@ -26,15 +27,9 @@ const specs = (p: Publication) =>
   [
     [t.format, p.format],
     [t.pages, p.pages ? t.pageCount(p.pages) : undefined],
-    [t.edition, p.edition],
+    [p.availability === 'preorder' ? t.plannedPrintRun : t.edition, p.edition],
     [t.size, p.size],
   ].filter((pair): pair is [string, string] => Boolean(pair[1]));
-const cta = (p: Publication) =>
-  p.link
-    ? { href: p.link.href, label: p.link.label || t.order, external: /^https?:/i.test(p.link.href) }
-    : site.email
-      ? { href: `mailto:${site.email}?subject=${encodeURIComponent(t.askSubject(p.title))}`, label: t.ask, external: false }
-      : undefined;
 const sections = [
   more.publications.length > 0 && { id: 'publications', label: t.publications, count: more.publications.length },
   (site.email || more.channels.length > 0) && { id: 'elsewhere', label: t.elsewhere, count: undefined },
@@ -63,10 +58,10 @@ const [mailUser, mailDomain] = site.email.includes('@') ? [site.email.slice(0, s
         <h2 id="mp-pub" class="mp-rule"><span class="n">{num('publications')}</span><span>{t.publications}</span><span class="c">{more.publications.length}</span></h2>
         <ol class="pubs">
           {more.publications.map((p, i) => {
-            const action = cta(p);
+            const action = moreAction(p, locale, site.email);
             const list = specs(p);
             return (
-              <li class="pub">
+              <li class="pub grid12" data-availability={p.availability}>
                 <figure class="pub-cover">
                   {p.cover
                     ? <img src={p.cover} alt={p.title} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" />
@@ -82,6 +77,13 @@ const [mailUser, mailDomain] = site.email.includes('@') ? [site.email.slice(0, s
                   <p class="pub-n"><span>{pad(i)}</span><span>{p.year}</span></p>
                   <h3 class="pub-title" lang={contentLang(p.title)}>{p.title}</h3>
                   {p.subtitle && <p class="pub-sub" lang={contentLang(p.subtitle)}>{p.subtitle}</p>}
+                  {p.description && <p class="pub-description" lang={contentLang(p.description)}>{p.description}</p>}
+                  {p.availability && (
+                    <p class="pub-status">
+                      <span>{t.availabilityLabel}</span>
+                      <span>{t.availability[p.availability]}</span>
+                    </p>
+                  )}
                   {list.length > 0 && (
                     <dl class="pub-specs">{list.map(([k, v]) => <div><dt>{k}</dt><dd lang={contentLang(v)}>{v}</dd></div>)}</dl>
                   )}
@@ -108,7 +110,7 @@ const [mailUser, mailDomain] = site.email.includes('@') ? [site.email.slice(0, s
     {(site.email || more.channels.length > 0) && (
       <section id="elsewhere" class="mp-sec" aria-labelledby="mp-else">
         <h2 id="mp-else" class="mp-rule"><span class="n">{num('elsewhere')}</span><span>{t.elsewhere}</span><span class="c"></span></h2>
-        <div class="reachout">
+        <div class="reachout grid12">
           {site.email && (
             <div class="mail-block">
               <p class="lbl">{t.email}</p>

@@ -13,7 +13,9 @@ export const blankPublication = (): MorePublicationDoc => ({
   id: newId('pub'),
   title: emptyText(),
   subtitle: emptyText(),
-  year: String(new Date().getFullYear()),
+  description: emptyText(),
+  year: { en: String(new Date().getFullYear()), 'zh-CN': String(new Date().getFullYear()) },
+  availability: undefined,
   format: emptyText(),
   pages: null,
   edition: emptyText(),
@@ -34,8 +36,15 @@ export const blankChannel = (): MoreChannelDoc => ({
   note: emptyText(),
 });
 
-/** A deep copy, so edits never leak into the last-saved snapshot. */
-export const cloneDocument = (doc: MoreDocument): MoreDocument => JSON.parse(JSON.stringify(doc));
+/** A deep copy with optional fields present for the editor, including legacy documents. */
+export const cloneDocument = (doc: MoreDocument): MoreDocument => {
+  const copy = JSON.parse(JSON.stringify(doc)) as MoreDocument;
+  for (const publication of copy.publications) {
+    publication.description ??= emptyText();
+    if (!('availability' in publication)) publication.availability = undefined;
+  }
+  return copy;
+};
 
 /** Set `publications.0.title.en`-style paths (the same paths the server reports in validation errors). */
 export function setPath(doc: MoreDocument, path: string, value: unknown): void {
@@ -69,7 +78,7 @@ export function documentFromImport(json: unknown): unknown {
   return json;
 }
 
-/** “Zine No. 01 / 自印本 01” for the collapsed card header. */
+/** “The Weak Demon / 孱弱的恶” for the collapsed card header. */
 export const bilingualLabel = (text: LocalizedText, fallback: string) => {
   const parts = [text.en.trim(), text['zh-CN'].trim()].filter(Boolean);
   return [...new Set(parts)].join(' / ') || fallback;

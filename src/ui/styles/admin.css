@@ -51,7 +51,7 @@
 .me-singles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 10px 140px; }
 .me-body > .me-single { margin: 4px 0 10px 140px; }
 .me-single { font-size: 14px; }
-.admin input.invalid, .admin textarea.invalid { border-color: var(--red); outline: 2px solid var(--red); outline-offset: 1px; }
+.admin input.invalid, .admin textarea.invalid, .admin select.invalid { border-color: var(--red); outline: 2px solid var(--red); outline-offset: 1px; }
 .me-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 12px 0; }
 .me-card { min-width: 0; border: 1px solid rgba(241,238,230,.22); }
 .me-card[open] { border-color: rgba(241,238,230,.45); }

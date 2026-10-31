@@ -1,12 +1,12 @@
 /**
  * The /more page: the document saved in /admin → More, or the built-in
- * samples from content/more.ts until something is saved.
+ * content from content/more.ts until something is saved.
  *
  * Every write goes through core/more.ts → normalizeMoreDocument, so the stored
  * JSON is always valid. Notion syncs and credential changes never touch it.
  */
 import { localizeMore, normalizeMoreDocument, referencedUploads, replaceUpload } from '../../core/more.ts';
-import { more as samples } from '../../content/more.ts';
+import { more as builtIn } from '../../content/more.ts';
 import type { MoreDocument, MoreDocumentResponse, MoreResponse } from '../../shared/contracts.ts';
 import type { Locale } from '../../shared/i18n.ts';
 import { moreRepository } from '../db/more.repository.ts';
@@ -14,9 +14,9 @@ import { moreRepository } from '../db/more.repository.ts';
 /** content/more.ts as a document, with stable ids so the editor can track rows. */
 function sampleDocument(): MoreDocument {
   return normalizeMoreDocument({
-    ...samples,
-    publications: samples.publications.map((item, index) => ({ ...item, id: `sample-pub-${index + 1}` })),
-    channels: samples.channels.map((item, index) => ({ ...item, id: `sample-ch-${index + 1}` })),
+    ...builtIn,
+    publications: builtIn.publications.map((item, index) => ({ ...item, id: `sample-pub-${index + 1}` })),
+    channels: builtIn.channels.map((item, index) => ({ ...item, id: `sample-ch-${index + 1}` })),
   });
 }
 
@@ -61,8 +61,8 @@ export function resetMore(): MoreDocumentResponse {
 }
 
 /**
- * The page in one language. Built-in samples keep their empty QR frames so the
- * layout can be previewed; saved channels without a code show text only.
+ * The page in one language. Built-in channels may use empty QR frames for
+ * layout preview; saved channels without a code show text only.
  */
 export function moreFor(locale: Locale): MoreResponse {
   const { document, custom } = moreDocument();

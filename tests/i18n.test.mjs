@@ -173,6 +173,29 @@ test('the generated display font: OFL licence, one face per slice, no emoji rang
 
 /* ── /more content ─────────────────────────────────────────────────────── */
 
+test('More prompts, statuses, CTA labels and print-run labels are bilingual', () => {
+  const en = messages('en');
+  const zh = messages('zh-CN');
+  assert.equal(en.home.moreHint, 'Some important works are not available here, for now.');
+  assert.equal(zh.home.moreHint, '部分重要作品，暂时不打算放在这里。');
+  assert.equal(en.home.moreTopics, 'Print editions · Excerpts · Elsewhere');
+  assert.equal(zh.home.moreTopics, '纸本出版物 · 选读 · 联系方式');
+  assert.equal(en.more.publications, 'Print editions');
+  assert.equal(zh.more.publications, '纸本出版物');
+  assert.equal(en.more.elsewhere, 'Elsewhere');
+  assert.equal(zh.more.elsewhere, '联系');
+  assert.deepEqual(en.more.availability, { 'sold-out': 'Sold out', contact: 'Available by enquiry', preorder: 'In preparation' });
+  assert.deepEqual(zh.more.availability, { 'sold-out': '已售罄', contact: '可联系作者', preorder: '整理中' });
+  assert.equal(en.more.contactAuthor, 'Contact the author');
+  assert.equal(zh.more.contactAuthor, '联系作者');
+  assert.equal(en.more.registerInterest, 'Register interest');
+  assert.equal(zh.more.registerInterest, '登记预订意向');
+  assert.equal(en.more.edition, 'Print run');
+  assert.equal(zh.more.edition, '印数');
+  assert.equal(en.more.plannedPrintRun, 'Planned print run');
+  assert.equal(zh.more.plannedPrintRun, '预计首印');
+});
+
 test('/more content: every translated text has both languages; the page resolves per locale', async () => {
   const { more } = await import('../src/content/more.ts');
   const texts = [];
@@ -186,4 +209,31 @@ test('/more content: every translated text has both languages; the page resolves
     assert.ok(value.en?.trim() && value['zh-CN']?.trim(), `${where} needs both en and zh-CN`);
   }
   for (const item of more.publications) assert.ok(item.title && item.year && Array.isArray(item.excerpt), 'title, year and excerpt are required');
+  assert.equal(more.intro.en, 'I write fiction and poetry, and record dreams in forms I have no need to define. This site holds drafts and experiments; the shorter works I am more satisfied with are collected and printed separately.');
+  assert.equal(more.intro['zh-CN'], '写小说和诗，也用一些不必明确定义的形式记录梦。这里放着草稿和小样；相对满意的中短篇，会另行整理成纸本。');
+  assert.deepEqual(more.publications.map((item) => [item.title.en, item.title['zh-CN'], item.availability]), [
+    ['The Weak Demon', '孱弱的恶', 'sold-out'],
+    ['Animal Specimens', '动物标本', 'contact'],
+    ['Studies in Nature', '自然研究', 'preorder'],
+  ]);
+  assert.deepEqual(more.publications.map((item) => item.subtitle), [
+    { en: 'A self-published collection of fiction', 'zh-CN': '自印小说集' },
+    { en: 'A fiction collection published by 副本制作, an independent press.', 'zh-CN': '独立小说集，由「副本制作」出版。' },
+    { en: 'Working title; the final text is being prepared.', 'zh-CN': '暂定名，正在整理定稿。' },
+  ]);
+  assert.deepEqual(more.publications.map((item) => item.year), [
+    { en: '2025.12', 'zh-CN': '2025.12' },
+    { en: '2026.03', 'zh-CN': '2026.03' },
+    { en: '2026–2027 (planned)', 'zh-CN': '2026–2027（预计）' },
+  ]);
+  assert.deepEqual(more.publications.map((item) => item.edition), [
+    { en: '20 copies', 'zh-CN': '20 本' }, undefined, { en: '20 copies', 'zh-CN': '20 本' },
+  ]);
+  assert.deepEqual(more.publications.map((item) => item.size), [
+    { en: '128 × 198 mm', 'zh-CN': '128 × 198 mm' },
+    { en: '130 × 184 mm', 'zh-CN': '130 × 184 mm' }, undefined,
+  ]);
+  assert.equal(more.publications.every((item) => !item.cover && !item.excerptSource && item.excerpt.length === 0), true);
+  assert.equal(more.publications.every((item) => !item.format && item.pages === undefined && !item.link), true);
+  assert.deepEqual(more.channels, [], 'no fake social accounts or QR frames');
 });

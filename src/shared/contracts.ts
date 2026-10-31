@@ -127,17 +127,24 @@ export interface LocalizedText {
   'zh-CN': string;
 }
 
-/** One self-published book, as edited in /admin → More. */
+export type MoreAvailability = 'sold-out' | 'contact' | 'preorder';
+
+/** One print publication, as edited in /admin → More. */
 export interface MorePublicationDoc {
   /** Stable id (for reordering in the editor); generated when missing. */
   id: string;
   title: LocalizedText;
   subtitle: LocalizedText;
-  year: string;
+  /** Optional publication note; historical documents normalize this to empty text. */
+  description?: LocalizedText;
+  /** Year or short date; plain strings in historical documents apply to both languages. */
+  year: LocalizedText;
+  /** Omitted on legacy entries, whose existing CTA behaviour is preserved. */
+  availability?: MoreAvailability;
   /** Printing / binding, e.g. “Risograph, two colours”. */
   format: LocalizedText;
   pages: number | null;
-  /** Print run, e.g. “Edition of 100”. */
+  /** Print run, e.g. “20 copies”. */
   edition: LocalizedText;
   size: LocalizedText;
   /** Image URL: `/uploads/…`, another site path, or https. '' = draw a typographic cover. */
@@ -172,7 +179,7 @@ export interface MoreDocument {
 /** GET /api/more/document (admin). */
 export interface MoreDocumentResponse {
   document: MoreDocument;
-  /** False while the built-in sample content (content/more.ts) is shown. */
+  /** False while the built-in content (content/more.ts) is shown. */
   custom: boolean;
   /** ISO time of the last save, null for the built-in content. */
   updated: string | null;
@@ -183,7 +190,9 @@ export interface MorePublication {
   id: string;
   title: string;
   subtitle?: string;
+  description?: string;
   year: string;
+  availability?: MoreAvailability;
   format?: string;
   pages?: number;
   edition?: string;
@@ -199,7 +208,7 @@ export interface MoreChannel {
   name: string;
   handle: string;
   href?: string;
-  /** Image URL; `''` = an empty frame (built-in samples only); undefined = no QR. */
+  /** Image URL; `''` = an empty frame (built-in content only); undefined = no QR. */
   qr?: string;
   note?: string;
 }
