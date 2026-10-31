@@ -2,6 +2,7 @@
 import Page from '../layouts/Page.astro';
 import PrevNext from '../components/PrevNext.astro';
 import ReadAloud from '../components/ReadAloud.astro';
+import ArticleShare from '../components/ArticleShare.astro';
 import NewsletterForm from '../components/NewsletterForm.astro';
 import { messages } from '../i18n.ts';
 import { formatDate, isoDatetime } from '../../core/text.ts';
@@ -81,6 +82,8 @@ const jsonLd = site.url
           <a href={localePath(COPYRIGHT_PATH, locale)}>{t.legal.terms} →</a>
         </p>
       )}
+      <ArticleShare locale={locale} title={article.title} excerpt={article.excerpt} date={article.date}
+        slug={article.slug} siteName={site.name} tags={article.tags} />
     </article>
     {showToc && (
       <aside class="article-aside">
