@@ -64,22 +64,25 @@
 .article-excerpt { display: block; max-width: 58ch; margin-top: .5rem; font-size: .92rem; opacity: .65; line-height: 1.5; }
 .article-tags { display: block; margin-top: .6rem; font-size: .75rem; opacity: .55; }
 .article-list .article-cover { display: block; width: 100%; aspect-ratio: 4 / 3; height: auto; object-fit: cover; align-self: center; margin: 0; background: rgba(241,238,230,.06); }
-.article-arrow { justify-self: end; align-self: center; transition: transform .3s var(--ease), color .3s; }
-/* Keep the summary and date readable: the generic prose-link red otherwise
-   cascades through the entire card. Use a quiet highlight and a warm accent. */
+.article-arrow { justify-self: end; align-self: center; opacity: .45; transition: transform .25s var(--ease), opacity .2s; }
+/* Editorial hover: clarify the type and destination, never place a separate
+   panel behind the row or turn the neutral arrow into a second accent. */
+.article-title, .article-excerpt, .article-date, .article-tags { transition: opacity .2s; }
 .prose .article-entry:hover, .prose .article-entry:focus-visible {
   color: inherit;
-  background: linear-gradient(90deg, rgba(241,238,230,.045), transparent 80%);
+  background: none;
 }
 .article-entry:hover .article-title, .article-entry:focus-visible .article-title {
   text-decoration: underline;
-  text-decoration-color: rgba(241,238,230,.48);
+  text-decoration-color: rgba(241,238,230,.72);
   text-decoration-thickness: 1px;
   text-underline-offset: .22em;
 }
-.article-entry:hover .article-arrow, .article-entry:focus-visible .article-arrow { color: var(--accent-soft); transform: translate(3px, -3px); }
+.article-entry:hover :is(.article-excerpt, .article-tags), .article-entry:focus-visible :is(.article-excerpt, .article-tags) { opacity: .78; }
+.article-entry:hover .article-date, .article-entry:focus-visible .article-date { opacity: .75; }
+.article-entry:hover .article-arrow, .article-entry:focus-visible .article-arrow { color: var(--ink); opacity: 1; transform: translate(2px, -2px); }
 @media (prefers-reduced-motion: reduce) {
-  .article-arrow { transition: none; }
+  .article-title, .article-excerpt, .article-date, .article-tags, .article-arrow { transition: none; }
   .article-entry:hover .article-arrow, .article-entry:focus-visible .article-arrow { transform: none; }
 }
 .article-empty { padding-top: 1rem; opacity: .65; }
@@ -379,6 +382,13 @@
 .read-aloud-speed-k { font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; color: rgba(241,238,230,.5); }
 .read-aloud select { appearance: none; -webkit-appearance: none; min-height: 2.75rem; padding: 0 1.75rem 0 .7rem; border: 1px solid rgba(241,238,230,.25); border-radius: 0; background: var(--void) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23f1eee6' stroke-opacity='.6' stroke-width='1.2'/%3E%3C/svg%3E") no-repeat right .65rem center / .6rem auto; font-size: .8rem; font-variant-numeric: tabular-nums; color: rgba(241,238,230,.85); transition: border-color .25s; }
 .read-aloud select:hover { border-color: rgba(241,238,230,.6); }
+.read-aloud-follow { display: inline-flex; align-items: center; gap: .45rem; min-height: 2.75rem; color: rgba(241,238,230,.65); font-size: .72rem; cursor: pointer; }
+.read-aloud-follow:hover { color: var(--ink); }
+.read-aloud-follow input { width: .9rem; height: .9rem; margin: 0; accent-color: var(--ink); }
+/* A Range highlight never wraps or rewrites the Notion DOM. Keep it typographic,
+   not a solid marker block; engines without boundaries use the block fallback. */
+::highlight(read-aloud-current) { color: var(--ink); text-decoration: underline; text-decoration-color: rgba(241,238,230,.9); text-decoration-thickness: 1px; text-underline-offset: .2em; }
+.article-body .read-aloud-current-block, [data-article-title].read-aloud-current-block { text-decoration: underline; text-decoration-color: rgba(241,238,230,.5); text-decoration-thickness: 1px; text-underline-offset: .2em; }
 .read-aloud-seek { --p: 0%; appearance: none; -webkit-appearance: none; display: block; width: 100%; height: 1.75rem; margin: .55rem 0 -.45rem;
   padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); cursor: pointer; }
 .read-aloud-seek:disabled { cursor: default; opacity: .5; }

@@ -29,6 +29,10 @@ const t = messages(locale).article;
         <option value="2">2×</option>
       </select>
     </label>
+    <label class="read-aloud-follow" title={t.followHint}>
+      <input type="checkbox" data-follow checked />
+      <span>{t.follow}</span>
+    </label>
   </div>
   <input class="read-aloud-seek" data-seek type="range" min="0" max="1000" step="1" value="0" disabled
     aria-label={t.seek} title={t.seekHint} />
