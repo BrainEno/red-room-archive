@@ -128,18 +128,20 @@ test('the Chinese quotation keeps its two-line composition and attribution, with
   await expect.poll(() => lineCount('.lede-by')).toBe(1);
 });
 
-test('the Latin attribution starts at the quote edge, away from the statue', async ({ page }) => {
+test('the Latin attribution aligns with the visible right edge of the quote', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
   await page.evaluate(() => document.fonts.ready);
   await expect(page.locator('.lede-by')).toHaveText('— Witold Gombrowicz');
-  const position = await page.locator('.lede-by').evaluate((el) => {
+  const position = async () => page.locator('.lede-by').evaluate((el) => {
     const range = document.createRange(); range.selectNodeContents(el);
     const text = [...range.getClientRects()].find((r) => r.width > 0);
-    return { textLeft: text.left, quoteLeft: el.closest('figure').querySelector('.lede').getBoundingClientRect().left, align: getComputedStyle(el).textAlign };
+    const quoteRange = document.createRange(); quoteRange.selectNodeContents(el.closest('figure').querySelector('.lede'));
+    const quoteRight = Math.max(...[...quoteRange.getClientRects()].filter((r) => r.width > 0).map((r) => r.right));
+    return { textRight: text.right, quoteRight, align: getComputedStyle(el).textAlign };
   });
-  expect(position.align).toBe('left');
-  expect(Math.abs(position.textLeft - position.quoteLeft)).toBeLessThanOrEqual(1);
+  expect((await position()).align).toBe('right');
+  await expect.poll(async () => Math.abs((await position()).textRight - (await position()).quoteRight)).toBeLessThanOrEqual(1);
 });
 
 test('long unbroken titles and site names do not expand the layout', async ({ page }) => {

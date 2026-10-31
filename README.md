@@ -339,7 +339,7 @@ cp -a /absolute/path/uploads "$backup/uploads"
 
 #### 内置默认资料
 
-没有导入站点资料（也没有在后台保存过）时，网站使用 `src/content/site.ts` 和 `src/content/tags.ts` 里的内置默认值，现已是本站的资料：站点名 **SureShot Studio**、邮箱 `nodeman24@outlook.com`、中英文引言（首页大字；句末的作者会单独排成署名行（中文右对齐、英文左对齐以避免遮挡雕像），见 `src/core/quote.ts`）、标语“小说、诗歌以及其他 / Fiction, poetry and other writings”，以及标签对照 Fiction = 小说、Else / Other = 其他、Poetry = 诗歌。首页简介段落和信息栏默认**不显示**（没有占位文字）；需要时在 Node 后台填写，或在站点资料 JSON 里填写后重新部署。因此静态站不放 `site-profile.json` 也会显示正确的资料。“更多”页面不在站点资料里，仍需用内容包或修改 `src/content/more.ts`。
+没有导入站点资料（也没有在后台保存过）时，网站使用 `src/content/site.ts` 和 `src/content/tags.ts` 里的内置默认值，现已是本站的资料：站点名 **SureShot Studio**、邮箱 `nodeman24@outlook.com`、中英文引言（首页大字；句末的作者会单独排成右对齐的署名行（英文按正文实际右缘对齐，避免遮挡雕像），见 `src/core/quote.ts`）、标语“小说、诗歌以及其他 / Fiction, poetry and other writings”，以及标签对照 Fiction = 小说、Else / Other = 其他、Poetry = 诗歌。首页简介段落和信息栏默认**不显示**（没有占位文字）；需要时在 Node 后台填写，或在站点资料 JSON 里填写后重新部署。因此静态站不放 `site-profile.json` 也会显示正确的资料。“更多”页面不在站点资料里，仍需用内容包或修改 `src/content/more.ts`。
 
 #### 可迁移的站点资料 JSON
 

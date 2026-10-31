@@ -130,6 +130,27 @@ gsap.ticker.add((t) => {
   qrx(my * -4 + (reduce ? 0 : Math.cos(t * 0.37) * 1.1));
 });
 
+// Latin attribution: match the visible right edge of the balanced quote, not
+// the wider grid column (which reaches into the statue). Measuring the caption
+// itself would be circular; changing its width never changes the quote above.
+const latinQuote = document.querySelector<HTMLElement>('.intro-copy:not([data-script="cjk"]) .lede-quote');
+const alignLatinAttribution = () => {
+  if (!latinQuote) return;
+  const quote = latinQuote.querySelector<HTMLElement>('.lede');
+  if (!quote) return;
+  const range = document.createRange(); range.selectNodeContents(quote);
+  const left = latinQuote.getBoundingClientRect().left;
+  const right = Math.max(0, ...[...range.getClientRects()].filter((r) => r.width > 0).map((r) => r.right));
+  if (right > left) latinQuote.style.setProperty('--by-w', `${right - left}px`);
+};
+if (latinQuote) {
+  alignLatinAttribution();
+  const quote = latinQuote.querySelector('.lede')!;
+  if ('ResizeObserver' in window) new ResizeObserver(alignLatinAttribution).observe(quote);
+  else addEventListener('resize', alignLatinAttribution);
+  document.fonts.ready.then(alignLatinAttribution);
+}
+
 // 4) 引言：逐词“点亮”。每个词先是霓虹红 + 辉光，再冷却成正文色，像灯管通电后稳定下来；
 //    起点卡在招牌飞行的后半程，所以文字是在招牌熄灭的同时被点亮的
 //    中文没有空格：按 Intl.Segmenter 的词切分（标点并入前一个词），不支持时退回逐字
