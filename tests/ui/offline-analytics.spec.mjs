@@ -29,7 +29,7 @@ async function setOutage(page, base, id, value) {
 }
 
 for (const origin of [OFFLINE_SSR, OFFLINE_STATIC]) {
-  test(`offline reload and uncached fallback (${origin === OFFLINE_STATIC ? 'static' : 'SSR'})`, async ({ page }) => {
+  test(`offline reload and uncached fallback (${origin === OFFLINE_STATIC ? 'static' : 'SSR'})`, async ({ page, browserName }) => {
     const base = origin;
     // These exclusive origins are used only by this sequential test file.
     const id = 'exclusive';
@@ -62,7 +62,11 @@ for (const origin of [OFFLINE_SSR, OFFLINE_STATIC]) {
       // driver-specific transport race (and without retrying the assertion).
       await setOutage(page, base, id, 503);
       const localizedFallback = await page.goto(`${base}/zh-CN/topics`, { waitUntil: 'domcontentloaded' });
-      expect(localizedFallback?.fromServiceWorker()).toBe(true);
+      // WebKit can also misreport the source of this second synthesized response.
+      // The harness origin can only return 503 here: a 200 with the localized
+      // offline body still proves the worker fallback, without trusting that metadata.
+      expect(localizedFallback?.status()).toBe(200);
+      if (browserName !== 'webkit') expect(localizedFallback?.fromServiceWorker()).toBe(true);
       await expect(page.locator('h1')).toHaveText('连接已中断');
     } finally {
       await setOutage(page, base, id, false);
