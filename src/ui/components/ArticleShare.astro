@@ -1,8 +1,11 @@
 ---
 import { messages } from '../i18n.ts';
 import type { Locale } from '../../shared/i18n.ts';
+import { NOTE_LIMIT } from '../../shared/article-annotations.ts';
+import { COPYRIGHT_PATH } from '../../shared/routes.ts';
+import { localePath } from '../../shared/i18n.ts';
 
-const { locale, title, excerpt, date, slug, siteName, tags } = Astro.props as {
+const { locale, title, excerpt, date, slug, siteName, tags, cover = null, year } = Astro.props as {
   locale: Locale;
   title: string;
   excerpt: string;
@@ -10,13 +13,18 @@ const { locale, title, excerpt, date, slug, siteName, tags } = Astro.props as {
   slug: string;
   siteName: string;
   tags: string[];
+  cover?: string | null;
+  year: number;
 };
 const t = messages(locale).article;
 ---
 <div class="article-share" lang={locale} data-article-share data-pending
   data-title={title} data-excerpt={excerpt} data-date={date} data-slug={slug}
-  data-site={siteName} data-tags={tags.join(' · ')} data-ready={t.cardSize}
-  data-preparing={t.preparingCard} data-shared={t.sharedCard} data-copied={t.copied}
+  data-site={siteName} data-tags={tags.join(' · ')} data-cover={cover || undefined}
+  data-passage-label={t.selectedPassage} data-note-label={t.passageNote}
+  data-year={year} data-locale={locale} data-copyright-path={localePath(COPYRIGHT_PATH, locale)}
+  data-ready={t.cardSize} data-preparing={t.preparingCard} data-shared={t.sharedCard}
+  data-copied={t.copied} data-passage-copied={t.passageCopied} data-cover-error={t.coverError}
   data-share-error={t.shareError} data-copy-error={t.copyError} data-card-error={t.cardError}>
   <p class="article-share-hint">{t.shareHint}</p>
   <button class="article-share-open" type="button" data-share-open>
@@ -28,12 +36,24 @@ const t = messages(locale).article;
       <h2 id="share-dialog-title">{t.shareTitle}</h2>
       <button type="button" class="share-dialog-close" data-share-close aria-label={t.close} title={t.close}>×</button>
     </div>
+    <div class="share-passage" data-share-passage hidden>
+      <div class="share-passage-head">
+        <span>{t.selectedPassage}</span>
+        <button type="button" data-share-clear>{t.clearPassage}</button>
+      </div>
+      <blockquote data-share-quote></blockquote>
+      <label class="share-note-label" for="share-note-input">{t.passageNote}</label>
+      <textarea id="share-note-input" data-share-note maxlength={NOTE_LIMIT} rows="3" placeholder={t.notePlaceholder}></textarea>
+      <p>{t.localAnnotations}</p>
+    </div>
     <canvas class="share-canvas" data-share-canvas width="1200" height="630" role="img" aria-label={t.cardPreview}></canvas>
+    {cover && <label class="share-cover-option"><input type="checkbox" data-share-cover checked /><span>{t.includeCover}</span></label>}
     <div class="share-dialog-foot">
       <p class="share-status" role="status" aria-live="polite" data-share-status>{t.cardSize}</p>
       <div class="share-actions">
         <button type="button" class="share-primary" data-share-native hidden>{t.shareCard}</button>
         <button type="button" data-share-download disabled>{t.downloadCard}</button>
+        <button type="button" data-share-copy-passage hidden>{t.copyPassage}</button>
         <button type="button" data-share-copy>{t.copyLink}</button>
       </div>
     </div>

@@ -7,10 +7,10 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf
 
 test('llms.txt uses public facts, bilingual routes and preserves TDM rights', () => {
   const guide = llmsGuide({
-    origin: 'https://archive.example/', name: 'SureShot Studio', description: 'Fiction, poetry and other writings', email: 'letters@archive.example',
+    origin: 'https://archive.example/', name: 'SureShot Archive', description: 'Fiction, poetry and other writings', email: 'letters@archive.example',
     articles: [{ id: '1', slug: 'light', title: 'A [small]\nlight', href: '/articles/light', date: '2026-10-01', updated: '', excerpt: 'An existing excerpt.', tags: [], topics: [], cover: null, rank: 0 }],
   });
-  assert.match(guide, /# SureShot Studio/);
+  assert.match(guide, /# SureShot Archive/);
   assert.ok(guide.includes('A \\[small\\] light'));
   assert.match(guide, /https:\/\/archive\.example\/articles\/light/);
   assert.match(guide, /https:\/\/archive\.example\/zh-CN\/articles/);

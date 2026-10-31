@@ -99,7 +99,7 @@ test('home opening uses the bilingual room reveal without a counter or extra ass
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.loader-panel')).toHaveCount(2);
-  await expect(page.locator('.loader-name')).toHaveText('SureShot Studio');
+  await expect(page.locator('.loader-name')).toHaveText('SureShot Archive');
   await expect(page.locator('.loader-tagline')).toHaveText('Fiction, poetry and other writings');
   await expect(page.locator('.count')).toHaveCount(0);
   await expect(page.locator('.loader')).toBeHidden({ timeout: 25_000 });
@@ -108,6 +108,25 @@ test('home opening uses the bilingual room reveal without a counter or extra ass
   await page.goto('/zh-CN/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.loader-tagline')).toHaveText('小说、诗歌以及其他');
   await expect(page.locator('.loader')).toBeHidden({ timeout: 25_000 });
+  await noHorizontalOverflow(page);
+});
+
+test('the renamed identity and BrainEno credit stay readable on home and inner pages', async ({ page }) => {
+  for (const path of ['/', '/zh-CN/']) {
+    await page.goto(path);
+    await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
+    const credit = page.locator('.reach .credit');
+    await expect(credit).toContainText(path === '/' ? 'Design & development by' : '网站设计与开发@');
+    const link = credit.getByRole('link', { name: 'BrainEno' });
+    await expect(link).toHaveAttribute('href', 'https://github.com/BrainEno');
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', /noopener/);
+    await noHorizontalOverflow(page);
+  }
+  await page.goto('/more');
+  await expect(page.locator('.site-brand')).toHaveText('SureShot Archive');
+  await expect(page.locator('.site-credit')).toHaveText('Design & development by BrainEno');
+  await expect(page.locator('.site-credit a')).toHaveAttribute('href', 'https://github.com/BrainEno');
   await noHorizontalOverflow(page);
 });
 

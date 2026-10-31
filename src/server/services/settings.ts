@@ -127,8 +127,11 @@ function assertFacts(key: string, value: string): void {
 
 export function siteProfile(locale: Locale = DEFAULT_LOCALE): SiteProfile {
   const keys = COPY_KEYS[locale];
+  const configuredName = resolveSetting('site_name');
   return {
-    name: resolveSetting('site_name') || identity.name,
+    // Upgrade the former built-in default left in existing databases, while
+    // leaving every custom site name untouched.
+    name: !configuredName || configuredName === 'SureShot Studio' ? identity.name : configuredName,
     email: resolveSetting('site_email') || identity.email,
     about: resolveSetting(keys.about) || copy[locale].about,
     intro: resolveSetting(keys.intro) || copy[locale].intro,

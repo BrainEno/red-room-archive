@@ -47,7 +47,7 @@ export interface SiteCopy {
 }
 
 export const site: SiteIdentity = {
-  name: 'SureShot Studio',
+  name: 'SureShot Archive',
   email: 'nodeman24@outlook.com',
 };
 

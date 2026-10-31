@@ -3,6 +3,7 @@ import Page from '../layouts/Page.astro';
 import PrevNext from '../components/PrevNext.astro';
 import ReadAloud from '../components/ReadAloud.astro';
 import ArticleShare from '../components/ArticleShare.astro';
+import ArticleAnnotations from '../components/ArticleAnnotations.astro';
 import NewsletterForm from '../components/NewsletterForm.astro';
 import { messages } from '../i18n.ts';
 import { formatDate, isoDatetime } from '../../core/text.ts';
@@ -83,7 +84,8 @@ const jsonLd = site.url
         </p>
       )}
       <ArticleShare locale={locale} title={article.title} excerpt={article.excerpt} date={article.date}
-        slug={article.slug} siteName={site.name} tags={article.tags} />
+        slug={article.slug} siteName={site.name} tags={article.tags} cover={article.cover} year={year} />
+      {!bodyMissing && <ArticleAnnotations locale={locale} slug={article.slug} title={article.title} siteName={site.name} year={year} />}
     </article>
     {showToc && (
       <aside class="article-aside">
