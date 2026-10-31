@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">SureShot Studio</title>
+  <desc id="desc">A vermilion neon S on an oxblood-black field.</desc>
+  <defs>
+    <radialGradient id="room" cx="50%" cy="44%" r="72%">
+      <stop offset="0" stop-color="#1b0709"/>
+      <stop offset=".7" stop-color="#0a0506"/>
+      <stop offset="1" stop-color="#070304"/>
+    </radialGradient>
+    <filter id="halo" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="13"/>
+    </filter>
+    <path id="s" d="M408 120H204C154 120 124 148 124 190S154 256 204 256H308C358 256 388 284 388 326S358 392 308 392H104"/>
+  </defs>
+  <rect width="512" height="512" fill="url(#room)"/>
+  <!-- One continuous tube: an S, an open book, and the way into the red room. -->
+  <use href="#s" fill="none" stroke="#ff2f20" stroke-width="64" stroke-linecap="round" stroke-linejoin="round" opacity=".52" filter="url(#halo)"/>
+  <use href="#s" fill="none" stroke="#ff3a26" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+  <use href="#s" fill="none" stroke="#ff9b86" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/>
+  <circle cx="104" cy="392" r="8" fill="#f1eee6"/>
+</svg>

@@ -110,6 +110,22 @@ test('the forthcoming-book notice sits on the first screen beside the sign and l
   }
 });
 
+test('the Chinese quotation keeps its two-line composition and attribution, without the old source label', async ({ page }, testInfo) => {
+  await page.goto('/zh-CN/');
+  await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page.locator('.site-about')).toHaveCount(0);
+  await expect(page.getByText('发布自 Notion', { exact: true })).toHaveCount(0);
+  expect(await page.locator('.lede').textContent()).toBe('写作就是艺术家为了自己的个性\n和荣誉跟大众进行的一场战斗。');
+  await expect(page.locator('.lede-by')).toHaveText('——维托尔德·贡布罗维奇');
+  const lineCount = async (selector) => page.locator(selector).evaluate((el) => {
+    const range = document.createRange(); range.selectNodeContents(el);
+    return new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.y))).size;
+  });
+  if (testInfo.project.use.viewport.width > 720) await expect.poll(() => lineCount('.lede')).toBe(2);
+  await expect.poll(() => lineCount('.lede-by')).toBe(1);
+});
+
 test('long unbroken titles and site names do not expand the layout', async ({ page }) => {
   await page.goto('/articles');
   await page.evaluate(() => {

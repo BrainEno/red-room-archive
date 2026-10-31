@@ -155,7 +155,12 @@ if (!reduce) {
     line.setAttribute('aria-label', text);
     line.textContent = '';
     for (const { word, space } of tokens(text, line.lang || document.documentElement.lang)) {
-      if (space) { line.append(' '); continue; }
+      if (space) {
+        // Keep intentional quotation line breaks through the word-by-word reveal.
+        if (word.includes('\n')) { const br = document.createElement('br'); br.className = 'lede-break'; line.append(br); }
+        else line.append(' ');
+        continue;
+      }
       const s = document.createElement('span');
       s.className = 'w'; s.setAttribute('aria-hidden', 'true'); s.textContent = word;
       line.append(s); words.push(s);

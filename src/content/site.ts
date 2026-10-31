@@ -24,7 +24,8 @@ export interface SiteIdentity {
  */
 export interface SiteCopy {
   /**
-   * One line: homepage, meta description, RSS description. A trailing
+   * Homepage, meta description, RSS description. A newline sets an intentional
+   * homepage line break (ignored on narrow screens). A trailing
    * attribution after a dash (`…战斗。——作者`, `… dignity. — Author`) is set on
    * its own line on the homepage (core/quote.ts).
    */
@@ -65,7 +66,7 @@ export const copy: Record<Locale, SiteCopy> = {
     announce: { kicker: 'Forthcoming / New print', title: 'A book of fiction is going to print.', action: 'Pre-orders open — write to reserve a copy', subject: 'Pre-order' },
   },
   'zh-CN': {
-    about: '写作就是艺术家为了自己的个性和荣誉跟大众进行的一场战斗。——维托尔德·贡布罗维奇',
+    about: '写作就是艺术家为了自己的个性\n和荣誉跟大众进行的一场战斗。——维托尔德·贡布罗维奇',
     intro: '',
     tagline: '小说、诗歌以及其他',
     facts: [],

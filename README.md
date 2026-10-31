@@ -168,6 +168,8 @@ Notion 只有一个标签列，中英文章混写时会出现 `Fiction` 和 `小
 ### 分享卡片与结构化数据
 
 每个页面都有 Open Graph 和 Twitter 卡片信息。文章用自己的封面，其他页面用默认卡片 `public/og/card.jpg`（1200×630，首页霓虹招牌截图；想换就替换这个文件，尺寸保持不变）。
+
+全站浏览器标签图标是 `public/favicon.svg`：黑色底上的红色霓虹 **S**，另附 16/32px PNG、`favicon.ico`、192/512px PNG 和 180px Apple 触控图标；都在 `src/ui/layouts/Base.astro` 接入，不需要第三方图标服务。
 文章页另有 `article:published_time` / `article:modified_time` / `article:tag`；设置了 `SITE_URL` 时，还会输出 schema.org JSON-LD：首页是 `WebSite` 和站内搜索，文章页是 `BlogPosting` 和面包屑，主题页是面包屑。
 JSON-LD 是浏览器不会执行的数据块，不受 CSP 影响，所有 `<` 都会转义。
 

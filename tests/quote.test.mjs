@@ -9,6 +9,8 @@ test('a dash after the end of a sentence starts the attribution, in Chinese and 
   assert.deepEqual(splitQuote('Writing is nothing less than the artist’s duel with the audience—waged for the sake of one’s own singularity and dignity. — Witold Gombrowicz'),
     { quote: 'Writing is nothing less than the artist’s duel with the audience—waged for the sake of one’s own singularity and dignity.', cite: '— Witold Gombrowicz' });
   assert.deepEqual(splitQuote('“Less is more.” -- Mies'), { quote: '“Less is more.”', cite: '-- Mies' });
+  assert.deepEqual(splitQuote('写作就是艺术家为了自己的个性\n和荣誉跟大众进行的一场战斗。——维托尔德·贡布罗维奇'),
+    { quote: '写作就是艺术家为了自己的个性\n和荣誉跟大众进行的一场战斗。', cite: '——维托尔德·贡布罗维奇' });
 });
 
 test('dashes inside the quote, sentences after the dash and plain text are left alone', () => {
