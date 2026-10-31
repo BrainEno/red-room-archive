@@ -1,7 +1,5 @@
 /** Browser-native article narration. No article text is sent to this server. */
-
-const BLOCKS = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'FIGURE', 'FIGCAPTION', 'PRE', 'TABLE', 'TR', 'TD', 'TH', 'SUMMARY', 'ASIDE', 'DIV']);
-const SKIP = 'nav.toc, .bookmark-url, .code-copy, annotation, script, style, iframe, audio, video, input, [aria-hidden="true"]';
+import { createReadingFollow, SPEECH_BLOCKS as BLOCKS, SPEECH_SKIP as SKIP } from './read-aloud-follow.ts';
 
 /** Extract in document order, without repeating nested list text or the TOC. */
 export function articleSpeechText(root: Element): string {
@@ -66,18 +64,29 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): boolea
   const stopButton = root.querySelector<HTMLButtonElement>('[data-stop]');
   const speed = root.querySelector<HTMLSelectElement>('[data-speed]');
   const seek = root.querySelector<HTMLInputElement>('[data-seek]');
+  const followControl = root.querySelector<HTMLInputElement>('[data-follow]');
   const status = root.querySelector<HTMLElement>('[data-status]');
   const caption = root.querySelector<HTMLElement>('[data-caption]');
   if (!body || !title || !play || !label || !stopButton || !speed || !seek || !status) return false;
   const text = articleSpeechText(body);
   if (!text.trim()) return false;
-  const chunks = speechChunks([title.textContent?.trim(), text].filter(Boolean).join('\n'));
+  const sourceText = [title.textContent?.trim(), text].filter(Boolean).join('\n');
+  const chunks = speechChunks(sourceText);
   if (!chunks.length) return false;
   const starts: number[] = [];
   let total = 0;
   for (const chunk of chunks) { starts.push(total); total += chunk.length; }
 
   const fallbackLang = article?.getAttribute('lang') || document.documentElement.lang || 'en';
+  let followEnabled = true;
+  if (followControl) {
+    try {
+      const saved = window.localStorage.getItem('rra-read-aloud-follow');
+      followEnabled = saved === null ? true : saved === '1';
+    } catch { followEnabled = true; }
+    followControl.checked = followEnabled;
+  } else followEnabled = false;
+  const follow = createReadingFollow({ title, body, chunks, sourceText, locale: fallbackLang, enabled: () => followEnabled });
   let state: 'idle' | 'playing' | 'paused' = 'idle';
   let generation = 0;
   let current: SpeechSynthesisUtterance | undefined;
@@ -118,6 +127,7 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): boolea
     activeIndex = 0;
     offset = 0;
     scrubbing = false;
+    follow.clear();
     showState('idle', message);
     setProgress(0);
   };
@@ -126,10 +136,11 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): boolea
     activeIndex = chunks.length;
     offset = 0;
     scrubbing = false;
+    follow.clear();
     showState('idle', root.dataset.finished);
     setProgress(1);
   };
-  const speakChunk = (index: number, run: number, from = 0) => {
+  const speakChunk = (index: number, run: number, from = 0, scroll = false) => {
     if (run !== generation) return;
     if (index >= chunks.length) { finish(); return; }
     activeIndex = index;
@@ -137,7 +148,7 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): boolea
     if (!scrubbing) setProgress(((starts[index] ?? 0) + from) / total);
     try {
       const source = chunks[index]!;
-      if (from >= source.length) { speakChunk(index + 1, run); return; }
+      if (from >= source.length) { speakChunk(index + 1, run, 0, scroll); return; }
       const start = Math.max(0, from);
       const utterance = new SpeechSynthesisUtterance(source.slice(start));
       current = utterance; // retain a reference on browsers that collect queued utterances
@@ -150,13 +161,15 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): boolea
         if (run !== generation || !Number.isFinite(event.charIndex)) return;
         offset = Math.min(source.length, start + event.charIndex);
         if (!scrubbing) setProgress(((starts[index] ?? 0) + offset) / total);
+        follow.showWord(index, offset, event.charLength);
       };
-      utterance.onend = () => { if (run === generation) { offset = 0; speakChunk(index + 1, run); } };
+      utterance.onend = () => { if (run === generation) { offset = 0; speakChunk(index + 1, run, 0, true); } };
       utterance.onerror = () => { if (run === generation) stop(root.dataset.error); };
       synth.speak(utterance);
+      follow.showPassage(index, start, scroll);
     } catch { if (run === generation) stop(root.dataset.error); }
   };
-  const restartSpeech = (index: number, from: number) => {
+  const restartSpeech = (index: number, from: number, scroll = false) => {
     const run = ++generation;
     clearRestart();
     current = undefined;
@@ -167,7 +180,7 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): boolea
     restartTimer = setTimeout(() => {
       restartTimer = undefined;
       if (run !== generation || state === 'idle') return;
-      speakChunk(index, run, from);
+      speakChunk(index, run, from, scroll);
       if (run !== generation) return;
       if (state === 'paused' && !synth.paused) synth.pause();
       else if (state === 'playing' && synth.paused) synth.resume();
@@ -193,7 +206,7 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): boolea
     const source = chunks[index]!;
     const from = safeSeekOffset(source, target - (starts[index] ?? 0));
     setProgress(((starts[index] ?? 0) + from) / total);
-    restartSpeech(index, from);
+    restartSpeech(index, from, true);
   };
   play.addEventListener('click', () => {
     if (state === 'playing') { synth.pause(); showState('paused', root.dataset.paused); return; }
@@ -207,7 +220,7 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): boolea
     offset = 0;
     scrubbing = false;
     showState('playing', root.dataset.listening);
-    speakChunk(0, generation);
+    speakChunk(0, generation, 0, true);
   });
   speed.addEventListener('change', () => {
     if (state === 'idle') return;
@@ -230,6 +243,12 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): boolea
     if (!scrubbing) return;
     scrubbing = false;
     setProgress(positionRatio());
+  });
+  followControl?.addEventListener('change', () => {
+    followEnabled = followControl.checked;
+    try { window.localStorage.setItem('rra-read-aloud-follow', followEnabled ? '1' : '0'); } catch { /* The choice still applies to this player. */ }
+    if (!followEnabled) follow.clear();
+    else if (state !== 'idle') follow.showPassage(activeIndex, offset, true);
   });
   stopButton.addEventListener('click', () => stop(root.dataset.stopped));
   window.addEventListener('pagehide', () => { if (state !== 'idle' || current || restartTimer !== undefined) stop(); });
