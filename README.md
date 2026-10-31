@@ -349,7 +349,7 @@ cp -a /absolute/path/uploads "$backup/uploads"
 
 静态版有中英文页面（英文根路径、中文 `/zh-CN/`）、文章、标签/分页、RSS、sitemap、浏览器搜索和朗读；搜索需要 JavaScript。公开文章正文会进入下载到浏览器的搜索索引。Notion 上传的图片和常见音视频/PDF 在构建时复制到公开产物，外链媒体仍依赖外部地址；不支持的媒体类型会使构建失败。构建过程使用隔离的临时 SQLite，不复制数据库或 token。仅生成公开站点，**没有文章/设置管理 API、上传或实时同步**（`/admin` 只是一个外壳，在 Netlify 上用于管理邮件订阅，见“邮件订阅”）；后台保存的设置、More 内容和上传不会自动带入，需通过上述内容包（或单独的站点资料 JSON）显式导入；未导入时使用默认值，More 使用代码内示例内容。页面地址与 Node 版完全相同（同一套路径，由 SSR 直接渲染后写出）；语言切换是普通链接，静态主机上没有 cookie 记忆和 `Accept-Language` 协商，也不支持 `?lang=` 和旧查询地址/旧博客重定向。
 
-注意：静态构建的临时数据库不会跨构建保留；**Date 留空的文章每次构建都会使用当次构建日期**，请在 Notion 填写 Date 以保持日期稳定。构建期间修改或撤回文章可能造成快照不一致，应等待更改完成后重新构建。只想预览演示内容时可显式设置 `STATIC_DEMO=1`（不能同时设置 Notion 凭据）；非 Netlify 环境仍需设置 `SITE_URL`。生产构建及普通本地构建缺少 Notion 配置不会自动切换成演示内容，以免误部署；Netlify Deploy Preview 的无凭据演示回退见上文。本地命令示例：
+注意：静态构建的临时数据库不会跨构建保留；**Date 留空的文章每次构建都会使用当次构建日期**，请在 Notion 填写 Date 以保持日期稳定。构建期间修改或撤回文章可能造成快照不一致，应等待更改完成后重新构建。静态快照会读取图片文件头，为 `<img>` 写入 width/height（防止图片晚到时正文跳动）：本地图片直接读取，外部图片只请求前 64 KiB、每张最多等 8 秒；设置 `STATIC_IMAGE_PROBE=0` 可跳过外部图片。只想预览演示内容时可显式设置 `STATIC_DEMO=1`（不能同时设置 Notion 凭据）；非 Netlify 环境仍需设置 `SITE_URL`。生产构建及普通本地构建缺少 Notion 配置不会自动切换成演示内容，以免误部署；Netlify Deploy Preview 的无凭据演示回退见上文。本地命令示例：
 
 ```bash
 SITE_URL=https://archive.example NOTION_TOKEN=... NOTION_DATABASE_ID=... npm run build:static
