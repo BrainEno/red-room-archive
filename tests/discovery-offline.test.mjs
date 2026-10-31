@@ -38,6 +38,7 @@ test('service worker bounds caches and excludes private data and query URLs', ()
   assert.match(worker, /if \(!url\.search\) await save\(PAGES/);
   assert.match(worker, /if \(!url\.search\) \{\s*const cached = await match\(request\)/);
   assert.match(worker, /request\.headers\.has\('range'\)/);
+  assert.match(worker, /response\.status >= 500/);
   assert.match(worker, /\/_astro\//);
   assert.doesNotMatch(worker, /cache\.addAll\(\['\/'/);
 });

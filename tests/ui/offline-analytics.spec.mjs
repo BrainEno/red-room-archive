@@ -21,7 +21,8 @@ async function waitForWorker(page) {
 }
 
 async function setOutage(page, base, id, value) {
-  const response = await page.request.post(`${base || SSR}/__harness/outage?id=${id}&value=${value ? 1 : 0}`);
+  const mode = value === true ? 1 : value === false ? 0 : value;
+  const response = await page.request.post(`${base || SSR}/__harness/outage?id=${id}&value=${mode}`);
   expect(response.status()).toBe(204);
 }
 
@@ -44,6 +45,11 @@ for (const origin of ['', STATIC]) {
       expect(saved?.fromServiceWorker()).toBe(true);
       await expect(page.locator('[data-article-title]')).toHaveText('Notes on light');
       await expect(page.locator('h1')).toHaveText('Notes on light');
+      await setOutage(page, base, id, 503);
+      const degraded = await page.reload({ waitUntil: 'domcontentloaded' });
+      expect(degraded?.fromServiceWorker()).toBe(true);
+      await expect(page.locator('h1')).toHaveText('Notes on light');
+      await setOutage(page, base, id, true);
       const fallback = await page.goto(`${base}/topics`, { waitUntil: 'domcontentloaded' });
       expect(fallback?.fromServiceWorker()).toBe(true);
       await expect(page.locator('h1')).toHaveText('The connection is out');

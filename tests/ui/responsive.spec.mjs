@@ -166,7 +166,7 @@ test('read aloud controls respond to supported and unsupported speech APIs', asy
     const page = await context.newPage();
     await page.addInitScript(() => {
       Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: {
-        paused: false, getVoices: () => [], speak: () => {}, pause: () => {}, resume: () => {}, cancel: () => {},
+        paused: false, spoken: [], getVoices: () => [], speak(value) { this.spoken.push(value); }, pause: () => {}, resume: () => {}, cancel: () => {},
       } });
       window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
     });
@@ -176,6 +176,9 @@ test('read aloud controls respond to supported and unsupported speech APIs', asy
     await expect(page.locator('[data-read-aloud]')).toHaveAttribute('data-state', 'playing');
     await expect(page.locator('[data-caption]')).toContainText(/Reading aloud|正在朗读/);
     await expect(page.locator('[data-stop]')).toBeVisible();
+    await page.locator('[data-speed]').selectOption('1.5');
+    await expect.poll(() => page.evaluate(() => window.speechSynthesis.spoken.length)).toBe(2);
+    expect(await page.evaluate(() => window.speechSynthesis.spoken.at(-1).rate)).toBe(1.5);
     await page.locator('[data-play]').click();
     await expect(page.locator('[data-read-aloud]')).toHaveAttribute('data-state', 'paused');
     await page.locator('[data-stop]').click();
@@ -189,6 +192,18 @@ test('read aloud controls respond to supported and unsupported speech APIs', asy
     await page.goto('/articles/connect-notion');
     await expect(page.locator('[data-read-aloud]')).toBeHidden();
   } finally { await unsupported.close(); }
+});
+
+test('home defers the 3D renderer until the reader scrolls', async ({ page }) => {
+  const requests = [];
+  page.on('request', (request) => requests.push(request.url()));
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
+  expect(requests.some((url) => url.includes('vendor-three'))).toBe(false);
+  expect(requests.some((url) => url.includes('/models/'))).toBe(false);
+  await page.locator('.bar a[href="#intro"]').click();
+  await expect.poll(() => requests.some((url) => url.includes('vendor-three'))).toBe(true);
+  await expect.poll(() => requests.some((url) => /\/scene\.[^/]+\.js/.test(url))).toBe(true);
 });
 
 test('home remains navigable without WebGL or JavaScript', async ({ browser, baseURL }, testInfo) => {

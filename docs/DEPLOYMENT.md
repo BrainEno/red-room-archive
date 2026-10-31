@@ -91,6 +91,22 @@ Netlify 会在仓库文件和构建产物里搜索每个**标记为 secret 的�
 | Resend 免费 | 每月 3,000 封，每天 100 封（UTC），收发都计入 | 默认 `NEWSLETTER_DAILY_LIMIT=90`、`NEWSLETTER_MONTHLY_LIMIT=2800` 留出余量，并以 Resend 返回的用量为准；用尽后订阅暂停到次日 / 下月并明确提示。见 [NEWSLETTER.md](NEWSLETTER.md#发信上限防止超出-resend-免费额度) |
 | Brevo 免费 | 每天 300 封 | 可设 `NEWSLETTER_DAILY_LIMIT=280`、`NEWSLETTER_MONTHLY_LIMIT=8400` |
 
+### 长期无访问、冷启动与整站暂停
+
+**不需要为“长期不活跃”设置定时唤醒。** Netlify 静态页面不会因为没有访客而进入需要唤醒的休眠状态；函数冷启动只可能让订阅／统计 API 的某次请求变慢，不妨碍已部署的静态文章加载。本项目没有使用会按 inactivity sleep 的 Netlify Database。
+
+真正需要防的是**额度用尽后的团队级暂停**：积分制免费套餐每月 300 积分为硬上限，耗尽后团队内项目不能接收网页请求，访客看到 `Site not available`。免费套餐不能 auto recharge；只能等下一计费周期自动恢复，或升级套餐。此时任何客户端代码、Service Worker 或 scheduled function 都无法保证站点继续在线。
+
+因此本项目采用以下策略，而不是无效的 keep-alive：
+
+1. 静态文章不依赖 Notion、Blobs 或 Function 才能阅读；公开统计失败不会阻塞正文。
+2. 首屏 Three.js／模型延迟到首次滚动，减少首访资源请求与计算；不为“保活”增加 scheduled function、定时 ping 或第三方监控请求。
+3. 已有离线副本的浏览器在断网或源站 5xx 时可继续阅读；这不是整站暂停的替代方案，首次访客仍需要可用的托管服务。
+4. 合并内容更新后再做生产部署，避免无意义的重复生产部署；部署预览不计生产部署的 15 积分，但网页请求、带宽和 Functions 仍应按实际用量观察。
+5. 在 **Team → Usage & billing** 每月检查积分、带宽和请求量，并确保 Netlify 的 50%／75%／90%／100% 用量通知能发送到站主邮箱。接近上限时先减少部署和非必要 API 请求，不要等到整站暂停才处理。
+
+官方说明：[How credits work](https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/) 与 [Resume paused projects](https://docs.netlify.com/manage/accounts-and-billing/billing/resume-paused-projects/)。如果业务要求即使免费额度耗尽也不能离线，只能准备额外托管／付费额度或外部故障切换；仓库内的功能不能诚实承诺这一点。
+
 ### 其他静态主机
 
 Cloudflare Pages 等主机可以发布同一个 `static-dist/`，但没有 Netlify Function：订阅页面会显示“此页面暂时无法连接订阅服务”，统计后台也无法登录／读取。服务层与存储接口是可移植的（`NewsletterStore`、`AnalyticsStore`、`DocumentBackend`），要在别的平台运行需要为该平台写类似 `netlify/functions/newsletter.mts` / `analytics.mts` 的入口和存储后端。
@@ -109,6 +125,7 @@ Cloudflare Pages 等主机可以发布同一个 `static-dist/`，但没有 Netli
 - [ ] UI 改动跑过 `npm run test:ui`
 - [ ] `static-dist/` 没有提交到 Git（已在 `.gitignore`）
 - [ ] 生产环境变量的 Scope 和 Context 符合上表；预览没有生产密钥
+- [ ] Usage & billing 用量通知可送达；没有为了“保活”增加定时请求，本月生产部署和流量不会耗尽免费额度
 - [ ] 部署后按“上线后验证”走一遍；未验证前不要宣称订阅已上线
 - [ ] 生产站实际打开几页后，后台能看到统计；验证暂停、CSV、清除和 DNT/GPC，不把本地模拟当成 Blobs 验证
 - [ ] 在线打开文章后断网重载，确认离线副本和未缓存回退；检查 `/sitemap.xml`、`/llms.txt` 与版权／TDM 声明
