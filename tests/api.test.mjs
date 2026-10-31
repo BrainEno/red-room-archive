@@ -294,7 +294,7 @@ test('site copy per language: Chinese overrides are separate from English, /api/
   const zh = queries.getSite('zh-CN');
   assert.equal(en.locale, 'en');
   assert.equal(zh.locale, 'zh-CN');
-  assert.equal(zh.tagline, '随笔、札记与小说');
+  assert.equal(zh.tagline, '小说、诗歌以及其他');
   assert.notEqual(zh.about, en.about, 'each language has its own quote');
   assert.equal(en.intro, '', 'no placeholder intro: hidden until the owner writes one');
   assert.equal(zh.intro, '');

@@ -4,7 +4,9 @@ import type { Locale } from '../../shared/i18n.ts';
 const { locale } = Astro.props as { locale: Locale };
 const t = messages(locale).article;
 ---
-<div class="read-aloud" lang={locale} hidden data-read-aloud
+{/* Rendered in place but invisible (data-pending) so the article does not jump
+    when the script reveals it; browsers that cannot speak remove it. */}
+<div class="read-aloud" lang={locale} data-pending data-read-aloud
   data-listen={t.listen} data-pause={t.pause} data-resume={t.resume}
   data-listening={t.listening} data-paused={t.paused} data-finished={t.finished}
   data-stopped={t.stopped} data-error={t.speechError} data-hint={t.listenHint}>

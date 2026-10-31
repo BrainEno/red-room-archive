@@ -4,6 +4,10 @@
  * Pure presentation — receives everything through props.
  */
 import '@fontsource-variable/archivo/wdth.css';
+// The Latin cut every page sets its headings in: preloaded so it is usually there for the
+// first paint and titles do not reflow (and push the article down) once it arrives.
+import archivoLatin from '@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2?url';
+import { COPYRIGHT_PATH } from '../../shared/routes.ts';
 import '../styles/base.css';
 import '../styles/cjk.css';
 import { DEFAULT_LOCALE, LOCALES, localizedPath, type Locale } from '../../shared/i18n.ts';
@@ -62,6 +66,7 @@ const ogImage = card && siteUrl ? new URL(card.src, siteUrl).toString() : (card?
 const ogImageAlt = image ? imageAlt || title : siteName || title;
 const otherLocales = LOCALES.filter((code) => code !== locale);
 const structured = siteUrl && jsonLd.length ? serializeJsonLd(jsonLd) : '';
+const rightsPolicy = siteUrl ? new URL(localizedPath(COPYRIGHT_PATH, locale), siteUrl).toString() : localizedPath(COPYRIGHT_PATH, locale);
 ---
 <!doctype html>
 <html lang={locale}>
@@ -73,6 +78,11 @@ const structured = siteUrl && jsonLd.length ? serializeJsonLd(jsonLd) : '';
   {noindex && <meta name="robots" content="noindex" />}
   {canonical && <link rel="canonical" href={canonical} />}
   <meta name="theme-color" content="#0a0506" />
+  <link rel="preload" href={archivoLatin} as="font" type="font/woff2" crossorigin />
+  {siteName && <meta name="copyright" content={`© ${new Date().getFullYear()} ${siteName}. All rights reserved.`} />}
+  {/* W3C TDMRep: text-and-data-mining rights are reserved; the policy is the copyright page. */}
+  <meta name="tdm-reservation" content="1" />
+  <meta name="tdm-policy" content={rightsPolicy} />
   <meta property="og:type" content={type} />
   <meta property="og:title" content={title} />
   {siteName && <meta property="og:site_name" content={siteName} />}

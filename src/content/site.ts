@@ -23,7 +23,11 @@ export interface SiteIdentity {
  * *about you* and that /admin can override (`about`, `intro`, `tagline`).
  */
 export interface SiteCopy {
-  /** One line: homepage, meta description, RSS description. */
+  /**
+   * One line: homepage, meta description, RSS description. A trailing
+   * attribution after a dash (`…战斗。——作者`, `… dignity. — Author`) is set on
+   * its own line on the homepage (core/quote.ts).
+   */
   about: string;
   /** Two or three sentences shown in the intro section, revealed word by word ('' = none). */
   intro: string;
@@ -47,16 +51,16 @@ export const site: SiteIdentity = {
  */
 export const copy: Record<Locale, SiteCopy> = {
   en: {
-    about: 'Writing is nothing less than the artist’s duel with the audience—waged for the sake of one’s own singularity and dignity.',
+    about: 'Writing is nothing less than the artist’s duel with the audience—waged for the sake of one’s own singularity and dignity. — Witold Gombrowicz',
     intro: '',
-    tagline: 'Essays, notes and fiction',
+    tagline: 'Fiction, poetry and other writings',
     facts: [],
     articlesIntro: 'Everything published from the notebook, newest first.',
   },
   'zh-CN': {
-    about: '写作就是艺术家为了自己的个性和荣誉跟大众进行的一场战斗。',
+    about: '写作就是艺术家为了自己的个性和荣誉跟大众进行的一场战斗。——维托尔德·贡布罗维奇',
     intro: '',
-    tagline: '随笔、札记与小说',
+    tagline: '小说、诗歌以及其他',
     facts: [],
     articlesIntro: '笔记本里发布的全部文章，按时间由新到旧排列。',
   },

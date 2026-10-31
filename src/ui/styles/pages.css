@@ -5,6 +5,11 @@
 .prose { max-width: 62ch; margin: 0 auto; padding: 140px 20px 120px; font-size: 1.15rem; line-height: 1.7; }
 .prose h1 { overflow-wrap: anywhere; font-stretch: 62%; font-weight: 800; font-size: clamp(3rem, 9vw, 6rem); line-height: .9; text-transform: uppercase; }
 .prose .by { opacity: .6; margin: 1rem 0 3rem; }
+/* Rights line under the article body: small and quiet, a hairline like the footer. */
+.prose .rights { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 18px; white-space: normal; margin: 4rem 0 0; padding-top: 14px;
+  border-top: 1px solid rgba(241,238,230,.18); font-size: 13px; font-weight: 600; line-height: 1.5; opacity: .62; }
+.prose .rights a { text-decoration: none; }
+.prose .rights a:hover, .prose .rights a:focus-visible { color: var(--accent-soft); opacity: 1; }
 .prose p { white-space: pre-wrap; margin-bottom: 1.2em; } .prose h3 { margin: 2em 0 .6em; }
 .prose blockquote { border-left: 2px solid var(--red); padding-left: 1em; margin: 1.5em 0; }
 
@@ -307,6 +312,8 @@
    shows how much has been read; the caption repeats the state for sighted
    readers (the live region above is for screen readers). */
 .read-aloud[hidden], .read-aloud [hidden] { display: none; }
+.read-aloud[data-pending] { visibility: hidden; }        /* space reserved until the script decides */
+@media (scripting: none) { .read-aloud { display: none; } }
 .read-aloud { position: relative; margin: 0 0 2.6rem; padding: 1rem 0 1.05rem; border-top: 1px solid rgba(241,238,230,.16); border-bottom: 1px solid rgba(241,238,230,.16); }
 .read-aloud-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; }
 .read-aloud button, .read-aloud select { font: inherit; color: var(--ink); cursor: pointer; }

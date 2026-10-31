@@ -65,13 +65,14 @@ test('player pauses, resumes, changes speed, ignores cancelled callbacks and sto
   const title = { textContent: 'Title' };
   const article = { getAttribute: () => 'en', querySelector: (selector) => selector === '.article-body' ? body : title };
   const controls = { '[data-play]': play, '[data-play-label]': label, '[data-stop]': stop, '[data-speed]': speed, '[data-status]': status, '[data-caption]': caption, '[data-progress]': progress };
-  const root = { hidden: true, dataset: { listen: 'Listen', pause: 'Pause', resume: 'Resume', listening: 'Reading', paused: 'Paused', finished: 'Finished', stopped: 'Stopped', error: 'Error', hint: 'Hint' },
+  const root = { hidden: true, dataset: { pending: '', listen: 'Listen', pause: 'Pause', resume: 'Resume', listening: 'Reading', paused: 'Paused', finished: 'Finished', stopped: 'Stopped', error: 'Error', hint: 'Hint' },
     closest: () => article, querySelector: (selector) => controls[selector] };
   const synth = { paused: false, spoken: [], cancels: 0, getVoices: () => [{ lang: 'en-US' }, { lang: 'zh-CN' }],
     speak(utterance) { this.spoken.push(utterance); }, cancel() { this.cancels++; }, pause() { this.paused = true; }, resume() { this.paused = false; } };
   try {
-    initReadAloud(root, synth);
+    assert.equal(initReadAloud(root, synth), true, 'reports that the player is usable');
     assert.equal(root.hidden, false);
+    assert.equal('pending' in root.dataset, false, 'the reserved space becomes visible');
     play.click();
     assert.equal(synth.spoken[0].text, 'Title');
     assert.equal(label.textContent, 'Pause');

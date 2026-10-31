@@ -10,8 +10,9 @@ import { messages } from '../i18n.ts';
 import '../styles/home.css';
 import type { ArticleSummary, TagCount } from '../../shared/contracts.ts';
 import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
-import { ARTICLES_PATH, MORE_PATH, SEARCH_PATH, SUBSCRIBE_PATH, TOPICS_PATH, topicPath } from '../../shared/routes.ts';
+import { ARTICLES_PATH, COPYRIGHT_PATH, MORE_PATH, SEARCH_PATH, SUBSCRIBE_PATH, TOPICS_PATH, topicPath } from '../../shared/routes.ts';
 import { absoluteUrl, websiteLd } from '../../shared/structured-data.ts';
+import { splitQuote } from '../../core/quote.ts';
 
 export interface Props {
   site: {
@@ -36,6 +37,10 @@ const TOPIC_LIMIT = 12;
 const pad = (i: number) => String(i + 1).padStart(2, '0');
 const year = (date: string) => String(date).slice(0, 4);
 const nav = ['intro', 'latest', 'topics', 'more'] as const;
+// The large intro slot: the intro, or else the about line — with a trailing
+// attribution (`…战斗。——作者`) set on its own line.
+const lede = site.intro ? { quote: site.intro, cite: '' } : splitQuote(site.about);
+const ledeLang = contentLang(lede.quote);
 const jsonLd = site.url
   ? [websiteLd({ url: absoluteUrl(site.url, to('/')), name: site.name, description: site.about, inLanguage: locale, searchUrl: absoluteUrl(site.url, to(SEARCH_PATH)) })]
   : [];
@@ -65,10 +70,15 @@ const jsonLd = site.url
 
     <section id="intro" class="intro">
       <div class="stage">
-        <div class="intro-copy">
+        <div class="intro-copy" data-script={lede.cite && ledeLang === 'zh-CN' ? 'cjk' : undefined}>
           {/* No intro: the about line takes the large word-by-word slot. */}
           {site.intro && <p class="site-about" lang={contentLang(site.about)}>{site.about}</p>}
-          <p class="lede" lang={contentLang(site.intro || site.about)}>{site.intro || site.about}</p>
+          {lede.cite ? (
+            <figure class="lede-quote">
+              <blockquote><p class="lede" lang={ledeLang}>{lede.quote}</p></blockquote>
+              <figcaption class="lede-by" lang={contentLang(lede.cite)}>{lede.cite}</figcaption>
+            </figure>
+          ) : <p class="lede" lang={ledeLang}>{lede.quote}</p>}
         </div>
         {site.facts.length > 0 && (
           <dl class="facts">{site.facts.map((f) => <div><dt lang={contentLang(f.key)}>{f.key}</dt><dd lang={contentLang(f.value)}>{f.value}</dd></div>)}</dl>
@@ -108,12 +118,13 @@ const jsonLd = site.url
     <section id="more" class="s finale" aria-labelledby="more-h">
       <h2 id="more-h" class="sr">{t.home.more}</h2>
       <span id="contact" aria-hidden="true"></span>{/* old /#contact links still land here */}
+      <p class="go-hint">{t.home.moreHint}</p>
       <a class="go" href={to(MORE_PATH)}><span class="go-t">{t.home.learnMore}</span><span class="go-a" aria-hidden="true">↗</span></a>
       <div class="reach">
         {site.email && <p><span class="k">{t.home.email}</span><a href={`mailto:${site.email}`}>{site.email}</a></p>}
         {site.newsletterSignup && <p class="letters-reach"><span class="k">{t.newsletter.homeKey}</span><a href={to(SUBSCRIBE_PATH)}>{t.newsletter.homeLink}</a></p>}
         <p class="what">{t.home.moreTopics}</p>
-        <p class="yr">© {new Date().getFullYear()} {site.name}</p>
+        <p class="yr"><a href={to(COPYRIGHT_PATH)} title={t.legal.copyright}>© {new Date().getFullYear()} {site.name}</a></p>
       </div>
     </section>
   </main>

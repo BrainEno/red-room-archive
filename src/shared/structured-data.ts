@@ -44,6 +44,9 @@ export function articleLd(input: {
   inLanguage: string;
   siteName: string;
   homeUrl: string;
+  /** Copyright: the owner is the publisher; `license` points at the reuse terms page. */
+  copyrightYear?: number;
+  license?: string;
 }): JsonLd {
   const publisher = { '@type': 'Organization', name: input.siteName, url: input.homeUrl };
   return {
@@ -60,6 +63,9 @@ export function articleLd(input: {
     inLanguage: input.inLanguage,
     author: publisher,
     publisher,
+    copyrightHolder: publisher,
+    ...(input.copyrightYear ? { copyrightYear: input.copyrightYear } : {}),
+    ...(input.license ? { license: input.license } : {}),
     isPartOf: { '@id': `${input.homeUrl}#website` },
   };
 }

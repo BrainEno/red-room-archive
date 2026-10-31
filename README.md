@@ -337,7 +337,7 @@ cp -a /absolute/path/uploads "$backup/uploads"
 
 #### 内置默认资料
 
-没有导入站点资料（也没有在后台保存过）时，网站使用 `src/content/site.ts` 和 `src/content/tags.ts` 里的内置默认值，现已是本站的资料：站点名 **SureShot Studio**、邮箱 `nodeman24@outlook.com`、中英文引言（首页大字）、标语“随笔、札记与小说 / Essays, notes and fiction”，以及标签对照 Fiction = 小说、Else / Other = 其他、Poetry = 诗歌。首页简介段落和信息栏默认**不显示**（没有占位文字）；需要时在 Node 后台填写，或在站点资料 JSON 里填写后重新部署。因此静态站不放 `site-profile.json` 也会显示正确的资料。“更多”页面不在站点资料里，仍需用内容包或修改 `src/content/more.ts`。
+没有导入站点资料（也没有在后台保存过）时，网站使用 `src/content/site.ts` 和 `src/content/tags.ts` 里的内置默认值，现已是本站的资料：站点名 **SureShot Studio**、邮箱 `nodeman24@outlook.com`、中英文引言（首页大字；句末的“——作者”会单独排成右对齐的署名行，见 `src/core/quote.ts`）、标语“小说、诗歌以及其他 / Fiction, poetry and other writings”，以及标签对照 Fiction = 小说、Else / Other = 其他、Poetry = 诗歌。首页简介段落和信息栏默认**不显示**（没有占位文字）；需要时在 Node 后台填写，或在站点资料 JSON 里填写后重新部署。因此静态站不放 `site-profile.json` 也会显示正确的资料。“更多”页面不在站点资料里，仍需用内容包或修改 `src/content/more.ts`。
 
 #### 可迁移的站点资料 JSON
 
@@ -372,6 +372,19 @@ node tests/fixtures/notion-mock.mjs 4999 [--showcase]   # 本地假 Notion：NOT
 ```
 
 CI（`.github/workflows/validate.yml`）运行类型检查、单元测试、构建、页面渲染及浏览器 UI 测试。设计与响应式规则见 [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md)，测试安装及限制见 [docs/UI-TESTING.md](docs/UI-TESTING.md)，Agent 工作约定见 [AGENTS.md](AGENTS.md)。
+
+## 版权与许可
+
+本仓库**不是开源项目**。代码、设计和站点内容归 SureShot Studio 所有，保留所有权利，条款见 [LICENSE](LICENSE)（中英双语）。`package.json` 标为 `"license": "UNLICENSED"`，第三方素材及其许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。首页雕像模型按 CC BY 4.0 使用，必须保留署名。
+
+网站上对应的设置：
+
+- `/copyright`（中文 `/zh-CN/copyright`）是对访客的版权声明，涵盖版权归属、转载与引用、申请授权、AI 与数据挖掘、源代码以及第三方署名。文案在 `src/content/copyright.ts`，权利人名称和邮箱取自站点资料。
+- 页脚显示“© 年份 站点名. 保留所有权利。”和“版权声明”链接；每篇文章末尾有一行“未经作者许可，请勿转载”及链接；首页最后一行的 © 也链接到该页。
+- `<meta name="copyright">`，TDMRep 的 `tdm-reservation` / `tdm-policy`（保留文本与数据挖掘权），文章 JSON-LD 的 `copyrightHolder` / `copyrightYear` / `license`，RSS 的 `<copyright>`。
+- `robots.txt` 拒绝收集 AI 训练数据的爬虫（GPTBot、ClaudeBot、CCBot、Google-Extended 等，名单在 `src/ui/feeds.ts`），不影响搜索引擎。静态站直接使用服务器生成的同一份 robots.txt。
+
+这些措施表明权利、方便维权，但阻止不了别人看到公开仓库里的代码。若要防止代码被复制部署，最有效的办法是把仓库设为私有，Netlify 照常可以从私有仓库构建。
 
 ## 还没做
 

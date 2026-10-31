@@ -12,7 +12,7 @@ for (const mode of ['ssr', 'static']) {
     const url = (route) => `${mode === 'ssr' ? '' : 'http://127.0.0.1:4179'}${lang === 'zh-CN' ? `/zh-CN${route === '/' ? '' : route}` : route}`;
 
     test(`${mode} ${lang}: public layouts fit the viewport`, async ({ page }) => {
-      for (const route of ['/', '/articles', '/articles/connect-notion', '/topics', '/archive', '/search', '/more']) {
+      for (const route of ['/', '/articles', '/articles/connect-notion', '/topics', '/archive', '/search', '/more', '/copyright']) {
         const response = await page.goto(url(route), { waitUntil: 'domcontentloaded' });
         expect(response?.status(), route).toBe(200);
         await expect(page.locator('h1').first(), route).toBeAttached();

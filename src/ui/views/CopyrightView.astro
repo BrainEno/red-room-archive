@@ -1,0 +1,58 @@
+---
+/**
+ * /copyright — ownership, reuse terms and credits (content/copyright.ts).
+ * Same head, index and numbered hairline rules as /more; the terms read as
+ * a narrow text column on the right of the 12-column grid.
+ */
+import Page from '../layouts/Page.astro';
+import '../styles/more.css';
+import '../styles/copyright.css';
+import { copyrightDoc, COPYRIGHT_UPDATED, type Inline } from '../../content/copyright.ts';
+import { formatDate } from '../../core/text.ts';
+import type { Locale } from '../../shared/i18n.ts';
+import { COPYRIGHT_PATH } from '../../shared/routes.ts';
+
+export interface Props {
+  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean };
+}
+
+const { site } = Astro.props;
+const { locale } = site;
+const doc = copyrightDoc(locale, { name: site.name, email: site.email, year: new Date().getFullYear() });
+const pad = (i: number) => String(i + 1).padStart(2, '0');
+const external = (href: string) => /^https?:/i.test(href);
+const segments = (parts: Inline[]) => parts.filter((part) => part !== '');
+---
+<Page title={`${doc.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} locale={locale} description={doc.intro} current={COPYRIGHT_PATH}>
+  <div class="mp cp">
+    <header class="mp-head">
+      <p class="kicker">{site.name} / {doc.title}</p>
+      <h1>{doc.title}</h1>
+      <p class="mp-intro">{doc.intro}</p>
+      <nav class="mp-index" aria-label={doc.title}>
+        {doc.sections.map((s, i) => <a href={`#${s.id}`}><span class="n">{pad(i)}</span><span>{s.title}</span></a>)}
+      </nav>
+    </header>
+
+    {doc.sections.map((section, i) => (
+      <section id={section.id} class="mp-sec" aria-labelledby={`cp-${section.id}`}>
+        <h2 id={`cp-${section.id}`} class="mp-rule"><span class="n">{pad(i)}</span><span>{section.title}</span><span class="c"></span></h2>
+        <div class="cp-body">
+          {section.body.map((block) =>
+            'p' in block
+              ? <p>{segments(block.p).map((part) => typeof part === 'string' ? part : <a href={part.href} {...(external(part.href) ? { target: '_blank', rel: 'noopener' } : {})}>{part.text}</a>)}</p>
+              : (
+                <ul>
+                  {block.list.map((item) => (
+                    <li>{segments(item).map((part) => typeof part === 'string' ? part : <a href={part.href} {...(external(part.href) ? { target: '_blank', rel: 'noopener' } : {})}>{part.text}</a>)}</li>
+                  ))}
+                </ul>
+              ),
+          )}
+        </div>
+      </section>
+    ))}
+
+    <p class="cp-updated"><span class="lbl">{doc.updatedLabel}</span> <time datetime={COPYRIGHT_UPDATED}>{formatDate(COPYRIGHT_UPDATED, locale)}</time></p>
+  </div>
+</Page>

@@ -92,6 +92,14 @@ test('covered and text-only articles render correctly in the built site', async 
     assert.match(configured.values.NOTION_TOKEN, /^••••/);
     assert.notEqual(configured.values.NOTION_TOKEN, 'mock-token');
     assert.ok(!JSON.stringify(configured).includes('mock-token'));
+    // Built-in profile: no intro, so the quote takes the large slot and its
+    // trailing attribution is set as its own line (core/quote.ts).
+    const defaultHome = await get('/?lang=zh-CN');
+    assert.match(defaultHome, /<div class="intro-copy" data-script="cjk">/);
+    assert.match(defaultHome, /<blockquote><p class="lede" lang="zh-CN">写作就是艺术家为了自己的个性和荣誉跟大众进行的一场战斗。<\/p><\/blockquote><figcaption class="lede-by" lang="zh-CN">——维托尔德·贡布罗维奇<\/figcaption>/);
+    assert.match(defaultHome, /小说、诗歌以及其他/);
+    assert.match(defaultHome, /class="go-hint">有些篇章，只印在纸上。/);
+    assert.match(await get('/?lang=en'), /class="lede-by" lang="en">— Witold Gombrowicz</);
     const save = await fetch(`http://127.0.0.1:${port}/api/settings`, {
       method: 'PATCH', headers: { 'Authorization': 'Bearer test-admin', 'Content-Type': 'application/json' },
       body: JSON.stringify({ site_name: 'My <Archive>', site_about: 'About in English', site_intro: 'English intro', site_tagline: 'English tagline',
@@ -186,7 +194,10 @@ test('covered and text-only articles render correctly in the built site', async 
     const detail = await get('/articles/text-only');
     assert.match(detail, /class="article-body text-only"/);
     assert.match(detail, /A text-only body/);
-    assert.match(detail, /class="read-aloud"[^>]*hidden[^>]*data-read-aloud/);
+    // Server-rendered in place but invisible until the script confirms speech support,
+    // so revealing it cannot push the article down.
+    assert.match(detail, /class="read-aloud"[^>]*data-pending[^>]*data-read-aloud/);
+    assert.doesNotMatch(detail, /class="read-aloud"[^>]*\bhidden\b/);
     assert.match(detail, /data-article-title/);
     assert.match(detail, /data-play-label/);
     assert.match(detail, /data-speed/);

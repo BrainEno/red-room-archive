@@ -1,0 +1,22 @@
+/* /copyright — reuses the /more head, index and numbered rules (more.css);
+   the terms are a reading column on the right of the 12-column grid. */
+
+/* COPYRIGHT is twice as long as MORE: a smaller display size keeps it on one line (Chinese size: cjk.css). */
+.cp .mp-head h1:not(:lang(zh)) { font-size: clamp(3.4rem, 15vw, 15rem); }
+.cp .mp-index a { grid-template-columns: 2.6rem 1fr; }
+
+.cp-body { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 16px; padding: clamp(20px, 3vw, 36px) 0 clamp(48px, 6vw, 88px); }
+.cp-body > * { grid-column: 5 / 12; max-width: 62ch; }
+.cp-body p, .cp-body li { font-size: 1.05rem; line-height: 1.7; opacity: .86; }
+.cp-body p + p, .cp-body p + ul, .cp-body ul + p { margin-top: 1em; }
+.cp-body ul { list-style: none; border-top: 1px solid rgba(241,238,230,.18); }
+.cp-body li { padding: 12px 0 12px 1.6em; border-bottom: 1px solid rgba(241,238,230,.18); text-indent: -1.6em; }
+.cp-body li::before { content: "—"; display: inline-block; width: 1.6em; text-indent: 0; opacity: .55; }
+.cp-body a { text-decoration: underline; text-decoration-color: rgba(241,238,230,.45); text-underline-offset: .18em; overflow-wrap: anywhere; transition: color .3s; }
+.cp-body a:hover, .cp-body a:focus-visible { color: var(--accent-soft); }
+.cp-updated { padding: 12px 0 clamp(40px, 6vw, 80px); border-top: 1px solid var(--ink); font-size: 13px; font-weight: 600; }
+.cp-updated .lbl { margin-right: .9em; }
+
+@media (max-width: 900px) {
+  .cp-body > * { grid-column: 1 / 13; }
+}

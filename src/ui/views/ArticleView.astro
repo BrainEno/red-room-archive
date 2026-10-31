@@ -7,7 +7,7 @@ import { messages } from '../i18n.ts';
 import { formatDate, isoDatetime } from '../../core/text.ts';
 import type { ArticleDetail } from '../../shared/contracts.ts';
 import { contentLang, localePath, type Locale } from '../../shared/i18n.ts';
-import { ARTICLES_PATH, SUBSCRIBE_PATH, topicPath } from '../../shared/routes.ts';
+import { ARTICLES_PATH, COPYRIGHT_PATH, SUBSCRIBE_PATH, topicPath } from '../../shared/routes.ts';
 import { absoluteUrl, articleLd, breadcrumbLd } from '../../shared/structured-data.ts';
 
 export interface Props {
@@ -22,6 +22,8 @@ const showToc = article.toc.length >= 3;
 /** The article's own language (from its title and excerpt), independent of the interface language. */
 const lang = contentLang(`${article.title} ${article.excerpt}`);
 const abs = (path: string) => absoluteUrl(site.url, localePath(path, locale));
+/** Copyright year: the year the piece was published (today's year if the date is unknown). */
+const year = Number(/^\d{4}/.exec(String(article.date ?? ''))?.[0]) || new Date().getFullYear();
 const jsonLd = site.url
   ? [
       articleLd({
@@ -35,6 +37,8 @@ const jsonLd = site.url
         inLanguage: lang,
         siteName: site.name,
         homeUrl: abs('/'),
+        copyrightYear: year,
+        license: abs(COPYRIGHT_PATH),
       }),
       breadcrumbLd([
         { name: t.nav.home, url: abs('/') },
@@ -71,6 +75,12 @@ const jsonLd = site.url
           ? <p class="body-missing" lang={locale}>{t.article.unavailable}</p>
           : <Fragment set:html={article.html} />}
       </div>
+      {!bodyMissing && (
+        <p class="rights" lang={locale}>
+          <span>{t.legal.notice(year, site.name)}</span>
+          <a href={localePath(COPYRIGHT_PATH, locale)}>{t.legal.terms} →</a>
+        </p>
+      )}
     </article>
     {showToc && (
       <aside class="article-aside">

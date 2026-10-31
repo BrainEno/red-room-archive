@@ -10,6 +10,14 @@ import type { Locale } from '../shared/i18n.ts';
 
 const en = {
   nav: { intro: 'intro', latest: 'latest', topics: 'topics', more: 'more', articles: 'Articles', search: 'Search', moreLink: 'More', home: 'Home', topicsLink: 'Topics', archive: 'Archive' },
+  legal: {
+    /** Footer line. */
+    rights: (year: number, owner: string): string => `© ${year} ${owner}. All rights reserved.`,
+    copyright: 'Copyright',
+    /** Under every article. */
+    notice: (year: number, owner: string): string => `© ${year} ${owner} · Please do not republish without the author’s permission.`,
+    terms: 'Reuse terms',
+  },
   home: {
     scroll: 'Scroll',
     latest: 'Latest',
@@ -21,6 +29,7 @@ const en = {
     nothingYet: 'Nothing published yet.',
     more: 'More',
     learnMore: 'Learn more',
+    moreHint: 'Some pages exist only on paper.',
     moreTopics: 'Self-published books · Excerpts · Elsewhere',
     email: 'Email',
   },
@@ -166,6 +175,12 @@ export type Messages = typeof en;
 
 const zhCN: Messages = {
   nav: { intro: '引言', latest: '最新', topics: '主题', more: '更多', articles: '文章', search: '搜索', moreLink: '更多', home: '首页', topicsLink: '主题', archive: '归档' },
+  legal: {
+    rights: (year: number, owner: string): string => `© ${year} ${owner}，保留所有权利。`,
+    copyright: '版权声明',
+    notice: (year: number, owner: string): string => `© ${year} ${owner} · 未经作者许可，请勿转载。`,
+    terms: '转载与引用说明',
+  },
   home: {
     scroll: '向下滚动',
     latest: '最新',
@@ -177,6 +192,7 @@ const zhCN: Messages = {
     nothingYet: '还没有发布任何文章。',
     more: '更多',
     learnMore: '了解更多',
+    moreHint: '有些篇章，只印在纸上。',
     moreTopics: '自印出版物 · 选读 · 联系方式',
     email: '邮箱',
   },

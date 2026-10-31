@@ -17,6 +17,9 @@ export const SEARCH_PATH = '/search';
 /** Self-published books, excerpts and contact details (content/more.ts). */
 export const MORE_PATH = '/more';
 
+/** Copyright, licence and reuse terms for the writing and the site. */
+export const COPYRIGHT_PATH = '/copyright';
+
 /** Newsletter: the sign-up page and the two pages linked from emails (token in the #fragment). */
 export const SUBSCRIBE_PATH = '/subscribe';
 export const NEWSLETTER_CONFIRM_PATH = '/newsletter/confirm';
