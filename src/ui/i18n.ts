@@ -111,6 +111,8 @@ const en = {
     stopped: 'Reading stopped',
     speechError: 'Unable to read aloud. Check your browser or device voice settings.',
     listenHint: 'Read by your browser’s voice',
+    seek: 'Reading progress',
+    seekHint: 'Drag, or use the arrow keys',
   },
   pager: { label: 'Pagination', newer: '← Newer', older: 'Older →' },
   search: {
@@ -288,6 +290,8 @@ const zhCN: Messages = {
     stopped: '朗读已停止',
     speechError: '暂时无法朗读，请检查浏览器或设备的语音设置。',
     listenHint: '由浏览器的语音朗读全文',
+    seek: '朗读进度',
+    seekHint: '拖动，或使用方向键',
   },
   pager: { label: '分页', newer: '← 较新', older: '较早 →' },
   search: {

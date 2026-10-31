@@ -21,14 +21,17 @@ const t = messages(locale).article;
     <button type="button" class="read-aloud-stop" data-stop hidden aria-label={t.stop} title={t.stop}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 7h10v10H7z" fill="currentColor"/></svg></button>
     <label class="read-aloud-speed"><span class="read-aloud-speed-k" aria-hidden="true">{t.speed}</span>
       <select data-speed aria-label={t.speed}>
-        <option value="0.8">0.8×</option>
+        <option value="0.5">0.5×</option>
+        <option value="0.75">0.75×</option>
         <option value="1" selected>1×</option>
-        <option value="1.2">1.2×</option>
+        <option value="1.25">1.25×</option>
         <option value="1.5">1.5×</option>
+        <option value="2">2×</option>
       </select>
     </label>
   </div>
-  <span class="read-aloud-progress" aria-hidden="true"><span data-progress></span></span>
+  <input class="read-aloud-seek" data-seek type="range" min="0" max="1000" step="1" value="0" disabled
+    aria-label={t.seek} title={t.seekHint} />
   <span class="sr" role="status" aria-live="polite" data-status></span>
 </div>
 <script>

@@ -308,9 +308,8 @@
 
 /* An understated player: editorial typography with a single warm-red control. */
 /* Read aloud: a square, typeset control in the site's own vocabulary (tags,
-   condensed display type, red accent). A thin red line on the bottom rule
-   shows how much has been read; the caption repeats the state for sighted
-   readers (the live region above is for screen readers). */
+   condensed display type, red accent). The native range below supports pointer
+   scrubbing and arrow keys; its caption also exposes the percentage. */
 .read-aloud[hidden], .read-aloud [hidden] { display: none; }
 .read-aloud[data-pending] { visibility: hidden; }        /* space reserved until the script decides */
 @media (scripting: none) { .read-aloud { display: none; } }
@@ -344,17 +343,25 @@
 .read-aloud-speed-k { font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; color: rgba(241,238,230,.5); }
 .read-aloud select { appearance: none; -webkit-appearance: none; min-height: 2.75rem; padding: 0 1.75rem 0 .7rem; border: 1px solid rgba(241,238,230,.25); border-radius: 0; background: var(--void) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23f1eee6' stroke-opacity='.6' stroke-width='1.2'/%3E%3C/svg%3E") no-repeat right .65rem center / .6rem auto; font-size: .8rem; font-variant-numeric: tabular-nums; color: rgba(241,238,230,.85); transition: border-color .25s; }
 .read-aloud select:hover { border-color: rgba(241,238,230,.6); }
-.read-aloud-progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; overflow: hidden; pointer-events: none; }
-.read-aloud-progress span { display: block; height: 100%; background: var(--red); transform: scaleX(var(--p, 0)); transform-origin: left; transition: transform .6s var(--ease); }
+.read-aloud-seek { --p: 0%; appearance: none; -webkit-appearance: none; display: block; width: 100%; height: 1.75rem; margin: .55rem 0 -.45rem;
+  padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--ink); cursor: pointer; }
+.read-aloud-seek:disabled { cursor: default; opacity: .5; }
+.read-aloud-seek::-webkit-slider-runnable-track { height: 2px; background: linear-gradient(90deg, var(--accent-soft) 0 var(--p), rgba(241,238,230,.18) var(--p) 100%); }
+.read-aloud-seek::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 12px; height: 12px; margin-top: -5px; border: 1px solid var(--accent-soft);
+  border-radius: 50%; background: var(--void); transition: background-color .2s, transform .2s; }
+.read-aloud-seek::-moz-range-track { height: 2px; background: linear-gradient(90deg, var(--accent-soft) 0 var(--p), rgba(241,238,230,.18) var(--p) 100%); }
+.read-aloud-seek::-moz-range-thumb { width: 10px; height: 10px; border: 1px solid var(--accent-soft); border-radius: 50%; background: var(--void); transition: background-color .2s, transform .2s; }
+.read-aloud-seek:not(:disabled):is(:hover, :focus-visible)::-webkit-slider-thumb { background: var(--accent-soft); transform: scale(1.15); }
+.read-aloud-seek:not(:disabled):is(:hover, :focus-visible)::-moz-range-thumb { background: var(--accent-soft); transform: scale(1.15); }
 .read-aloud .read-aloud-error { position: static; display: block; width: auto; height: auto; clip: auto; clip-path: none; overflow: visible; margin: .7rem 0 0; color: var(--accent-soft); font-size: .78rem; }
-.read-aloud :is(button, select):focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
+.read-aloud :is(button, select, input):focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 3px; }
 @media (max-width: 520px) {
   .read-aloud-speed-k { display: none; }
   .read-aloud-label { font-size: 1.15rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .read-aloud[data-state="playing"] .read-aloud-wave i { animation: none; transform: scaleY(.7); }
-  .read-aloud-progress span { transition: none; }
+  .read-aloud-seek::-webkit-slider-thumb, .read-aloud-seek::-moz-range-thumb { transition: none; }
 }
 @media (max-width: 720px) {
   .article-body { font-size: 1.08rem; line-height: 1.8; }

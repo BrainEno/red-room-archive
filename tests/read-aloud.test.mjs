@@ -47,59 +47,76 @@ test('speech chunks preserve words and Unicode, choose content language and matc
 });
 
 function fakeControl() {
-  const events = {};
-  const props = {};
-  return { hidden: false, textContent: '', value: '1', events, props, style: { setProperty(name, value) { props[name] = value; } }, classList: { state: {}, toggle(name, enabled) { this.state[name] = enabled; } },
+  const events = {}, props = {}, attrs = {};
+  return { hidden: false, disabled: false, textContent: '', value: '1', events, props, attrs,
+    style: { setProperty(name, value) { props[name] = value; } },
+    classList: { state: {}, toggle(name, enabled) { this.state[name] = enabled; } },
+    setAttribute(name, value) { attrs[name] = value; },
     addEventListener(name, fn) { events[name] = fn; }, click() { events.click(); } };
 }
 
-test('player pauses, resumes, changes speed, ignores cancelled callbacks and stops on pagehide', () => {
+function playerFixture() {
   const oldWindow = globalThis.window, oldDocument = globalThis.document, oldUtterance = globalThis.SpeechSynthesisUtterance;
   const listeners = {};
   globalThis.window = { addEventListener(name, fn) { listeners[name] = fn; } };
   globalThis.document = { documentElement: { lang: 'en' } };
   globalThis.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
   const play = fakeControl(), label = fakeControl(), stop = fakeControl(), speed = fakeControl(), status = fakeControl();
-  const caption = fakeControl(), progress = fakeControl();
+  const caption = fakeControl(), seek = fakeControl();
+  seek.value = '0'; seek.disabled = true;
   const body = element('div', [element('p', [text('First paragraph.')]), element('p', [text('第二段。')])]);
   const title = { textContent: 'Title' };
   const article = { getAttribute: () => 'en', querySelector: (selector) => selector === '.article-body' ? body : title };
-  const controls = { '[data-play]': play, '[data-play-label]': label, '[data-stop]': stop, '[data-speed]': speed, '[data-status]': status, '[data-caption]': caption, '[data-progress]': progress };
+  const controls = { '[data-play]': play, '[data-play-label]': label, '[data-stop]': stop, '[data-speed]': speed, '[data-seek]': seek, '[data-status]': status, '[data-caption]': caption };
   const root = { hidden: true, dataset: { pending: '', listen: 'Listen', pause: 'Pause', resume: 'Resume', listening: 'Reading', paused: 'Paused', finished: 'Finished', stopped: 'Stopped', error: 'Error', hint: 'Hint' },
     closest: () => article, querySelector: (selector) => controls[selector] };
   const synth = { paused: false, spoken: [], cancels: 0, getVoices: () => [{ lang: 'en-US' }, { lang: 'zh-CN' }],
     speak(utterance) { this.spoken.push(utterance); }, cancel() { this.cancels++; }, pause() { this.paused = true; }, resume() { this.paused = false; } };
+  return { play, label, stop, speed, status, caption, seek, root, synth, listeners,
+    restore() { globalThis.window = oldWindow; globalThis.document = oldDocument; globalThis.SpeechSynthesisUtterance = oldUtterance; } };
+}
+
+const settleRestart = () => new Promise((resolve) => setTimeout(resolve, 60));
+
+test('player pauses, resumes, restarts at an audible rate, ignores cancelled callbacks and stops on pagehide', async () => {
+  const { play, label, stop, speed, status, caption, seek, root, synth, listeners, restore } = playerFixture();
   try {
     assert.equal(initReadAloud(root, synth), true, 'reports that the player is usable');
     assert.equal(root.hidden, false);
     assert.equal('pending' in root.dataset, false, 'the reserved space becomes visible');
+    assert.equal(seek.disabled, true);
     play.click();
     assert.equal(synth.spoken[0].text, 'Title');
     assert.equal(label.textContent, 'Pause');
     assert.equal(root.dataset.state, 'playing');
+    assert.equal(seek.disabled, false);
     play.click(); assert.equal(synth.paused, true); assert.equal(label.textContent, 'Resume');
     play.click(); assert.equal(synth.paused, false);
     speed.value = '1.5';
     speed.events.change();
-    assert.equal(synth.spoken.length, 2, 'a rate change restarts the active passage immediately');
+    assert.equal(synth.spoken.length, 1, 'cancel and speak are not fired in the same task');
+    await settleRestart();
+    assert.equal(synth.spoken.length, 2, 'a rate change restarts the active passage');
     assert.equal(synth.spoken[1].text, 'Title');
     assert.equal(synth.spoken[1].rate, 1.5);
     synth.spoken[0].onend();
     assert.equal(synth.spoken.length, 2, 'the cancelled utterance cannot advance the new run');
     synth.spoken[1].onboundary({ charIndex: 2 });
     play.click();
-    speed.value = '0.8';
+    speed.value = '0.75';
     speed.events.change();
+    await settleRestart();
     assert.equal(synth.spoken[2].text, 'tle', 'a paused rate change resumes from the latest boundary');
-    assert.equal(synth.spoken[2].rate, 0.8);
+    assert.equal(synth.spoken[2].rate, 0.75);
     assert.equal(synth.paused, true, 'changing speed does not unexpectedly resume a paused player');
     assert.equal(root.dataset.state, 'paused');
     play.click();
     synth.spoken[2].onend();
-    assert.equal(progress.props['--p'], '0.3333333333333333', 'the progress line follows spoken passages');
-    assert.equal(caption.textContent, 'Reading · 33%', 'the visible caption mirrors the state');
+    assert.equal(seek.value, '200', 'progress uses the character position, not just completed chunks');
+    assert.equal(seek.attrs['aria-valuetext'], '20%');
+    assert.equal(caption.textContent, 'Reading · 20%', 'the visible caption mirrors the state');
     assert.equal(synth.spoken[3].text, 'First paragraph.');
-    assert.equal(synth.spoken[3].rate, 0.8);
+    assert.equal(synth.spoken[3].rate, 0.75);
     synth.spoken[3].onend();
     assert.equal(synth.spoken[4].lang, 'zh-CN');
     assert.equal(synth.spoken[4].voice.lang, 'zh-CN');
@@ -108,7 +125,8 @@ test('player pauses, resumes, changes speed, ignores cancelled callbacks and sto
     assert.equal(synth.spoken.length, 5, 'late events cannot restart playback');
     assert.equal(status.textContent, 'Stopped');
     assert.equal(caption.textContent, 'Stopped');
-    assert.equal(progress.props['--p'], '0', 'stopping resets the progress line');
+    assert.equal(seek.value, '0', 'stopping resets the progress range');
+    assert.equal(seek.disabled, true);
     play.click();
     synth.spoken.at(-1).onerror();
     assert.equal(status.textContent, 'Error');
@@ -118,7 +136,50 @@ test('player pauses, resumes, changes speed, ignores cancelled callbacks and sto
     listeners.pagehide();
     assert.equal(label.textContent, 'Listen');
     assert.ok(synth.cancels >= 3);
-  } finally {
-    globalThis.window = oldWindow; globalThis.document = oldDocument; globalThis.SpeechSynthesisUtterance = oldUtterance;
-  }
+  } finally { restore(); }
+});
+
+test('progress range previews a drag, seeks whole words while paused and finishes at the end', async () => {
+  const { play, caption, seek, root, synth, restore } = playerFixture();
+  try {
+    initReadAloud(root, synth);
+    play.click();
+    seek.value = '500';
+    seek.events.input();
+    assert.equal(synth.spoken.length, 1, 'drag preview does not restart speech on every input event');
+    assert.equal(caption.textContent, 'Reading · 50%');
+    seek.events.change();
+    await settleRestart();
+    assert.equal(synth.spoken.length, 2);
+    assert.equal(synth.spoken[1].text, 'paragraph.', 'Latin seeking starts at a whole word');
+    assert.equal(seek.value, '440');
+    assert.equal(caption.textContent, 'Reading · 44%');
+    synth.spoken[0].onend();
+    assert.equal(synth.spoken.length, 2, 'the pre-seek utterance cannot advance the new position');
+    play.click();
+    seek.value = '900';
+    seek.events.input();
+    seek.events.change();
+    await settleRestart();
+    assert.equal(synth.spoken[2].text, '二段。');
+    assert.equal(root.dataset.state, 'paused', 'seeking preserves the paused state');
+    assert.equal(synth.paused, true);
+    assert.equal(seek.value, '880');
+    assert.equal(caption.textContent, 'Paused · 88%');
+    seek.value = '1000';
+    seek.events.input();
+    seek.events.change();
+    await settleRestart();
+    assert.equal(root.dataset.state, 'idle');
+    assert.equal(caption.textContent, 'Finished');
+    assert.equal(seek.value, '1000');
+    assert.equal(seek.disabled, true);
+    assert.equal(synth.spoken.length, 3, 'seeking to the end finishes without an empty utterance');
+    play.click();
+    seek.value = '400';
+    seek.events.input();
+    seek.events.pointercancel();
+    assert.equal(seek.value, '0', 'a cancelled drag returns to the actual spoken position');
+    assert.equal(synth.spoken.length, 4, 'a cancelled drag does not restart playback');
+  } finally { restore(); }
 });
