@@ -36,63 +36,43 @@ async function setOutage(request, base, id, value) {
   expect(response.status()).toBe(204);
 }
 
-async function primeArticle(context, base) {
-  const page = await context.newPage();
-  await page.goto(`${base}/articles/notes-on-light`, { waitUntil: 'networkidle' });
-  await waitForWorker(page);
-  // This navigation is intercepted and saved by the active worker.
-  await page.reload({ waitUntil: 'networkidle' });
-  await expect(page.locator('[data-article-title]')).toBeVisible();
-  return page;
-}
-
 for (const origin of [OFFLINE_SSR, OFFLINE_STATIC]) {
-  test(`offline reload and uncached fallback (${origin === OFFLINE_STATIC ? 'static' : 'SSR'})`, async ({ context, request, browserName }) => {
+  test(`offline reload and uncached fallback (${origin === OFFLINE_STATIC ? 'static' : 'SSR'})`, async ({ page, request, browserName }) => {
     const base = origin;
     // These exclusive origins are used only by this sequential test file.
     const id = 'exclusive';
     const outage = (value) => setOutage(request, base, id, value);
+    // Destroyed origin sockets can poison later WebKit navigations. A 503
+    // exercises the same worker catch path there; other engines retain real
+    // connection-refusal coverage. Every scenario still rejects a 503 response.
+    const refusal = browserName === 'webkit' ? 503 : true;
     await outage(false);
     try {
-      // A fresh page for each scenario avoids WebKit's consecutive top-level
-      // navigation races. These are independent setups, not retried assertions:
-      // every scenario still requires a 200 and the exact saved/offline content.
-      let page = await primeArticle(context, base);
-      // Refuse the actual origin connection. Browser-level offline emulation
-      // does not reliably reach workers in Firefox and can crash WebKit reload.
-      await outage(true);
+      await page.goto(`${base}/articles/notes-on-light`, { waitUntil: 'networkidle' });
+      await waitForWorker(page);
+      // This navigation is intercepted and saved by the active worker.
+      await page.reload({ waitUntil: 'networkidle' });
+      await expect(page.locator('[data-article-title]')).toBeVisible();
+      // Browser-level offline emulation does not reliably reach workers in
+      // Firefox and can crash WebKit reload, so the harness owns the outage.
+      await outage(refusal);
       const saved = await page.reload({ waitUntil: 'domcontentloaded' });
       expectWorkerPage(saved, browserName);
       await expect(page.locator('[data-article-title]')).toHaveText('Notes on light');
       await expect(page.locator('h1')).toHaveText('Notes on light');
-      await page.close();
-      await outage(false);
-
-      page = await primeArticle(context, base);
       await outage(503);
       const degraded = await page.reload({ waitUntil: 'domcontentloaded' });
       expectWorkerPage(degraded, browserName);
       await expect(page.locator('h1')).toHaveText('Notes on light');
-      await page.close();
-      await outage(false);
-
-      page = await primeArticle(context, base);
-      await outage(true);
+      await outage(refusal);
       const fallback = await page.goto(`${base}/topics`, { waitUntil: 'domcontentloaded' });
       expectWorkerPage(fallback, browserName);
       await expect(page.locator('h1')).toHaveText('The connection is out');
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
-      await page.close();
-      await outage(false);
-
-      page = await primeArticle(context, base);
-      // A 503 exercises the same worker catch/localisation path without relying
-      // on another connection-refusal navigation.
       await outage(503);
       const localizedFallback = await page.goto(`${base}/zh-CN/topics`, { waitUntil: 'domcontentloaded' });
       expectWorkerPage(localizedFallback, browserName);
       await expect(page.locator('h1')).toHaveText('连接已中断');
-      await page.close();
     } finally {
       await outage(false);
     }
