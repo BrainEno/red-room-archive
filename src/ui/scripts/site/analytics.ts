@@ -21,10 +21,8 @@ const collect = () => {
   if (sent || privacyRequested() || document.visibilityState === 'hidden') return;
   sent = true;
   const body = JSON.stringify({ path: location.pathname, referrer: referrer() });
-  const blob = new Blob([body], { type: 'application/json' });
-  try {
-    if (navigator.sendBeacon?.('/api/analytics/collect', blob)) return;
-  } catch { /* use fetch below */ }
+  // A string body with keepalive avoids engine-specific Blob/sendBeacon
+  // behaviour and can finish even when the reader immediately navigates away.
   void fetch('/api/analytics/collect', { method: 'POST', body, headers: { 'Content-Type': 'application/json' }, keepalive: true }).catch(() => undefined);
 };
 

@@ -77,7 +77,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || request.headers.has('range')) return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  // No private response, newsletter token, JSON, CSV or beacon enters a cache.
+  // No private response, newsletter token, JSON, CSV or collection payload enters a cache.
   if (/^\/(?:api|admin)(?:\/|$)/.test(url.pathname) || /^\/(?:zh-CN\/)?newsletter(?:\/|$)/.test(url.pathname) || url.pathname === '/profile-editor.html') return;
   if (request.mode === 'navigate') {
     event.respondWith(networkPage(request));

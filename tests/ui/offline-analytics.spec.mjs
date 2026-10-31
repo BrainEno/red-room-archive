@@ -20,15 +20,17 @@ async function waitForWorker(page) {
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
 }
 
-async function setOutage(page, base, value) {
-  const response = await page.request.post(`${base || SSR}/__harness/outage?value=${value ? 1 : 0}`);
+async function setOutage(page, base, id, value) {
+  const response = await page.request.post(`${base || SSR}/__harness/outage?id=${id}&value=${value ? 1 : 0}`);
   expect(response.status()).toBe(204);
 }
 
 for (const origin of ['', STATIC]) {
   test(`offline reload and uncached fallback (${origin ? 'static' : 'SSR'})`, async ({ page }) => {
     const base = origin || '';
-    await setOutage(page, base, false);
+    const id = `offline-${origin ? 'static' : 'ssr'}-${test.info().project.name}-${test.info().workerIndex}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    await page.context().addCookies([{ name: 'rra_harness_outage', value: id, url: base || SSR }]);
+    await setOutage(page, base, id, false);
     try {
       await page.goto(`${base}/articles/notes-on-light`, { waitUntil: 'networkidle' });
       await waitForWorker(page);
@@ -37,7 +39,7 @@ for (const origin of ['', STATIC]) {
       await expect(page.locator('[data-article-title]')).toBeVisible();
       // Refuse the actual origin connection. Browser-level offline emulation
       // does not reliably reach workers in Firefox and can crash WebKit reload.
-      await setOutage(page, base, true);
+      await setOutage(page, base, id, true);
       const saved = await page.reload({ waitUntil: 'domcontentloaded' });
       expect(saved?.fromServiceWorker()).toBe(true);
       await expect(page.locator('[data-article-title]')).toHaveText('Notes on light');
@@ -49,12 +51,12 @@ for (const origin of ['', STATIC]) {
       await page.goto(`${base}/zh-CN/topics`, { waitUntil: 'domcontentloaded' });
       await expect(page.locator('h1')).toHaveText('连接已中断');
     } finally {
-      await setOutage(page, base, false);
+      await setOutage(page, base, id, false);
     }
   });
 }
 
-// Playwright WebKit does not reliably route intercepted POST/beacon bodies
+// Playwright WebKit does not reliably route intercepted POST bodies
 // after a worker controls the page. Offline behaviour is covered above; these
 // API tests deliberately isolate the application requests from that driver bug.
 test.describe('analytics APIs without service-worker routing', () => {

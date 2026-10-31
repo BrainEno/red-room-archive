@@ -32,7 +32,7 @@ src/
 │   ├── layouts/ components/ views/   Astro 组件，只通过 props 接收数据
 │   ├── i18n.ts              界面文字字典 messages(locale)
 │   ├── feeds.ts             RSS / sitemap（含 hreflang 两种语言）/ robots（纯函数）
-│   ├── scripts/site/        首页动画（Three.js / GSAP / Lenis / Canvas 招牌）· newsletter（订阅表单、确认/退订页）· analytics（匿名 beacon）· offline（worker 注册）
+│   ├── scripts/site/        首页动画（Three.js / GSAP / Lenis / Canvas 招牌）· newsletter（订阅表单、确认/退订页）· analytics（匿名 pageview 采集）· offline（worker 注册）
 │   ├── scripts/admin/       后台单页应用（Articles / More / Newsletter / Settings / Files / Analytics；more-model.ts 是编辑器的纯状态函数，Analytics 面板按需加载）
 │   ├── scripts/lib/api-client.ts  带类型的浏览器 API 客户端
 │   └── styles/              base / home / pages（含 Notion 块与颜色）/ more（/more 页面）/ cjk（全部中文排版规则）/ admin
