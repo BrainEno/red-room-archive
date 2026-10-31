@@ -93,6 +93,24 @@ test('home navigation is not blocked by the loader with reduced motion', async (
   await expect(page.locator('#latest')).toBeInViewport();
 });
 
+test('home opening uses the bilingual room reveal without a counter or extra assets', async ({ page }) => {
+  const requests = [];
+  page.on('request', (request) => requests.push(request.url()));
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.loader-panel')).toHaveCount(2);
+  await expect(page.locator('.loader-name')).toHaveText('SureShot Studio');
+  await expect(page.locator('.loader-tagline')).toHaveText('Fiction, poetry and other writings');
+  await expect(page.locator('.count')).toHaveCount(0);
+  await expect(page.locator('.loader')).toBeHidden({ timeout: 25_000 });
+  expect(requests.some((url) => url.includes('vendor-three') || url.includes('/models/'))).toBe(false);
+  await noHorizontalOverflow(page);
+  await page.goto('/zh-CN/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.loader-tagline')).toHaveText('小说、诗歌以及其他');
+  await expect(page.locator('.loader')).toBeHidden({ timeout: 25_000 });
+  await noHorizontalOverflow(page);
+});
+
 test('the forthcoming-book notice sits on the first screen beside the sign and links to email', async ({ page }) => {
   const overlap = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
   for (const [path, title] of [['/', 'A book of fiction is going to print.'], ['/zh-CN/', '小说集，即将付印。']]) {

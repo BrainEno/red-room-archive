@@ -60,7 +60,16 @@ const jsonLd = site.url
   <div class="scrim" aria-hidden="true"></div>
   <div id="neon" class="neon"><div class="sign" aria-hidden="true"><div class="cam"><canvas></canvas></div></div></div>
   <div class="grain" aria-hidden="true"></div>
-  <div class="loader"><span class="count">000</span></div>
+  <div class="loader" aria-hidden="true">
+    <span class="loader-panel loader-panel-left"></span>
+    <span class="loader-panel loader-panel-right"></span>
+    <span class="loader-seam"></span>
+    <div class="loader-room">
+      <p class="loader-name">{site.name}</p>
+      <p class="loader-tagline">{site.tagline}</p>
+    </div>
+    <span class="loader-rule"></span>
+  </div>
   <noscript><link rel="stylesheet" href="/noscript.css" /></noscript>
 
   <header class="bar">

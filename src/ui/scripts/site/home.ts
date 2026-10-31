@@ -208,13 +208,20 @@ if (!reduce) {
     scrollTrigger: { trigger: '#intro', start: 'top -25%', end: 'top -70%', scrub: 0.5 } });
 }
 
-// 5) 开场：计数 → 幕布上推，露出纯黑 → 镜头从斜侧方甩入对焦，灯管依次从黑暗中点亮 → 导航与元信息淡入
-const count = $('.count'), n = { v: 0 };
+// 5) 开场：红色灯缝点亮刊名 → 左右暗场像幕布分开 → 招牌对焦，导航与元信息淡入。
+// 时长与上一版相同；只补间 transform / opacity / clip-path，不增加首屏请求。
 const intro = gsap.timeline({ paused: true });
-intro.to(n, { v: 100, duration: 0.55, ease: 'power2.inOut', onUpdate: () => (count.textContent = String(Math.round(n.v)).padStart(3, '0')) })
-  .to('.loader', { yPercent: -100, duration: 0.65, ease: 'expo.inOut' }, '+=0.05')
-  .add(() => neon.ignite(), '>-0.3')
-  .fromTo(cam, { rotationY: 46, rotationX: 14, rotation: -13, scale: 1.2, x: innerWidth * 0.06 }, { ...POSE, duration: 3.4, ease: 'expo.out' }, '<')
+intro.fromTo('.loader-seam', { scaleY: 0 }, { scaleY: 1, duration: 0.45, ease: 'power2.inOut' }, 0)
+  .fromTo('.loader-rule', { scaleX: 0 }, { scaleX: 1, duration: 0.45, ease: 'power2.inOut' }, 0)
+  .fromTo('.loader-name', { clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)', duration: 0.45, ease: 'power2.inOut' }, 0)
+  .fromTo('.loader-tagline', { autoAlpha: 0, y: 8 }, { autoAlpha: 1, y: 0, duration: 0.33, ease: 'power2.out' }, 0.12)
+  .addLabel('reveal', '+=0.15')
+  .to('.loader-room, .loader-seam, .loader-rule', { autoAlpha: 0, duration: 0.18, ease: 'power2.in' }, 'reveal')
+  .to('.loader-panel-left', { xPercent: -100, duration: 0.65, ease: 'expo.inOut' }, 'reveal')
+  .to('.loader-panel-right', { xPercent: 100, duration: 0.65, ease: 'expo.inOut' }, 'reveal')
+  .set('.loader', { autoAlpha: 0, yPercent: -100 }, 'reveal+=0.65')
+  .add(() => neon.ignite(), 'reveal+=0.35')
+  .fromTo(cam, { rotationY: 46, rotationX: 14, rotation: -13, scale: 1.2, x: innerWidth * 0.06 }, { ...POSE, duration: 3.4, ease: 'expo.out' }, 'reveal+=0.35')
   .fromTo(cam, { '--b1': '10px' }, { '--b1': '0px', duration: 2.6, ease: 'power2.out' }, '<')                // 对焦
   .fromTo(fx, { smear: 1, wob: 1.1 }, { smear: 0, wob: 0, duration: 3, ease: 'power2.out' }, '<')          // 拖影 / 扭曲逐渐消散
   .add(() => lenis?.start(), '<1.2')
