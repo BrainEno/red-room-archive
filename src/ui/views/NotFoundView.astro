@@ -5,7 +5,7 @@ import { localePath, type Locale } from '../../shared/i18n.ts';
 import { ARTICLES_PATH, SEARCH_PATH } from '../../shared/routes.ts';
 
 export interface Props {
-  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean };
+  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean; analytics?: boolean };
 }
 const { site } = Astro.props;
 const t = messages(site.locale);

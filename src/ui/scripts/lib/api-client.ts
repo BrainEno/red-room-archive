@@ -7,6 +7,9 @@
  */
 import type { SiteProfileFile } from '../../../../public/profile-format.js';
 import type {
+  AnalyticsClearResponse,
+  AnalyticsSettingsResponse,
+  AnalyticsSummaryResponse,
   ApiErrorBody,
   ApiErrorCode,
   ArticleDetail,
@@ -122,6 +125,13 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
 
     overview: () => request<OverviewResponse>('/api/overview'),
+
+    analytics: {
+      summary: (days = 30) => request<AnalyticsSummaryResponse>(`/api/analytics/admin/summary${q({ days })}`),
+      update: (enabled: boolean) => request<AnalyticsSettingsResponse>('/api/analytics/admin/settings', { method: 'PATCH', json: { enabled } }),
+      clear: () => request<AnalyticsClearResponse>('/api/analytics/admin/data', { method: 'DELETE' }),
+      exportCsv: (days = 30) => download(`/api/analytics/admin/export${q({ days })}`),
+    },
 
     notion: {
       schema: () => request<NotionSchemaResponse>('/api/notion/schema'),

@@ -9,7 +9,7 @@ import { ARCHIVE_PATH, ARTICLES_PATH, TOPICS_PATH, articlesPagePath, topicPath }
 import { absoluteUrl, breadcrumbLd } from '../../shared/structured-data.ts';
 
 export interface Props {
-  site: { locale: Locale; name: string; url: string; email: string; articlesIntro: string; newsletterSignup?: boolean };
+  site: { locale: Locale; name: string; url: string; email: string; articlesIntro: string; newsletterSignup?: boolean; analytics?: boolean };
   articles: ArticleSummary[];
   page: number;
   pages: number;
@@ -30,7 +30,7 @@ const jsonLd =
     ? [breadcrumbLd([{ name: nav.home, url: abs('/') }, { name: nav.topicsLink, url: abs(TOPICS_PATH) }, { name: tag.name, url: abs(topicPath(tag.slug)) }])]
     : [];
 ---
-<Page title={`${tag ? `${heading} — ` : ''}${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} locale={locale} description={site.articlesIntro} current={tag ? TOPICS_PATH : ARTICLES_PATH} noindex={page > 1} jsonLd={jsonLd}>
+<Page title={`${tag ? `${heading} — ` : ''}${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} analytics={site.analytics} locale={locale} description={site.articlesIntro} current={tag ? TOPICS_PATH : ARTICLES_PATH} noindex={page > 1} jsonLd={jsonLd}>
   <section class="prose listing">
     <p class="article-label">{site.name} / {t.title}</p>
     <h1 lang={tag ? contentLang(tag.name) : undefined}>{heading}</h1>

@@ -38,6 +38,7 @@ export function contentSecurityPolicy(ancestors = frameAncestors()): string {
     "media-src 'self' https:",
     'frame-src https:',
     "connect-src 'self'",
+    "worker-src 'self'",
     "font-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",

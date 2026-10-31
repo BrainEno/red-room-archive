@@ -155,3 +155,24 @@
 .nl-active { color: #9fe3a5; } .nl-pending { color: #ffc56b; } .nl-unsubscribed { opacity: .6; }
 .admin .nl-table button { padding: 2px 8px; font-size: 13px; white-space: nowrap; }
 .nl-pager { justify-content: space-between; }
+/* first-party analytics (an-*) */
+.an-intro { max-width: 76ch; margin: 12px 0; }
+.an-enabled { margin: 16px 0 8px; }
+#an-disabled { margin: 8px 0 0; }
+.an-actions { margin-top: 20px; }
+.admin .an-range { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.admin .an-range select { width: auto; max-width: 100%; }
+.an-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; }
+.an-grid > section { min-width: 0; }
+.an-grid > section:first-child { grid-column: 1 / -1; }
+.admin .table-scroll.an-daily-scroll { max-height: 380px; overflow-y: auto; }
+.admin .table-scroll.an-daily-scroll .grid { min-width: 0; }
+.an-key { max-width: 34ch; overflow-wrap: anywhere; word-break: break-word; }
+.admin table.grid th.num { text-align: right; }
+#an-locales { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
+@media (max-width: 680px) {
+  .an-grid { grid-template-columns: minmax(0, 1fr); }
+  .an-grid > section:first-child { grid-column: auto; }
+  .an-actions .me-spacer { display: none; }
+  .admin .an-range { align-items: flex-start; flex-direction: column; }
+}

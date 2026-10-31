@@ -13,6 +13,8 @@ export const ARTICLES_PATH = '/articles';
 export const TOPICS_PATH = '/topics';
 export const ARCHIVE_PATH = '/archive';
 export const SEARCH_PATH = '/search';
+/** Localised service-worker fallback; never included in the sitemap. */
+export const OFFLINE_PATH = '/offline';
 
 /** Print editions, optional excerpts and contact details (content/more.ts). */
 export const MORE_PATH = '/more';

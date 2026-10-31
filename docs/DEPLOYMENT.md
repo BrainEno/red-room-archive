@@ -6,9 +6,10 @@
 | --- | --- | --- |
 | 构建 | `npm run build:static` → `static-dist/` | `npm run build && npm start` |
 | 文章 | 构建时从 Notion 读取；更新文章需重新部署 | 运行时同步 Notion |
-| 后台 `/admin` | 只有“订阅”模块（经 Netlify Function） | 全部模块 |
+| 后台 `/admin` | 可用的“订阅”和“浏览数据”模块（分别探测 Netlify Function） | 全部模块 |
 | 邮件订阅 | `netlify/functions/newsletter.mts` + Netlify Blobs | Astro 端点 + SQLite |
-| 持久数据 | 只有订阅名单（Blobs，加密） | SQLite + 上传目录 |
+| 浏览统计 | `netlify/functions/analytics.mts` + Netlify Blobs 每日聚合 | Astro 端点 + SQLite 每日聚合 |
+| 持久数据 | 订阅名单（Blobs，加密）+ 浏览聚合（Blobs） | SQLite + 上传目录 |
 
 静态构建和 Node 部署的细节（内容包、站点资料 JSON、备份迁移、安全响应头）见 [README → 部署](../README.md#部署)。邮件订阅的设计见 [NEWSLETTER.md](NEWSLETTER.md)。
 
@@ -32,7 +33,7 @@
 | --- | --- | --- | --- |
 | `NOTION_TOKEN`、`NOTION_DATABASE_ID` | Builds | Production（预览按需） | 构建时读取文章 |
 | `SITE_URL`（可选，默认用 Netlify 的 `URL`） | Builds + Functions | 全部 | canonical、RSS、邮件链接、同站校验 |
-| `ADMIN_TOKEN` | Functions | Production | 静态站 `/admin` 管理订阅 |
+| `ADMIN_TOKEN` | Functions | Production | 静态站 `/admin` 管理订阅与浏览数据 |
 | `NEWSLETTER_SECRET` | Functions | **仅 Production** | 加密名单、退订链接 |
 | `NEWSLETTER_EMAIL_PROVIDER`、`NEWSLETTER_EMAIL_API_KEY`、`NEWSLETTER_FROM` | Functions | **仅 Production** | 发信 |
 | `NEWSLETTER_REPLY_TO`、`NEWSLETTER_DAILY_LIMIT`、`NEWSLETTER_MONTHLY_LIMIT`、`NEWSLETTER_TOKEN_TTL_HOURS`、`NEWSLETTER_SITE_NAME` | Functions | Production | 可选 |
@@ -49,6 +50,12 @@ Netlify 会在仓库文件和构建产物里搜索每个**标记为 secret 的�
 
 - `DB_PATH` 不是密钥，而且静态构建根本不用它（构建脚本使用临时数据库）。`netlify.toml` 已设置 `SECRETS_SCAN_OMIT_KEYS = "DB_PATH"` 跳过它；也可以直接在 Netlify 删除这个变量。
 - 如果报的是别的变量：先确认它是不是真密钥。不是 → 取消 secret 标记；是 → 说明该值确实出现在了文件里，**不要**用 `SECRETS_SCAN_ENABLED=false` 关掉扫描，应该把它从文件里删掉并轮换密钥。
+
+### 浏览统计（无需新增密钥）
+
+`netlify/functions/analytics.mts` 会自动提供 `/api/analytics/*`。除上表的 `ADMIN_TOKEN` 和 `SITE_URL` 外不需要新的环境变量；统计数据写入 Netlify Blobs 的 `site-analytics` store，按 deploy context 隔离，不写入静态 HTML，也不需要重新部署来累积计数。
+
+上线后用生产站打开几个公开页面，再进入 `/admin → Pageviews / 浏览数据` 检查数字、暂停开关和 CSV。首次验证前应确认 Functions 日志没有 Blobs 权限或存储错误；本地模拟测试不等于生产 Blobs 已验证。指标、90 天滚动窗口和 DNT/GPC 行为见 [ANALYTICS.md](ANALYTICS.md)。
 
 ### 上线前准备（邮件订阅）
 
@@ -86,14 +93,15 @@ Netlify 会在仓库文件和构建产物里搜索每个**标记为 secret 的�
 
 ### 其他静态主机
 
-Cloudflare Pages 等主机可以发布同一个 `static-dist/`，但没有 Netlify Function：订阅页面会显示“此页面暂时无法连接订阅服务”，后台登录会失败。服务层与存储接口是可移植的（`NewsletterStore`、`DocumentBackend`），要在别的平台运行需要为该平台写一个类似 `netlify/functions/newsletter.mts` 的入口和存储后端。
+Cloudflare Pages 等主机可以发布同一个 `static-dist/`，但没有 Netlify Function：订阅页面会显示“此页面暂时无法连接订阅服务”，统计后台也无法登录／读取。服务层与存储接口是可移植的（`NewsletterStore`、`AnalyticsStore`、`DocumentBackend`），要在别的平台运行需要为该平台写类似 `netlify/functions/newsletter.mts` / `analytics.mts` 的入口和存储后端。
 
 ## Node 动态站
 
 1. `npm ci && npm run build`，设置 `ADMIN_TOKEN`、`SITE_URL`、Notion 变量，`npm start`。
 2. 订阅数据在同一个 SQLite 数据库（迁移 11 自动创建表）。设置同样的 `NEWSLETTER_*` 变量即可开放订阅；公开入口在 `/admin → 设置 → 邮件订阅` 开关，立即生效（也可用 `SHOW_NEWSLETTER_SIGNUP=1` 作为默认值）。
-3. 反向代理后的客户端无法可靠区分（不信任转发头），订阅限流会落到共享桶（10 分钟 60 次）；建议在代理层另设限流。
-4. 备份：数据库与上传目录，见 README。
+3. 浏览统计在迁移 12 的 `analytics_daily` 表中，默认开启；`/admin → Pageviews / 浏览数据` 可暂停、导出或清除。它只保存每日聚合，备份数据库即可一并备份。
+4. 反向代理后的客户端无法可靠区分（不信任转发头），订阅限流会落到共享桶（10 分钟 60 次）；建议在代理层另设限流。
+5. 备份：数据库与上传目录，见 README。
 
 ## 发布检查清单
 
@@ -102,3 +110,5 @@ Cloudflare Pages 等主机可以发布同一个 `static-dist/`，但没有 Netli
 - [ ] `static-dist/` 没有提交到 Git（已在 `.gitignore`）
 - [ ] 生产环境变量的 Scope 和 Context 符合上表；预览没有生产密钥
 - [ ] 部署后按“上线后验证”走一遍；未验证前不要宣称订阅已上线
+- [ ] 生产站实际打开几页后，后台能看到统计；验证暂停、CSV、清除和 DNT/GPC，不把本地模拟当成 Blobs 验证
+- [ ] 在线打开文章后断网重载，确认离线副本和未缓存回退；检查 `/sitemap.xml`、`/llms.txt` 与版权／TDM 声明

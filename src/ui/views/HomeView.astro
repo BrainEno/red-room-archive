@@ -25,6 +25,7 @@ export interface Props {
     url: string;
     facts: { key: string; value: string }[];
     newsletterSignup?: boolean;
+    analytics?: boolean;
   };
   home: {
     latest: ArticleSummary[]; featured: ArticleSummary[]; topics: TagCount[]; total: number; model: string;
@@ -53,7 +54,7 @@ const jsonLd = site.url
   ? [websiteLd({ url: absoluteUrl(site.url, to('/')), name: site.name, description: site.about, inLanguage: locale, searchUrl: absoluteUrl(site.url, to(SEARCH_PATH)) })]
   : [];
 ---
-<Base title={site.name} siteName={site.name} siteUrl={site.url} description={site.about} locale={locale} jsonLd={jsonLd}>
+<Base title={site.name} siteName={site.name} siteUrl={site.url} description={site.about} locale={locale} jsonLd={jsonLd} analytics={site.analytics} offline>
   <a class="skip" href="#content">{t.page.skip}</a>
   <canvas id="gl" aria-hidden="true" data-model={home.model}></canvas>
   <div class="scrim" aria-hidden="true"></div>

@@ -29,12 +29,14 @@ export interface Props {
   jsonLd?: JsonLd[];
   /** Show the newsletter link in the footer (site setting; hidden by default). */
   newsletter?: boolean;
+  analytics?: boolean;
+  offline?: boolean;
 }
 
-const { title, siteName, locale, siteUrl, email = '', description, current, image, type, noindex, imageAlt, published, modified, tags, jsonLd, newsletter = false } = Astro.props;
+const { title, siteName, locale, siteUrl, email = '', description, current, image, type, noindex, imageAlt, published, modified, tags, jsonLd, newsletter = false, analytics = false, offline = true } = Astro.props;
 const t = messages(locale);
 ---
-<Base title={title} siteName={siteName} siteUrl={siteUrl} description={description} image={image} type={type} noindex={noindex} locale={locale} imageAlt={imageAlt} published={published} modified={modified} tags={tags} jsonLd={jsonLd} bodyClass="plain">
+<Base title={title} siteName={siteName} siteUrl={siteUrl} description={description} image={image} type={type} noindex={noindex} locale={locale} imageAlt={imageAlt} published={published} modified={modified} tags={tags} jsonLd={jsonLd} analytics={analytics} offline={offline} bodyClass="plain">
   <a class="skip" href="#content">{t.page.skip}</a>
   <SiteHeader siteName={siteName} current={current} locale={locale} />
   <main id="content" class="page" tabindex="-1">

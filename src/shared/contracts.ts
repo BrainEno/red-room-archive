@@ -519,3 +519,34 @@ export interface NewsletterListResponse {
 export interface NewsletterResendResponse {
   status: 'sent';
 }
+
+/* ── First-party pageview analytics ───────────────────────────────────
+ * Daily aggregates only: no visitor id, IP, user agent, query or event time. */
+
+export type AnalyticsStorage = 'sqlite' | 'netlify-blobs' | 'memory';
+
+export interface AnalyticsDayCount {
+  /** Public path, locale, or referrer host; direct/internal use parenthesised labels. */
+  key: string;
+  views: number;
+}
+
+export interface AnalyticsSummaryResponse {
+  enabled: boolean;
+  storage: AnalyticsStorage;
+  retentionDays: number;
+  range: { days: number; from: string; to: string };
+  totals: { pageviews: number; today: number };
+  daily: { date: string; views: number }[];
+  pages: AnalyticsDayCount[];
+  referrers: AnalyticsDayCount[];
+  locales: AnalyticsDayCount[];
+}
+
+export interface AnalyticsSettingsResponse {
+  enabled: boolean;
+}
+
+export interface AnalyticsClearResponse {
+  cleared: boolean;
+}

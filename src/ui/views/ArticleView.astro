@@ -11,7 +11,7 @@ import { ARTICLES_PATH, COPYRIGHT_PATH, SUBSCRIBE_PATH, topicPath } from '../../
 import { absoluteUrl, articleLd, breadcrumbLd } from '../../shared/structured-data.ts';
 
 export interface Props {
-  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean };
+  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean; analytics?: boolean };
   article: ArticleDetail;
   bodyMissing: boolean;
 }
@@ -48,7 +48,7 @@ const jsonLd = site.url
     ]
   : [];
 ---
-<Page title={`${article.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} locale={locale} description={article.excerpt || site.name} image={article.cover} imageAlt={article.title} current={ARTICLES_PATH} type="article" published={isoDatetime(article.date)} modified={article.updated} tags={article.tags} jsonLd={jsonLd}>
+<Page title={`${article.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} analytics={site.analytics} locale={locale} description={article.excerpt || site.name} image={article.cover} imageAlt={article.title} current={ARTICLES_PATH} type="article" published={isoDatetime(article.date)} modified={article.updated} tags={article.tags} jsonLd={jsonLd}>
   <div class="article-wrap">
     <article class="prose" lang={lang}>
       <p class="kicker" lang={locale}><a href={localePath(ARTICLES_PATH, locale)}>{t.articles.title}</a></p>

@@ -12,6 +12,7 @@ import '../styles/base.css';
 import '../styles/cjk.css';
 import { DEFAULT_LOCALE, LOCALES, localizedPath, type Locale } from '../../shared/i18n.ts';
 import { serializeJsonLd, type JsonLd } from '../../shared/structured-data.ts';
+import { messages } from '../i18n.ts';
 
 /** Default share card (public/og/card.jpg) for pages without a cover of their own. */
 const DEFAULT_CARD = { src: '/og/card.jpg', width: 1200, height: 630 };
@@ -35,6 +36,10 @@ export interface Props {
   tags?: string[];
   /** schema.org objects; rendered only when siteUrl is set (URLs must be absolute). */
   jsonLd?: JsonLd[];
+  /** First-party aggregate pageview collector (public pages only). */
+  analytics?: boolean;
+  /** Public offline worker + connection status. */
+  offline?: boolean;
 }
 
 const {
@@ -52,6 +57,8 @@ const {
   modified,
   tags = [],
   jsonLd = [],
+  analytics = false,
+  offline = false,
 } = Astro.props;
 
 /** This page in a given language: the default language has the clean URL, others their prefix (`/zh-CN/…`). */
@@ -67,6 +74,7 @@ const ogImageAlt = image ? imageAlt || title : siteName || title;
 const otherLocales = LOCALES.filter((code) => code !== locale);
 const structured = siteUrl && jsonLd.length ? serializeJsonLd(jsonLd) : '';
 const rightsPolicy = siteUrl ? new URL(localizedPath(COPYRIGHT_PATH, locale), siteUrl).toString() : localizedPath(COPYRIGHT_PATH, locale);
+const t = messages(locale);
 ---
 <!doctype html>
 <html lang={locale}>
@@ -78,6 +86,7 @@ const rightsPolicy = siteUrl ? new URL(localizedPath(COPYRIGHT_PATH, locale), si
   {noindex && <meta name="robots" content="noindex" />}
   {canonical && <link rel="canonical" href={canonical} />}
   <meta name="theme-color" content="#0a0506" />
+  <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/favicon.ico" sizes="16x16 32x32" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
@@ -117,9 +126,12 @@ const rightsPolicy = siteUrl ? new URL(localizedPath(COPYRIGHT_PATH, locale), si
   {structured && <script type="application/ld+json" set:html={structured} />}
 </head>
 <body class={bodyClass}><slot />
+  {offline && <p class="offline-status" data-offline-status role="status" hidden>{t.offline.notice}</p>}
   <script>
     import '../scripts/site/async-css.ts';
     import '../scripts/site/settings-refresh.ts';
   </script>
+  {offline && <script>import '../scripts/site/offline.ts';</script>}
+  {analytics && <script>import '../scripts/site/analytics.ts';</script>}
 </body>
 </html>

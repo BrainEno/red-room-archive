@@ -1,0 +1,20 @@
+---
+import Page from '../layouts/Page.astro';
+import { messages } from '../i18n.ts';
+import { localePath, type Locale } from '../../shared/i18n.ts';
+import { ARTICLES_PATH } from '../../shared/routes.ts';
+
+export interface Props {
+  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean };
+}
+const { site } = Astro.props;
+const t = messages(site.locale);
+---
+<Page title={`${t.offline.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} locale={site.locale} noindex>
+  <section class="prose notfound">
+    <p class="kicker">{t.offline.kicker}</p>
+    <h1>{t.offline.title}</h1>
+    <p>{t.offline.body}</p>
+    <p><a href={localePath(ARTICLES_PATH, site.locale)}>{t.offline.action}</a></p>
+  </section>
+</Page>

@@ -6,14 +6,14 @@ import type { Locale } from '../../shared/i18n.ts';
 import { SUBSCRIBE_PATH } from '../../shared/routes.ts';
 
 export interface Props {
-  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean };
+  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean; analytics?: boolean };
 }
 const { site } = Astro.props;
 const { locale } = site;
 const t = messages(locale).newsletter;
 const pad = (n: number) => String(n + 1).padStart(2, '0');
 ---
-<Page title={`${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} locale={locale} description={t.lede} current={SUBSCRIBE_PATH} noindex={!site.newsletterSignup}>
+<Page title={`${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} analytics={site.analytics} locale={locale} description={t.lede} current={SUBSCRIBE_PATH} noindex={!site.newsletterSignup}>
   {/* With the public entries hidden this page still works (direct link), but is unlinked and not indexed. */}
   <section class="prose letters">
     <p class="article-label">{site.name} / {t.title}</p>

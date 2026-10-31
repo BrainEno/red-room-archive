@@ -12,7 +12,7 @@ import { localePath, type Locale } from '../../shared/i18n.ts';
 import { ARTICLES_PATH, SUBSCRIBE_PATH } from '../../shared/routes.ts';
 
 export interface Props {
-  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean };
+  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean; analytics?: boolean };
   action: 'confirm' | 'unsubscribe';
 }
 const { site, action } = Astro.props;
