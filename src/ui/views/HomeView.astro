@@ -90,7 +90,9 @@ const jsonLd = site.url
           {site.intro && <p class="site-about" lang={contentLang(site.about)}>{site.about}</p>}
           {lede.cite ? (
             <figure class="lede-quote">
-              <blockquote><p class="lede" lang={ledeLang}>{lede.quote}</p></blockquote>
+              <blockquote><p class="lede" lang={ledeLang}>{lede.quote.split('\n').map((line, index) => (
+                <>{index > 0 && <br class="lede-break" />}{line}</>
+              ))}</p></blockquote>
               <figcaption class="lede-by" lang={contentLang(lede.cite)}>{lede.cite}</figcaption>
             </figure>
           ) : <p class="lede" lang={ledeLang}>{lede.quote}</p>}

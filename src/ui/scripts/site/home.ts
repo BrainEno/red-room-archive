@@ -151,7 +151,10 @@ if (!reduce) {
   // The quote, then its attribution line (if any), light up as one sequence.
   const words: HTMLElement[] = [];
   for (const line of document.querySelectorAll<HTMLElement>('.lede, .lede-by')) {
-    const text = line.textContent!.trim();
+    // Read SSR <br> elements as newlines before rebuilding the word spans.
+    const source = line.cloneNode(true) as HTMLElement;
+    source.querySelectorAll('br').forEach((br) => br.replaceWith('\n'));
+    const text = source.textContent!.trim();
     line.setAttribute('aria-label', text);
     line.textContent = '';
     for (const { word, space } of tokens(text, line.lang || document.documentElement.lang)) {

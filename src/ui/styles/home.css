@@ -55,15 +55,17 @@
 .intro-copy { grid-column: 1 / 9; align-self: center; min-width: 0; overflow-wrap: anywhere; }
 .site-about { margin-bottom: 1rem; font-size: clamp(.85rem, 1.4vw, 1rem); opacity: .7; }
 .lede { font-weight: 600; font-size: clamp(1.9rem, 4.4vw, 4.4rem); line-height: 1.06; letter-spacing: -.015em; text-wrap: balance; }
-/* Attribution: its own line, same voice as the quote but quieter, closing at the right. */
-.lede-by { margin-top: .3em; font-weight: 600; font-size: clamp(1.35rem, 3.1vw, 3.1rem); line-height: 1.06; letter-spacing: -.015em; text-align: right; opacity: .62; }
+/* Attribution: its own line, quieter than the quote. Latin attributions start
+   at the quote's left edge, safely outside the statue's area on the right. */
+.lede-by { margin-top: .3em; font-weight: 600; font-size: clamp(1.35rem, 3.1vw, 3.1rem); line-height: 1.06; letter-spacing: -.015em; text-align: left; opacity: .62; }
 /* Chinese quotation: two deliberate lines plus a right-aligned attribution.
    The source's newline survives both SSR and the word-by-word reveal; fit-content
    keeps the attribution under the quote rather than at the grid's far edge. */
 .intro-copy[data-script="cjk"] { grid-column: 1 / 11; }
+.intro-copy[data-script="cjk"] .lede-by { text-align: right; }
 @media (min-width: 721px) {
   .intro-copy[data-script="cjk"] .lede-quote { width: fit-content; max-width: 100%; }
-  .lede-quote .lede:lang(zh) { white-space: pre-line; text-wrap: wrap; }
+  .lede-quote .lede:lang(zh) { text-wrap: wrap; }
 }
 .facts { grid-column: 1 / 11; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .facts > div { position: relative; padding-top: 12px; }
