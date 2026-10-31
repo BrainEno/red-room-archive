@@ -6,6 +6,7 @@
  * `src/shared/contracts.ts`. Relative URLs only, so it works behind any proxy.
  */
 import type { SiteProfileFile } from '../../../../public/profile-format.js';
+import { publicPath } from './public-path.ts';
 import type {
   AnalyticsClearResponse,
   AnalyticsSettingsResponse,
@@ -74,7 +75,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       headers.set('Content-Type', 'application/json');
       body = JSON.stringify(init.json);
     }
-    const response = await fetch(path, { ...init, headers, body });
+    const response = await fetch(publicPath(path), { ...init, headers, body });
     if (!response.ok) {
       const data = (await response.json().catch(() => ({}))) as Partial<ApiErrorBody>;
       const error = new ApiError(response.status, data);
@@ -90,7 +91,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
     const headers = new Headers();
     const auth = token();
     if (auth) headers.set('Authorization', `Bearer ${auth}`);
-    const response = await fetch(path, { headers });
+    const response = await fetch(publicPath(path), { headers });
     if (!response.ok) {
       const data = (await response.json().catch(() => ({}))) as Partial<ApiErrorBody>;
       const error = new ApiError(response.status, data);

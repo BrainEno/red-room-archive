@@ -7,6 +7,7 @@
 import type { OverviewCheck, OverviewResponse, SyncResponse } from '../../../../shared/contracts.ts';
 import { localePath } from '../../../../shared/i18n.ts';
 import type { ApiClient } from '../../lib/api-client.ts';
+import { publicPath } from '../../lib/public-path.ts';
 import { $, busy, bytes, dateLabel, esc, fail, timeLabel, toast } from '../dom.ts';
 import { errorText, say, t, type TabId } from '../i18n.ts';
 import type { SyncOptions } from './articles.ts';
@@ -62,8 +63,8 @@ export function overviewPanel(root: HTMLElement, api: ApiClient, hooks: Overview
         <p class="hint" id="ov-source">${esc(source)}${view.site.url ? ` · <a href="${esc(view.site.url)}" target="_blank" rel="noopener">${esc(view.site.url.replace(/^https?:\/\//, ''))}</a>` : ''}</p>
         <div class="row2 tight ov-actions" role="group" aria-label="${esc(o.actions)}">
           ${status.demo ? '' : `<button type="button" id="ov-sync" class="primary">${esc(o.sync)}</button>`}
-          <a class="me-link" href="/" target="_blank" rel="noopener">${esc(o.viewEn)}</a>
-          <a class="me-link" href="${localePath('/', 'zh-CN')}" target="_blank" rel="noopener">${esc(o.viewZh)}</a>
+          <a class="me-link" href="${publicPath('/')}" target="_blank" rel="noopener">${esc(o.viewEn)}</a>
+          <a class="me-link" href="${publicPath(localePath('/', 'zh-CN'))}" target="_blank" rel="noopener">${esc(o.viewZh)}</a>
           <span class="me-spacer"></span>
           <button type="button" class="ghost" id="ov-bundle">${esc(o.bundle)}</button>
           <button type="button" class="ghost" id="ov-settings">${esc(o.toSettings)}</button>

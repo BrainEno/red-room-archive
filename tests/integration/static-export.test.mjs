@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { readFile, access, mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { readFile, access, mkdtemp, mkdir, writeFile, rm, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { makeProfile, PROFILE_KEYS } from '../../public/profile-format.js';
 import path from 'node:path';
@@ -138,7 +138,6 @@ test('static snapshot exports only published Notion content, media and bilingual
     assert.match(staticHeaders, /^\/sw\.js\n {2}Cache-Control: no-cache$/m);
     assert.match(staticHeaders, /^\/admin\n {2}Cache-Control: no-store$/m);
     assert.match(staticHeaders, /^\/newsletter\/\*\n {2}Referrer-Policy: no-referrer$/m);
-    const { readdir } = await import('node:fs/promises');
     const files = (await readdir('static-dist', { recursive: true, withFileTypes: true })).filter((entry) => entry.isFile());
     assert.ok(!files.some((entry) => /\.(db|sqlite3?)$|subscribers-.*\.json$/i.test(entry.name)), 'no database or subscriber document');
     for (const entry of files) {
@@ -204,6 +203,51 @@ test('Netlify falls back to its primary URL without weakening static build valid
 
   result = await run({ ...env, STATIC_DEMO: '' });
   assert.notEqual(result.code, 0); assert.match(result.output, /Set NOTION_TOKEN and NOTION_DATABASE_ID/);
+  await assert.rejects(access('static-dist/index.html'));
+});
+
+test('GitHub Pages export keeps project-path URLs, metadata and offline files coherent', async () => {
+  const env = { SITE_URL: 'https://braineno.github.io', STATIC_DEMO: '1', STATIC_BASE_PATH: '/red-room-archive', STATIC_HOST: 'github-pages',
+    NOTION_TOKEN: '', NOTION_API_SECRET: '', NOTION_DATABASE_ID: '', DATABASE_ID: '', NOTION_DB_WRITING: '' };
+  const read = (file) => readFile(path.join('static-dist', file), 'utf8');
+  const result = await run(env);
+  assert.equal(result.code, 0, result.output);
+  const home = await read('index.html');
+  assert.match(home, /<html lang="en" data-base-path="\/red-room-archive" data-static-host="github-pages">/);
+  assert.match(home, /rel="canonical" href="https:\/\/braineno\.github\.io\/red-room-archive\/"/);
+  assert.match(home, /property="og:image" content="https:\/\/braineno\.github\.io\/red-room-archive\/og\/card\.jpg"/);
+  assert.match(home, /http-equiv="Content-Security-Policy"/);
+  const rootUrls = [...home.matchAll(/(?:href|src|action|data-cover|data-copyright-path)="([^"]+)"/g)].map((match) => match[1])
+    .filter((value) => value.startsWith('/') && value !== '/red-room-archive' && !value.startsWith('/red-room-archive/'));
+  assert.deepEqual(rootUrls, [], 'no asset or navigation URL escapes the project path');
+  const article = await read('articles/connect-notion/index.html');
+  assert.match(article, /data-copyright-path="\/red-room-archive\/copyright"/);
+  const ld = JSON.parse(article.match(/<script type="application\/ld\+json">([^<]*)<\/script>/)[1]);
+  assert.equal(ld['@graph'][0].url, 'https://braineno.github.io/red-room-archive/articles/connect-notion');
+  const manifest = JSON.parse(await read('manifest.webmanifest'));
+  assert.equal(manifest.id, '/red-room-archive/');
+  assert.equal(manifest.start_url, '/red-room-archive/');
+  assert.equal(manifest.scope, '/red-room-archive/');
+  assert.ok(manifest.icons.every((icon) => icon.src.startsWith('/red-room-archive/')));
+  const search = JSON.parse(await read('static-search.json'));
+  assert.ok(Object.values(search).flat().every((item) => item.href.startsWith('/red-room-archive/')));
+  assert.match(await read('sw.js'), /self\.registration\.scope/);
+  assert.match(await read('sw.js'), /CACHE_PREFIX/);
+  assert.match(await read('rss.xml'), /https:\/\/braineno\.github\.io\/red-room-archive\/articles\/connect-notion/);
+  assert.match(await read('sitemap.xml'), /https:\/\/braineno\.github\.io\/red-room-archive\/zh-CN\/articles/);
+  assert.match(await read('robots.txt'), /Sitemap: https:\/\/braineno\.github\.io\/red-room-archive\/sitemap\.xml/);
+  assert.match(await read('newsletter/confirm/index.html'), /name="referrer" content="no-referrer"/);
+  assert.match(await read('profile-editor.html'), /href="\/red-room-archive\/profile-editor\.css"/);
+  for (const name of (await readdir('static-dist/_astro')).filter((entry) => entry.endsWith('.css'))) {
+    const css = await read(`_astro/${name}`);
+    const escaped = [...css.matchAll(/url\(["']?(\/[^)"']+)/g)].map((match) => match[1]).filter((value) => !value.startsWith('/red-room-archive/'));
+    assert.deepEqual(escaped, [], `${name}: CSS assets stay inside the project path`);
+  }
+  await access('static-dist/.nojekyll');
+
+  const invalid = await run({ ...env, STATIC_BASE_PATH: '/red-room-archive/' });
+  assert.notEqual(invalid.code, 0);
+  assert.match(invalid.output, /STATIC_BASE_PATH/);
   await assert.rejects(access('static-dist/index.html'));
 });
 

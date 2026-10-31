@@ -3,6 +3,7 @@ import gsap from 'gsap';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { world } from './scene-state.ts';
+import { publicPath } from '../lib/public-path.ts';
 
 // sv = 滚动速度（Lenis），驱动窗帘物理。cam.ry 是雕像相对镜头的朝向偏移；
 // 雕像始终自动转向镜头，ry 只在此基础上做小幅侧转。
@@ -11,7 +12,7 @@ const SX = 2.4;
 const MODEL_YAW = 0;
 /** 服务端在 canvas[data-model] 上给出唯一地址（后台上传的 /uploads/venus.glb?v=… 或仓库内 /models/venus.glb），
  *  不再盲目请求可能 404 的上传地址；加载失败时依次退回仓库内文件 → 占位雕像 */
-const BUNDLED_MODEL = '/models/venus.glb';
+const BUNDLED_MODEL = publicPath('/models/venus.glb');
 const modelUrls = (canvas: HTMLCanvasElement) => [...new Set([canvas.dataset.model || BUNDLED_MODEL, BUNDLED_MODEL])];
 
 const FLOOR_V = `varying vec3 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`;

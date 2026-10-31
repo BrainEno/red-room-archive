@@ -1,15 +1,15 @@
 # 部署
 
-本项目有两种部署方式，代码相同：
+本项目有三种部署方式，公开文章使用同一套视图：
 
-| | Netlify 静态站（当前生产） | Node 动态站 |
-| --- | --- | --- |
-| 构建 | `npm run build:static` → `static-dist/` | `npm run build && npm start` |
-| 文章 | 构建时从 Notion 读取；更新文章需重新部署 | 运行时同步 Notion |
-| 后台 `/admin` | 可用的“订阅”和“浏览数据”模块（分别探测 Netlify Function） | 全部模块 |
-| 邮件订阅 | `netlify/functions/newsletter.mts` + Netlify Blobs | Astro 端点 + SQLite |
-| 浏览统计 | `netlify/functions/analytics.mts` + Netlify Blobs 每日聚合 | Astro 端点 + SQLite 每日聚合 |
-| 持久数据 | 订阅名单（Blobs，加密）+ 浏览聚合（Blobs） | SQLite + 上传目录 |
+| | Netlify 静态站（当前生产） | GitHub Pages 静态站 | Node 动态站 |
+| --- | --- | --- | --- |
+| 构建 | `npm run build:static` → `static-dist/` | Actions 运行同一命令并发布 `static-dist/` | `npm run build && npm start` |
+| 文章 | 构建时从 Notion 读取；更新文章需重新部署 | 构建时从 Notion 读取；手动重跑或推送后重新部署 | 运行时同步 Notion |
+| 后台 `/admin` | 可用的“订阅”和“浏览数据”模块（分别探测 Netlify Function） | 无在线后台；本地资料编辑器仍可用 | 全部模块 |
+| 邮件订阅 | `netlify/functions/newsletter.mts` + Netlify Blobs | 不可用；页面会明确报告无法连接服务 | Astro 端点 + SQLite |
+| 浏览统计 | `netlify/functions/analytics.mts` + Netlify Blobs 每日聚合 | 不发送统计请求，不收集浏览数据 | Astro 端点 + SQLite 每日聚合 |
+| 持久数据 | 订阅名单（Blobs，加密）+ 浏览聚合（Blobs） | 无运行时服务端数据；浏览器本地画线/笔记仍保留 | SQLite + 上传目录 |
 
 静态构建和 Node 部署的细节（内容包、站点资料 JSON、备份迁移、安全响应头）见 [README → 部署](../README.md#部署)。邮件订阅的设计见 [NEWSLETTER.md](NEWSLETTER.md)。
 
@@ -110,6 +110,36 @@ Netlify 会在仓库文件和构建产物里搜索每个**标记为 secret 的�
 ### 其他静态主机
 
 Cloudflare Pages 等主机可以发布同一个 `static-dist/`，但没有 Netlify Function：订阅页面会显示“此页面暂时无法连接订阅服务”，统计后台也无法登录／读取。服务层与存储接口是可移植的（`NewsletterStore`、`AnalyticsStore`、`DocumentBackend`），要在别的平台运行需要为该平台写类似 `netlify/functions/newsletter.mts` / `analytics.mts` 的入口和存储后端。
+
+## GitHub Pages 静态站
+
+仓库提供 `.github/workflows/deploy-pages.yml`。它只在 `main` 推送或手动触发时构建，不在 PR 中读取生产密钥或部署。发布前会运行 `npm run check`，再用 Notion 生成公开快照；构建失败不会上传新产物。
+
+### 首次配置
+
+1. 合并包含 Pages 工作流的分支。在 **Settings → Pages → Build and deployment** 选择 **GitHub Actions**。
+2. 在 **Settings → Secrets and variables → Actions → Secrets** 添加 `NOTION_TOKEN` 和 `NOTION_DATABASE_ID`。使用只读、仅授权公开数据库的 Notion integration；不要把密钥写进仓库或 `PUBLIC_` 变量。
+3. 默认地址是 `https://<所有者>.github.io/<仓库名>/`，本仓库即 `/red-room-archive/`。工作流会自动设置项目子路径，不需要把 `SITE_URL` 写成带路径的地址。
+4. 在 **Actions → Deploy GitHub Pages → Run workflow** 手动启动首次发布；以后推送 `main` 也会发布。Actions 页面会显示实际 Pages 地址。
+
+可选 **Variables**：
+
+| Variable | 默认值 | 用途 |
+| --- | --- | --- |
+| `PAGES_SITE_URL` | `https://<所有者>.github.io` | 只含 origin 的公开地址；自定义域名时改为 `https://archive.example` |
+| `PAGES_BASE_PATH` | `/<仓库名>` | 项目子路径；自定义域名部署在根目录时显式设为 `/` |
+
+自定义域名还需在 Pages 设置和 DNS 中配置。更改公开地址后重新运行工作流，以更新 canonical、Open Graph、RSS、sitemap、分享卡片和结构化数据。
+
+### 能与不能
+
+- 支持：Notion 文章与媒体、Latest 日期排序、Topics、双语路径、浏览器搜索、RSS、sitemap、画线/笔记、朗读、分享卡片、离线阅读，以及本地 `profile-editor.html`。
+- 不支持：运行时 Notion 同步、文章/设置上传后台、Netlify Functions、订阅名单和浏览统计。Pages 版本不会发送必然失败的统计请求；订阅入口继续由既有开关控制，直接打开订阅页时会诚实报告服务不可用。
+- Notion 内容更新后需要推送或手动重跑工作流。没有把 Netlify webhook 或定时唤醒搬到 Pages；如需自动发布，应另行设计安全的 GitHub Actions 触发器。
+- 产物包含 `.nojekyll`，确保 `_astro` 资源可用；HTML 保留 CSP 和 referrer 元数据。Pages 不支持 Netlify `_headers`，因此不能由平台添加 `X-Content-Type-Options`、`Permissions-Policy` 等完整自定义响应头。
+- GitHub Pages 与 Actions 仍有各自的额度、流量和使用政策，不应理解为无限资源。
+
+迁移后若仍保留 Netlify 自动构建、Deploy Preview 或函数流量，仍会继续消耗 Netlify 额度。先在 Pages 实际检查文章、中文路径、搜索、分享与离线重读，再决定是否关闭 Netlify 自动构建/预览；保留旧部署作短期回滚，不要在验证前删除内容或名单。
 
 ## Node 动态站
 

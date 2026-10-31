@@ -1,8 +1,14 @@
 /* Red Room public offline worker. Never intercept admin, APIs or token pages. */
 const VERSION = 'v1';
-const PAGES = `rra-pages-${VERSION}`;
-const ASSETS = `rra-assets-${VERSION}`;
-const CORE = ['/offline', '/zh-CN/offline', '/manifest.webmanifest'];
+const SCOPE_PATH = new URL(self.registration.scope).pathname;
+const BASE_PATH = SCOPE_PATH === '/' ? '' : SCOPE_PATH.replace(/\/$/, '');
+const atBase = (path) => `${BASE_PATH}${path}`;
+// Cache Storage is origin-wide. Project Pages share an origin, so each scope
+// owns only its own caches instead of deleting another project's offline copy.
+const CACHE_PREFIX = BASE_PATH ? `rra-${BASE_PATH.split('/').filter(Boolean).map(encodeURIComponent).join('%2F')}-` : 'rra-';
+const PAGES = `${CACHE_PREFIX}pages-${VERSION}`;
+const ASSETS = `${CACHE_PREFIX}assets-${VERSION}`;
+const CORE = ['/offline', '/zh-CN/offline', '/manifest.webmanifest'].map(atBase);
 const MAX_PAGES = 60;
 const MAX_ASSETS = 140;
 
@@ -17,7 +23,10 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keep = new Set([PAGES, ASSETS]);
-    await Promise.all((await caches.keys()).filter((key) => key.startsWith('rra-') && !keep.has(key)).map((key) => caches.delete(key)));
+    const owned = (key) => BASE_PATH
+      ? key.startsWith(`${CACHE_PREFIX}pages-`) || key.startsWith(`${CACHE_PREFIX}assets-`)
+      : /^rra-(?:pages|assets)-/.test(key);
+    await Promise.all((await caches.keys()).filter((key) => owned(key) && !keep.has(key)).map((key) => caches.delete(key)));
     await self.clients.claim();
   })());
 });
@@ -34,6 +43,10 @@ const save = async (name, request, response, maximum) => {
   await cache.put(request, response);
   await trim(cache, maximum);
 };
+
+const localPath = (pathname) => BASE_PATH && (pathname === BASE_PATH || pathname.startsWith(`${BASE_PATH}/`))
+  ? pathname.slice(BASE_PATH.length) || '/'
+  : pathname;
 
 const networkPage = async (request) => {
   const url = new URL(request.url);
@@ -54,8 +67,9 @@ const networkPage = async (request) => {
       const cached = await match(request);
       if (cached) return cached;
     }
-    const language = url.pathname === '/zh-CN' || url.pathname.startsWith('/zh-CN/') ? '/zh-CN/offline' : '/offline';
-    return (await match(language)) || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    const pathname = localPath(url.pathname);
+    const language = pathname === '/zh-CN' || pathname.startsWith('/zh-CN/') ? '/zh-CN/offline' : '/offline';
+    return (await match(atBase(language))) || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
 };
 
@@ -80,13 +94,15 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || request.headers.has('range')) return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (BASE_PATH && url.pathname !== BASE_PATH && !url.pathname.startsWith(`${BASE_PATH}/`)) return;
+  const pathname = localPath(url.pathname);
   // No private response, newsletter token, JSON, CSV or collection payload enters a cache.
-  if (/^\/(?:api|admin)(?:\/|$)/.test(url.pathname) || /^\/(?:zh-CN\/)?newsletter(?:\/|$)/.test(url.pathname) || url.pathname === '/profile-editor.html') return;
+  if (/^\/(?:api|admin)(?:\/|$)/.test(pathname) || /^\/(?:zh-CN\/)?newsletter(?:\/|$)/.test(pathname) || pathname === '/profile-editor.html') return;
   if (request.mode === 'navigate') {
     event.respondWith(networkPage(request));
     return;
   }
-  const immutable = url.pathname.startsWith('/_astro/') || url.pathname.startsWith('/models/') || /^\/(?:icon-|apple-touch-icon|favicon)/.test(url.pathname);
+  const immutable = pathname.startsWith('/_astro/') || pathname.startsWith('/models/') || /^\/(?:icon-|apple-touch-icon|favicon)/.test(pathname);
   const asset = immutable || ['style', 'script', 'font', 'image'].includes(request.destination);
-  if (asset && url.pathname !== '/sw.js') event.respondWith(cacheAsset(request, immutable));
+  if (asset && pathname !== '/sw.js') event.respondWith(cacheAsset(request, immutable));
 });

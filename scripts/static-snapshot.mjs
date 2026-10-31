@@ -12,8 +12,9 @@ import { validateProfile, PROFILE_MAX_BYTES } from '../public/profile-format.js'
 import { imageSize, IMAGE_HEADER_BYTES } from './lib/image-size.mjs';
 
 const root = process.cwd();
-// The UI harness has its own disposable output and never overwrites a user's snapshot.
-const dest = path.join(root, process.env.UI_TEST_SNAPSHOT === '1' ? '.ui-test-snapshot' : 'static-dist');
+// UI harnesses have disposable outputs and never overwrite a user's snapshot.
+const destName = process.env.PAGES_TEST_SNAPSHOT === '1' ? '.ui-test-pages-snapshot' : process.env.UI_TEST_SNAPSHOT === '1' ? '.ui-test-snapshot' : 'static-dist';
+const dest = path.join(root, destName);
 const temp = await mkdtemp(path.join(tmpdir(), 'red-room-static-'));
 // Netlify's URL is the primary site address, including on deploy previews.
 // A deliberate SITE_URL always wins, including when it is invalid.
@@ -26,6 +27,11 @@ const database = process.env.NOTION_DATABASE_ID || process.env.DATABASE_ID || pr
 const previewDemo = process.env.NETLIFY === 'true' && process.env.CONTEXT === 'deploy-preview' &&
   !token && !database && process.env.STATIC_DEMO !== '0';
 const demo = process.env.STATIC_DEMO === '1' || previewDemo;
+const requestedBasePath = (process.env.STATIC_BASE_PATH || '').trim();
+const staticHost = (process.env.STATIC_HOST || '').trim();
+let basePath = '';
+let githubPages = false;
+let githubPagesSecurity = null;
 const secret = randomBytes(32).toString('hex');
 const reservation = createServer();
 reservation.listen(0, '127.0.0.1');
@@ -64,6 +70,37 @@ const markDemoPreview = (doc) => {
     if (node.tagName === 'body') {
       const notice = parseFragment('<div role="status" data-demo-preview>DEMO PREVIEW · Notion not configured / 演示预览 · 未连接 Notion</div>').childNodes[0];
       notice.parentNode = node; node.childNodes.push(notice);
+    }
+  });
+};
+const withBase = (value) => basePath && value.startsWith('/') && !value.startsWith('//') ? `${basePath}${value}` : value;
+const rewritePublicUrl = (value) => {
+  if (!basePath || !value) return value;
+  if (value === siteUrl) return `${siteUrl}${basePath}`;
+  if (value.startsWith(`${siteUrl}/`)) return `${siteUrl}${withBase(value.slice(siteUrl.length))}`;
+  return withBase(value);
+};
+const rewriteAbsoluteText = (value) => basePath ? value.replaceAll(`${siteUrl}/`, `${siteUrl}${basePath}/`) : value;
+const rewriteCssUrls = (value) => basePath ? value.replace(/url\(\s*(["']?)(\/(?!\/)[^)"']+)\1\s*\)/g, (_match, quote, url) => `url(${quote}${withBase(url)}${quote})`) : value;
+const URL_ATTRIBUTES = new Set(['href', 'src', 'action', 'poster', 'content', 'data-model', 'data-cover', 'data-copyright-path']);
+const metaNode = (parent, attributes) => ({ nodeName: 'meta', tagName: 'meta', attrs: Object.entries(attributes).map(([name, value]) => ({ name, value })), namespaceURI: 'http://www.w3.org/1999/xhtml', childNodes: [], parentNode: parent });
+const rewriteDocument = (doc, noReferrer = false) => {
+  walk(doc, (node) => {
+    if (node.tagName === 'html') {
+      if (basePath) setAttr(node, 'data-base-path', basePath);
+      if (githubPages) setAttr(node, 'data-static-host', 'github-pages');
+    }
+    for (const attr of node.attrs || []) if (URL_ATTRIBUTES.has(attr.name)) attr.value = rewritePublicUrl(attr.value);
+    if (node.tagName === 'script' && getAttr(node, 'type') === 'application/ld+json') {
+      for (const child of node.childNodes || []) if (child.nodeName === '#text') child.value = rewriteAbsoluteText(child.value);
+    }
+    // GitHub Pages ignores _headers. Keep the two protections HTML can express;
+    // the deployment guide records the headers that Pages cannot provide.
+    if (node.tagName === 'head' && githubPagesSecurity) {
+      node.childNodes.push(
+        metaNode(node, { 'http-equiv': 'Content-Security-Policy', content: githubPagesSecurity.csp }),
+        metaNode(node, { name: 'referrer', content: noReferrer ? 'no-referrer' : githubPagesSecurity.referrer }),
+      );
     }
   });
 };
@@ -154,13 +191,21 @@ try {
   let origin;
   try { origin = new URL(siteUrl); } catch { throw new Error('Set SITE_URL to the public site origin before building (on Netlify, the built-in URL is used when SITE_URL is unset).'); }
   if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('SITE_URL must be a plain HTTP(S) origin without credentials or a path.');
+  if (requestedBasePath && requestedBasePath !== '/') {
+    const valid = requestedBasePath.startsWith('/') && !requestedBasePath.endsWith('/') && !requestedBasePath.includes('//') && requestedBasePath.split('/').slice(1)
+      .every((segment) => /^[A-Za-z0-9._~-]+$/.test(segment) && segment !== '.' && segment !== '..');
+    if (!valid) throw new Error('STATIC_BASE_PATH must be / or an absolute URL path without a trailing slash.');
+  }
+  basePath = requestedBasePath === '/' ? '' : requestedBasePath;
+  if (!['', 'github-pages'].includes(staticHost)) throw new Error('STATIC_HOST must be empty or github-pages.');
+  githubPages = staticHost === 'github-pages';
   if ((!token || !database) && !demo) throw new Error('Set NOTION_TOKEN and NOTION_DATABASE_ID, or explicitly set STATIC_DEMO=1 for a demo.');
   if (demo && (token || database)) throw new Error('STATIC_DEMO cannot be combined with Notion credentials.');
   if (previewDemo) console.warn('Netlify Deploy Preview: no Notion credentials; generating labelled demo content, not production articles.');
   // Admin-edited content for static builds: unzip the /admin content bundle
   // into site-content/ (site-profile.json, more.json, uploads/). The UI test
   // harness ignores a user's folder unless SITE_CONTENT_DIR is set explicitly.
-  const contentName = process.env.SITE_CONTENT_DIR || (process.env.UI_TEST_SNAPSHOT === '1' ? '' : 'site-content');
+  const contentName = process.env.SITE_CONTENT_DIR || (process.env.UI_TEST_SNAPSHOT === '1' || process.env.PAGES_TEST_SNAPSHOT === '1' ? '' : 'site-content');
   const contentDir = contentName ? path.resolve(root, contentName) : '';
   const isDir = async (p) => { try { return (await stat(p)).isDirectory(); } catch { return false; } };
   if (process.env.SITE_CONTENT_DIR && !(await isDir(contentDir))) throw new Error(`SITE_CONTENT_DIR is not a directory: ${contentDir}`);
@@ -170,7 +215,7 @@ try {
   // The file is build input, not a published asset. An explicitly configured
   // path must exist; never silently ship defaults after a failed import.
   const bundledProfile = hasContent && await exists(path.join(contentDir, 'site-profile.json')) ? path.join(contentDir, 'site-profile.json') : '';
-  const profileName = process.env.SITE_PROFILE_PATH || bundledProfile || (process.env.UI_TEST_SNAPSHOT === '1' ? '' : 'site-profile.json');
+  const profileName = process.env.SITE_PROFILE_PATH || bundledProfile || (process.env.UI_TEST_SNAPSHOT === '1' || process.env.PAGES_TEST_SNAPSHOT === '1' ? '' : 'site-profile.json');
   const profilePath = profileName ? path.resolve(root, profileName) : '';
   let profile;
   try {
@@ -234,6 +279,11 @@ try {
     const sync = await fetch(base + '/api/sync', { method: 'POST', headers: admin });
     if (!sync.ok) throw new Error(`Notion synchronization failed (${sync.status}); no snapshot published.`);
   }
+  const pageHeaders = (await get('/')).headers;
+  const security = ['Content-Security-Policy', 'X-Content-Type-Options', 'Referrer-Policy', 'Permissions-Policy']
+    .map((name) => [name, pageHeaders.get(name)]);
+  if (security.some(([, value]) => !value)) throw new Error('The snapshot server did not send the expected security headers.');
+  if (githubPages) githubPagesSecurity = { csp: pageHeaders.get('Content-Security-Policy'), referrer: pageHeaders.get('Referrer-Policy') };
   await cp(path.join(root, 'dist/client'), dest, { recursive: true });
   const articles = [];
   let total = 0;
@@ -262,7 +312,7 @@ try {
   const search = { en: [], 'zh-CN': [] };
   for (const lang of LANGS) {
     for (const route of routes) {
-      const doc = parse(await (await get(localized(route, lang))).text());
+      const doc = parse(await (await get(localized(route, lang))).text(), { scriptingEnabled: false });
       markDemoPreview(doc);
       const changes = [], images = [];
       let articleBody;
@@ -271,7 +321,7 @@ try {
         if (needsSize(node)) images.push(node);
         const href = getAttr(node, 'href');
         const src = getAttr(node, 'src');
-        for (const [key, value] of [['href', href], ['src', src], ['content', getAttr(node, 'content')], ['data-model', getAttr(node, 'data-model')]]) {
+        for (const [key, value] of [['href', href], ['src', src], ['content', getAttr(node, 'content')], ['data-model', getAttr(node, 'data-model')], ['data-cover', getAttr(node, 'data-cover')]]) {
           if (!value) continue;
           let url; try { url = new URL(value, siteUrl); } catch { continue; }
           if (url.origin === new URL(siteUrl).origin && /^\/uploads\/[^/]+$/.test(url.pathname)) changes.push(exportUpload(url.pathname));
@@ -299,21 +349,30 @@ try {
       if (route === '/search') {
         walk(doc, (node) => { if (node.tagName === 'body') node.childNodes.push({ nodeName: 'script', tagName: 'script', attrs: [{ name: 'src', value: '/static-search.js' }, { name: 'defer', value: '' }], namespaceURI: 'http://www.w3.org/1999/xhtml', childNodes: [], parentNode: node }); });
       }
+      rewriteDocument(doc, route.startsWith('/newsletter/'));
       await write(localized(route, lang), serialize(doc));
     }
   }
   const missing = await fetch(base + '/404');
   if (missing.status !== 404) throw new Error('Expected the 404 page to return 404.');
-  const missingDoc = parse(await missing.text());
+  const missingDoc = parse(await missing.text(), { scriptingEnabled: false });
   markDemoPreview(missingDoc);
+  rewriteDocument(missingDoc);
   await writeFile(path.join(dest, '404.html'), serialize(missingDoc));
   // The admin shell (no data, no secrets): on the static site it probes the
   // newsletter and analytics Functions and shows only modules that respond.
-  await write('/admin', await (await get('/admin')).text());
-  await writeFile(path.join(dest, 'static-search.json'), JSON.stringify(search));
+  const adminDoc = parse(await (await get('/admin')).text(), { scriptingEnabled: false });
+  rewriteDocument(adminDoc);
+  await write('/admin', serialize(adminDoc));
+  const profileEditorFile = path.join(dest, 'profile-editor.html');
+  const profileEditorDoc = parse(await readFile(profileEditorFile, 'utf8'), { scriptingEnabled: false });
+  rewriteDocument(profileEditorDoc);
+  await writeFile(profileEditorFile, serialize(profileEditorDoc));
+  const basedSearch = Object.fromEntries(Object.entries(search).map(([lang, items]) => [lang, items.map((item) => ({ ...item, href: withBase(item.href) }))]));
+  await writeFile(path.join(dest, 'static-search.json'), JSON.stringify(basedSearch));
   await cp(path.join(root, 'scripts/static-search.js'), path.join(dest, 'static-search.js'));
-  await writeFile(path.join(dest, 'rss.xml'), await (await get('/rss.xml')).text());
-  await writeFile(path.join(dest, 'llms.txt'), await (await get('/llms.txt')).text());
+  await writeFile(path.join(dest, 'rss.xml'), rewriteAbsoluteText(await (await get('/rss.xml')).text()));
+  await writeFile(path.join(dest, 'llms.txt'), rewriteAbsoluteText(await (await get('/llms.txt')).text()));
   // /subscribe is always built (direct links keep working) but listed only when the
   // public sign-up entries are on: SHOW_NEWSLETTER_SIGNUP (the build has no saved settings).
   const signupListed = /^(1|true|on|yes)$/i.test((process.env.SHOW_NEWSLETTER_SIGNUP ?? '').trim());
@@ -325,18 +384,34 @@ try {
     const alternates = [
       ...LANGS.map((lang) => [lang, localized(route, lang)]),
       ['x-default', localized(route, 'en')],
-    ].map(([lang, href]) => `<xhtml:link rel="alternate" hreflang="${lang}" href="${xml(siteUrl + href)}"/>`).join('');
-    return LANGS.map((lang) => `<url><loc>${xml(siteUrl + localized(route, lang))}</loc>${lastmod}${alternates}</url>`).join('\n');
+    ].map(([lang, href]) => `<xhtml:link rel="alternate" hreflang="${lang}" href="${xml(siteUrl + withBase(href))}"/>`).join('');
+    return LANGS.map((lang) => `<url><loc>${xml(siteUrl + withBase(localized(route, lang)))}</loc>${lastmod}${alternates}</url>`).join('\n');
   });
   await writeFile(path.join(dest, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${urls.join('\n')}</urlset>`);
   // robots.txt from the server (ui/feeds.ts): the AI-training crawler block stays in one place.
-  await writeFile(path.join(dest, 'robots.txt'), previewDemo ? 'User-agent: *\nDisallow: /\n' : await (await get('/robots.txt')).text());
+  const robotsText = previewDemo ? 'User-agent: *\nDisallow: /\n' : rewriteAbsoluteText(await (await get('/robots.txt')).text())
+    .replace('Disallow: /admin\n', `Disallow: ${withBase('/admin')}\n`)
+    .replace('Disallow: /api/\n', `Disallow: ${withBase('/api/')}\n`);
+  await writeFile(path.join(dest, 'robots.txt'), robotsText);
+  if (basePath) {
+    const manifestFile = path.join(dest, 'manifest.webmanifest');
+    const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
+    for (const key of ['id', 'start_url', 'scope']) if (manifest[key]) manifest[key] = withBase(manifest[key]);
+    for (const icon of manifest.icons || []) icon.src = withBase(icon.src);
+    await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+    const rewriteCssTree = async (directory) => {
+      for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const file = path.join(directory, entry.name);
+        if (entry.isDirectory()) await rewriteCssTree(file);
+        else if (entry.isFile() && entry.name.endsWith('.css')) await writeFile(file, rewriteCssUrls(await readFile(file, 'utf8')));
+      }
+    };
+    await rewriteCssTree(dest);
+  }
+  // Pages would otherwise run Jekyll and can ignore the _astro asset directory.
+  if (githubPages) await writeFile(path.join(dest, '.nojekyll'), '');
   // Same security headers as the Node server (server/http/security.ts), copied
   // from what the snapshot server actually sent, so the two cannot drift apart.
-  const pageHeaders = (await get('/')).headers;
-  const security = ['Content-Security-Policy', 'X-Content-Type-Options', 'Referrer-Policy', 'Permissions-Policy']
-    .map((name) => [name, pageHeaders.get(name)]);
-  if (security.some(([, value]) => !value)) throw new Error('The snapshot server did not send the expected security headers.');
   await writeFile(path.join(dest, '_headers'), [
     '/*', ...security.map(([name, value]) => `  ${name}: ${value}`),
     '/_astro/*', '  Cache-Control: public, max-age=31536000, immutable',

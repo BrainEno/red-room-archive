@@ -7,6 +7,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const snapshot = path.join(root, '.ui-test-snapshot');
+const pagesSnapshot = path.join(root, '.ui-test-pages-snapshot');
 const temp = await mkdtemp(path.join(tmpdir(), 'rra-ui-'));
 const env = { ...process.env, HOST: '127.0.0.1', PORT: '4180', SITE_URL: 'https://example.invalid',
   DB_PATH: path.join(temp, 'site.db'), MEDIA_CACHE_DIR: path.join(temp, 'media'), UPLOAD_DIR: path.join(temp, 'uploads'),
@@ -17,19 +18,27 @@ child.stdout.on('data', (chunk) => { process.stdout.write(chunk); if (chunk.toSt
 child.stderr.pipe(process.stderr);
 child.on('exit', (code) => { if (!stopping) { console.error(`SSR server exited: ${code}`); void shutdown(1); } });
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
-const staticServer = createServer(async (req, res) => {
+const staticFileServer = (directory, mountedBase = '') => createServer(async (req, res) => {
   if (req.url === '/__ready') { res.writeHead(ready ? 200 : 503).end(); return; }
   try {
     let pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    if (mountedBase) {
+      if (pathname === mountedBase) { res.writeHead(308, { location: `${mountedBase}/` }).end(); return; }
+      if (!pathname.startsWith(`${mountedBase}/`)) { res.writeHead(404).end('Not found'); return; }
+      pathname = pathname.slice(mountedBase.length) || '/';
+    }
     if (pathname.endsWith('/')) pathname += 'index.html';
     else if (!path.extname(pathname)) pathname += '/index.html';
-    const file = path.resolve(snapshot, '.' + pathname);
-    if (!file.startsWith(snapshot + path.sep)) throw new Error('Invalid path');
+    const file = path.resolve(directory, '.' + pathname);
+    if (!file.startsWith(directory + path.sep)) throw new Error('Invalid path');
     const bytes = await readFile(file);
     res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' }).end(bytes);
   } catch { res.writeHead(404).end('Not found'); }
 });
+const staticServer = staticFileServer(snapshot);
+const pagesServer = staticFileServer(pagesSnapshot, '/red-room-archive');
 staticServer.listen(4181, '127.0.0.1');
+pagesServer.listen(4184, '127.0.0.1');
 
 // Browser offline emulation does not consistently apply to service-worker
 // requests (and WebKit can fail the reload itself). These local proxies can
@@ -77,6 +86,7 @@ async function shutdown(code = 0) {
   if (stopping) return;
   stopping = true;
   staticServer.close();
+  pagesServer.close();
   for (const server of proxies) server.close();
   if (child.exitCode === null) { child.kill('SIGTERM'); await new Promise((resolve) => child.once('exit', resolve)); }
   await rm(temp, { recursive: true, force: true });

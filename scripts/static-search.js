@@ -11,7 +11,8 @@
   status.className = 'article-intro'; status.setAttribute('role', 'status');
   section.append(status);
   try {
-    const response = await fetch('/static-search.json');
+    const basePath = document.documentElement.dataset?.basePath || '';
+    const response = await fetch(`${basePath}/static-search.json`);
     if (!response.ok) throw new Error('index unavailable');
     const index = await response.json();
     const terms = query.toLowerCase().split(/\s+/);
