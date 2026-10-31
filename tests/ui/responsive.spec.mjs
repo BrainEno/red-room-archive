@@ -93,6 +93,23 @@ test('home navigation is not blocked by the loader with reduced motion', async (
   await expect(page.locator('#latest')).toBeInViewport();
 });
 
+test('the forthcoming-book notice sits on the first screen beside the sign and links to email', async ({ page }) => {
+  const overlap = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  for (const [path, title] of [['/', 'A book of fiction is going to print.'], ['/zh-CN/', '小说集，即将付印。']]) {
+    await page.goto(path);
+    await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
+    const notice = page.getByRole('complementary', { name: /New print|NEW PRINT/ });
+    await expect(notice).toBeInViewport({ ratio: 1 });
+    await expect(notice.locator('.notice-t')).toHaveText(title);
+    const box = await notice.boundingBox();
+    for (const other of ['.meta', '.bar']) {
+      const rects = await page.locator(other).evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON()).filter((r) => r.width > 0));
+      for (const r of rects) expect(overlap(box, r), `${path}: .notice overlaps ${other}`).toBe(false);
+    }
+    expect(await notice.locator('a').getAttribute('href')).toMatch(/^mailto:[^?]+@[^?]+\?subject=.+/);
+  }
+});
+
 test('long unbroken titles and site names do not expand the layout', async ({ page }) => {
   await page.goto('/articles');
   await page.evaluate(() => {
@@ -162,6 +179,7 @@ test('home remains navigable without WebGL or JavaScript', async ({ browser, bas
     const page = await noJs.newPage();
     await page.goto('/');
     await expect(page.locator('.loader')).toBeHidden();
+    await expect(page.locator('.notice')).toBeVisible();
     await page.locator('.bar a[href="#latest"]').click();
     await expect(page.locator('#latest')).toBeInViewport();
   } finally { await noJs.close(); }

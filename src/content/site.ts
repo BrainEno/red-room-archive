@@ -37,6 +37,12 @@ export interface SiteCopy {
   facts: { key: string; value: string }[];
   /** Lead paragraph of the /articles index. */
   articlesIntro: string;
+  /**
+   * Small notice beside the neon sign on the first screen of the homepage
+   * (`title: ''` hides it). `action` links to the site email with `subject`
+   * as the email subject, or to /more when no email is set.
+   */
+  announce: { kicker: string; title: string; action: string; subject: string };
 }
 
 export const site: SiteIdentity = {
@@ -56,6 +62,7 @@ export const copy: Record<Locale, SiteCopy> = {
     tagline: 'Fiction, poetry and other writings',
     facts: [],
     articlesIntro: 'Everything published from the notebook, newest first.',
+    announce: { kicker: 'Forthcoming / New print', title: 'A book of fiction is going to print.', action: 'Pre-orders open — write to reserve a copy', subject: 'Pre-order' },
   },
   'zh-CN': {
     about: '写作就是艺术家为了自己的个性和荣誉跟大众进行的一场战斗。——维托尔德·贡布罗维奇',
@@ -63,6 +70,7 @@ export const copy: Record<Locale, SiteCopy> = {
     tagline: '小说、诗歌以及其他',
     facts: [],
     articlesIntro: '笔记本里发布的全部文章，按时间由新到旧排列。',
+    announce: { kicker: '即将付印 / NEW PRINT', title: '小说集，即将付印。', action: '接受预购，来信预留一册', subject: '预购小说集' },
   },
 };
 

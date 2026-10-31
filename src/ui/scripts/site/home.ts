@@ -182,6 +182,9 @@ intro.to(n, { v: 100, duration: 2.2, ease: 'power2.inOut', onUpdate: () => (coun
   .add(() => lenis?.start(), '<1.2')
   .from('.bar', { autoAlpha: 0, yPercent: -100, duration: 1, ease: 'expo.out' }, '<1.8')
   .from('.meta span', { autoAlpha: 0, y: 16, stagger: 0.1, duration: 1, ease: 'expo.out' }, '<0.2');
+// 告示：红竖线先从上往下画出，三行字再依次亮出
+if (document.querySelector('.notice')) intro.fromTo('.notice', { '--rule': 0 }, { '--rule': 1, duration: 1.2, ease: 'expo.out' }, '<0.1')
+  .from('.notice > *', { autoAlpha: 0, x: 14, stagger: 0.12, duration: 1.1, ease: 'expo.out' }, '<0.2');
 document.fonts.ready.then(() => {
   if (reduce || resumeY !== null) { intro.progress(1); neon.ignite(); } else intro.play();
   if (resumeY !== null) requestAnimationFrame(() => {

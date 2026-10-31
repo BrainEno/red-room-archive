@@ -193,7 +193,7 @@ JSON-LD 是浏览器不会执行的数据块，不受 CSP 影响，所有 `<` �
 
 邮箱默认 `nodeman24@outlook.com`（`src/content/site.ts`），后台 Settings 里的 Contact email 优先。
 
-首页的霓虹招牌是一幅固定的装饰插画，不是根据站点名生成的 Logo；站点名显示在导航和首页底部。后台保存后，同一浏览器、同一来源（协议、域名、端口）的已打开站点页面会自动刷新；不同浏览器或设备请手动刷新。中文、英文文案各自独立，切换语言时请填写相应字段。
+首页的霓虹招牌（“The INK / NEW / PRINT”）是一幅固定的装饰插画，不是根据站点名生成的 Logo；招牌右侧（手机上在招牌下方）有一块小告示（新书付印、接受预购），文案在 `src/content/site.ts` 的 `announce`，中英文各一份，把 `title` 设为空字符串即可隐藏；告示上的链接会打开写给站点邮箱的邮件（主题为 `subject`），没设邮箱时改为链接到“更多”页面。站点名显示在导航和首页底部。后台保存后，同一浏览器、同一来源（协议、域名、端口）的已打开站点页面会自动刷新；不同浏览器或设备请手动刷新。中文、英文文案各自独立，切换语言时请填写相应字段。
 
 Notion 和 GitHub 联动、发布自动化的调研见 [docs/NOTION-GITHUB.md](docs/NOTION-GITHUB.md)。
 
@@ -235,7 +235,7 @@ src/content  站点文案、演示文章                    src/pages    路由�
 ```
 
 - 首页动画参数：`src/ui/scripts/site/home.ts`（镜头关键帧）、`neon.ts`（招牌）、`scene.ts`（窗帘、雕像、灯光）。
-- 首页默认文案（facts 等）：`src/content/site.ts`；“更多”页面：后台 More（默认示例在 `src/content/more.ts`）；标签对照：`src/content/tags.ts`；界面文字（导航、区块标题、分页…）：`src/ui/i18n.ts`；名称/邮箱/简介/引言/标语在后台改。
+- 首页默认文案（facts、招牌旁的新书告示 `announce` 等）：`src/content/site.ts`；“更多”页面：后台 More（默认示例在 `src/content/more.ts`）；标签对照：`src/content/tags.ts`；界面文字（导航、区块标题、分页…）：`src/ui/i18n.ts`；名称/邮箱/简介/引言/标语在后台改。
 - 中文显示字体：`public/fonts/display-sc/`，由 `scripts/fonts/build-display-sc.py` 生成，见 [docs/I18N.md](docs/I18N.md)。
 - 接口约定见 **[docs/API.md](docs/API.md)**；为什么选择在本仓库实现、而不是回到旧仓库，见 [docs/NOTION-ONLY.md](docs/NOTION-ONLY.md)。
 

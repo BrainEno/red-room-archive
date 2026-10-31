@@ -16,10 +16,11 @@ const defs = [
     poly(c, [[498,112],[215,66],[150,84],[112,120],[70,200],[22,285],[34,302],[100,298],[160,232],[240,224],[292,176],[310,152],[430,152],[498,128]], true);
     poly(c, [[150,84],[170,122],[222,114],[262,150]]); poly(c, [[236,226],[262,196]]); } },
   { delay: .45, rate: 1, draw: (c: Ctx) => { c.save(); c.translate(26, 130); c.rotate(-.17); c.font = 'italic 700 60px "Snell Roundhand","Brush Script MT","Segoe Script",cursive'; c.strokeText('The', 0, 0); c.restore(); } },
-  { delay: .9, rate: .7, draw: (c: Ctx) => { c.font = F(800, 150); c.strokeText('BAR', 258, 312); } },
+  { delay: .9, rate: .7, draw: (c: Ctx) => { c.font = F(800, 144); c.strokeText('INK', 288, 310); } },
   { delay: 1.45, rate: 1, draw: (c: Ctx) => { poly(c, [[520,118],[806,34]]); poly(c, [[520,128],[812,186]]); poly(c, [[520,146],[790,372]]); } },
-  { delay: 1.9, rate: 1.6, draw: (c: Ctx) => { c.font = F(400, 64); c.textAlign = 'right'; c.strokeText('BANG', 806, 146); } },
-  { delay: 2.3, rate: 2.4, draw: (c: Ctx) => { c.font = F(400, 68); c.textAlign = 'right'; c.strokeText('BANG', 806, 240); } },
+  // NEW / PRINT: the two short words light last and flicker the most, like a sign that has just been rewired.
+  { delay: 1.9, rate: 1.6, draw: (c: Ctx) => { c.font = F(700, 60); c.textAlign = 'right'; c.strokeText('NEW', 800, 142); } },
+  { delay: 2.3, rate: 2.4, draw: (c: Ctx) => { c.font = F(700, 66); c.textAlign = 'right'; c.strokeText('PRINT', 812, 238); } },
 ];
 const hash = (n: number) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
 
@@ -56,7 +57,7 @@ export function initNeon(cv: HTMLCanvasElement) {
       c.fillStyle = g; c.beginPath(); c.arc(x, y, 18, 0, 7); c.fill();
     });
   };
-  Promise.all([document.fonts.load(F(800, 150)), document.fonts.load(F(400, 64))]).catch(() => {}).finally(init);
+  Promise.all([document.fonts.load(F(800, 150)), document.fonts.load(F(700, 64))]).catch(() => {}).finally(init);
 
   const level = (g: any, t: number) => {
     const e = t - t0 - g.delay;
