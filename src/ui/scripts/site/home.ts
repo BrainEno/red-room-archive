@@ -27,6 +27,39 @@ document.querySelectorAll<HTMLAnchorElement>('[data-lang-switch]').forEach((a) =
     try { sessionStorage.setItem(RESUME_KEY, JSON.stringify({ y: scrollY, at: Date.now() })); } catch { /* private mode */ }
   }));
 
+// Warm an article only after a clear navigation intent. The response can warm
+// the server's rendered-body cache and the browser HTTP cache, but none of the
+// destination scripts run (so prefetching never creates a pageview). Save-Data
+// and slow connections keep the ordinary click-only behaviour.
+const prefetched = new Map<string, Promise<void>>();
+const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+const allowPrefetch = !connection?.saveData && !/(?:^|-)2g$/.test(connection?.effectiveType ?? '');
+const warmArticle = (anchor: HTMLAnchorElement) => {
+  if (!allowPrefetch) return;
+  const url = new URL(anchor.href, location.href);
+  if (url.origin !== location.origin || url.search || url.hash || url.href === location.href) return;
+  if (!/^\/(?:zh-CN\/)?articles(?:\/[^/]+)?\/?$/.test(url.pathname) || prefetched.has(url.href)) return;
+  const job = fetch(url.href, { credentials: 'same-origin', cache: 'default', priority: 'low' } as RequestInit)
+    .then(async (response) => { if (response.ok) await response.text(); })
+    .catch(() => { prefetched.delete(url.href); });
+  prefetched.set(url.href, job);
+};
+document.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((anchor) => {
+  let intent: ReturnType<typeof setTimeout> | undefined;
+  const delayed = () => {
+    clearTimeout(intent);
+    intent = setTimeout(() => warmArticle(anchor), 120);
+  };
+  const cancel = () => clearTimeout(intent);
+  anchor.addEventListener('pointerenter', delayed);
+  anchor.addEventListener('pointerleave', cancel);
+  anchor.addEventListener('focus', delayed);
+  anchor.addEventListener('blur', cancel);
+  // Pointer down includes touch and gives a click that follows immediately a
+  // head start even when there was no useful hover interval.
+  anchor.addEventListener('pointerdown', () => { cancel(); warmArticle(anchor); }, { passive: true });
+});
+
 // The first screen is the 2D neon sign, not the 3D room. Load Three.js and the
 // model only when the reader scrolls (or returns to a saved scroll position),
 // keeping navigation usable when WebGL or the dynamic import is unavailable.

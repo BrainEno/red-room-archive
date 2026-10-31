@@ -225,6 +225,42 @@ test('read aloud controls respond to supported and unsupported speech APIs', asy
   } finally { await unsupported.close(); }
 });
 
+for (const base of ['', 'http://127.0.0.1:4179']) {
+  test(`home warms article and directory HTML only after navigation intent (${base ? 'static' : 'SSR'})`, async ({ page }, testInfo) => {
+    const prefetches = [];
+    // Firefox's touch viewport does not synthesize pointer intent from hover().
+    const intend = (locator) => testInfo.project.use.hasTouch ? locator.focus() : locator.hover();
+    let analytics = 0;
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === '/api/analytics/collect') analytics++;
+      if (request.resourceType() === 'fetch' && /^\/(?:zh-CN\/)?articles(?:\/[^/]+)?\/?$/.test(url.pathname)) prefetches.push(url.pathname);
+    });
+    await page.goto(`${base}/`, { waitUntil: 'networkidle' });
+    await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
+    const initialAnalytics = analytics;
+    const article = page.locator('#latest a.row').first();
+    const articleUrl = new URL(await article.getAttribute('href'), page.url()).href;
+    expect(prefetches).toEqual([]);
+    const warmedArticle = page.waitForResponse((response) => response.url() === articleUrl && response.request().resourceType() === 'fetch');
+    await intend(article);
+    expect((await warmedArticle).status()).toBe(200);
+    await expect.poll(() => prefetches.filter((path) => path === new URL(articleUrl).pathname).length).toBe(1);
+    await article.evaluate((node) => node.blur());
+    await article.focus();
+    await page.waitForTimeout(180);
+    expect(prefetches.filter((path) => path === new URL(articleUrl).pathname)).toHaveLength(1);
+    const directory = page.locator('#latest a.more');
+    const directoryUrl = new URL(await directory.getAttribute('href'), page.url()).href;
+    const warmedDirectory = page.waitForResponse((response) => response.url() === directoryUrl && response.request().resourceType() === 'fetch');
+    await intend(directory);
+    expect((await warmedDirectory).status()).toBe(200);
+    expect(analytics, 'prefetched pages do not execute their analytics collector').toBe(initialAnalytics);
+    await article.click();
+    await expect(page.locator('.article-body')).toBeVisible();
+  });
+}
+
 test('home defers the 3D renderer until the reader scrolls', async ({ page }) => {
   const requests = [];
   page.on('request', (request) => requests.push(request.url()));
