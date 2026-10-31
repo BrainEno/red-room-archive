@@ -61,6 +61,12 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
       opts.check ? ` data-check="${opts.check}" spellcheck="false"` : ''
     } value="${esc(value ?? '')}" placeholder="${esc(opts.placeholder ?? '')}"></label>`;
 
+  const availability = (path: string, value: string | undefined) =>
+    `<label class="me-single">${esc(m.availability)}<select data-path="${path}">` +
+    `<option value="" ${!value ? 'selected' : ''}>${esc(m.availabilityUnset)}</option>` +
+    Object.entries(m.availabilityOptions).map(([key, label]) => `<option value="${key}" ${value === key ? 'selected' : ''}>${esc(label)}</option>`).join('') +
+    '</select></label>';
+
   const image = (label: string, path: string, url: string, kind: 'cover' | 'qr') => `
     <div class="me-image ${kind}">
       <div class="me-thumb" data-thumb="${path}">${thumb(url, kind)}</div>
@@ -93,7 +99,7 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
         <summary>
           <span class="me-num">${pad(index)}</span>
           <span class="me-mini">${p.cover && isImageUrl(p.cover) ? `<img src="${esc(p.cover)}" alt="">` : ''}</span>
-          <span class="me-title">${esc(bilingualLabel(p.title, m.untitled))}<small>${esc(p.year)}</small></span>
+          <span class="me-title">${esc(bilingualLabel(p.title, m.untitled))}<small>${esc(bilingualLabel(p.year, ''))}</small></span>
         </summary>
         <div class="me-body">
           ${controls('publications', index, doc.publications.length)}
@@ -101,8 +107,10 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
           <div class="me-head"><span></span><span>EN</span><span>中文</span></div>
           ${pair(m.title, at('title'), p.title)}
           ${pair(m.subtitle, at('subtitle'), p.subtitle)}
+          ${pair(m.description, at('description'), p.description ?? { en: '', 'zh-CN': '' }, { rows: 4, hint: m.descriptionHint })}
+          ${pair(m.year, at('year'), p.year)}
           <div class="me-singles">
-            ${single(m.year, at('year'), p.year, { placeholder: '2026' })}
+            ${availability(at('availability'), p.availability)}
             ${single(m.pages, at('pages'), p.pages, { type: 'number', placeholder: '48' })}
           </div>
           ${pair(m.printing, at('format'), p.format, { zhPlaceholder: 'Risograph 双色印刷' })}
@@ -214,7 +222,7 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
   };
 
   root.addEventListener('input', (event) => {
-    const input = event.target as HTMLInputElement | HTMLTextAreaElement;
+    const input = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
     const path = input.dataset?.path;
     if (!path) return;
     let value: unknown = input.value;
@@ -233,7 +241,7 @@ export function morePanel(root: HTMLElement, api: ApiClient, hooks: { onFilesCha
       if (title) {
         title.innerHTML =
           list === 'publications'
-            ? `${esc(bilingualLabel(doc.publications[index].title, m.untitled))}<small>${esc(doc.publications[index].year)}</small>`
+            ? `${esc(bilingualLabel(doc.publications[index].title, m.untitled))}<small>${esc(bilingualLabel(doc.publications[index].year, ''))}</small>`
             : `${esc(bilingualLabel(doc.channels[index].name, m.unnamed))}<small>${esc(doc.channels[index].handle)}</small>`;
       }
     }

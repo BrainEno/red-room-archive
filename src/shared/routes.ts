@@ -14,7 +14,7 @@ export const TOPICS_PATH = '/topics';
 export const ARCHIVE_PATH = '/archive';
 export const SEARCH_PATH = '/search';
 
-/** Self-published books, excerpts and contact details (content/more.ts). */
+/** Print editions, optional excerpts and contact details (content/more.ts). */
 export const MORE_PATH = '/more';
 
 /** Copyright, licence and reuse terms for the writing and the site. */

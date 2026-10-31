@@ -24,6 +24,7 @@ globalThis.fetch = mock.fetch;
 
 const core = await import('../src/core/more.ts');
 const model = await import('../src/ui/scripts/admin/more-model.ts');
+const { moreAction } = await import('../src/ui/more-action.ts');
 const endpoints = await import('../src/server/http/endpoints/more.ts');
 const admin = await import('../src/server/http/endpoints/admin.ts');
 const files = await import('../src/server/http/endpoints/uploads.ts');
@@ -97,7 +98,9 @@ test('normalizeMoreDocument trims, fills ids and accepts loose shapes', () => {
   const [first, second, third] = doc.publications;
   assert.match(first.id, /^pub-/);
   assert.deepEqual(first.title, both('Plain title'));
-  assert.equal(first.year, '2024');
+  assert.deepEqual(first.year, both('2024'), 'legacy string years apply to both languages');
+  assert.deepEqual(first.description, both(''), 'missing descriptions normalize to empty text');
+  assert.equal(first.availability, undefined, 'missing availability keeps legacy behaviour');
   assert.equal(first.pages, 12);
   assert.deepEqual(first.excerpt, both('One\n\nTwo', '一\n\n二'), 'paragraph arrays become blank-line separated text');
   assert.equal(first.link, 'mailto:a@b.test');
@@ -125,11 +128,42 @@ test('normalizeMoreDocument rejects unsafe URLs and oversized input, naming the 
   reject((d) => (d.channels[0].href = 'ftp://x.test'), 'channels.0.href');
   reject((d) => (d.publications[0].pages = 1.5), 'publications.0.pages');
   reject((d) => (d.publications[0].title.en = 'x'.repeat(201)), 'publications.0.title.en');
+  reject((d) => (d.publications[0].description = both('x'.repeat(4001))), 'publications.0.description.en');
+  for (const availability of ['available', 'SOLD-OUT', 1, true, []]) {
+    reject((d) => (d.publications[0].availability = availability), 'publications.0.availability');
+  }
   reject((d) => (d.publications = Array.from({ length: 61 }, () => ({}))), 'publications');
   reject((d) => (d.channels = 'nope'), 'channels');
   assert.throws(() => core.normalizeMoreDocument(null), /must be an object/);
   for (const ok of ['', '/more/a.jpg', '/uploads/%E4%B8%AD.png', 'https://cdn.test/a.webp']) assert.ok(core.isImageUrl(ok), ok);
   for (const ok of ['', 'https://a.test', 'http://a.test/x', 'mailto:me@a.test', '/articles']) assert.ok(core.isLinkUrl(ok), ok);
+});
+
+test('availability is optional, validated and localized with a multiline description', () => {
+  for (const availability of ['sold-out', 'contact', 'preorder']) {
+    const doc = core.normalizeMoreDocument({
+      publications: [{
+        title: both('Studies in Nature', '自然研究'),
+        year: both('2026–2027 (planned)', '2026–2027（预计）'),
+        availability,
+        description: both('First line.\nSecond line.', '第一行。\n第二行。'),
+      }],
+    });
+    const publication = doc.publications[0];
+    assert.equal(publication.availability, availability);
+    const en = core.localizeMore(doc, 'en').publications[0];
+    const zh = core.localizeMore(doc, 'zh-CN').publications[0];
+    assert.equal(en.description, 'First line.\nSecond line.');
+    assert.equal(zh.description, '第一行。\n第二行。');
+    assert.equal(en.year, '2026–2027 (planned)');
+    assert.equal(zh.year, '2026–2027（预计）');
+    assert.deepEqual(en.excerpt, [], 'a description never becomes an excerpt');
+  }
+  for (const empty of [undefined, null, '']) {
+    const doc = core.normalizeMoreDocument({ publications: [{ title: 'Legacy', availability: empty }] });
+    assert.equal(doc.publications[0].availability, undefined);
+    assert.equal(core.localizeMore(doc, 'en').publications[0].description, undefined);
+  }
 });
 
 test('localizeMore picks a language, falls back to the other side and splits paragraphs', () => {
@@ -139,11 +173,14 @@ test('localizeMore picks a language, falls back to the other side and splits par
   assert.equal(en.intro, 'Books I print myself.');
   assert.equal(zh.publications[0].title, '红房间');
   assert.equal(zh.publications[0].subtitle, 'Poems', 'empty Chinese side falls back to English');
+  assert.equal(en.publications[0].year, '2025');
+  assert.equal(en.publications[0].description, undefined);
+  assert.equal(en.publications[0].availability, undefined);
   assert.deepEqual(en.publications[0].excerpt, ['First paragraph.', 'Second paragraph.']);
   assert.deepEqual(zh.publications[0].link, { href: 'https://shop.test/red-room', label: '购买' });
   assert.equal(en.channels[0].note, '扫码关注');
   assert.equal(en.channels[0].href, undefined);
-  // QR frames: '' → frame only for the built-in samples, otherwise no QR.
+  // QR frames: '' → frame only for built-in content, otherwise no QR.
   const noQr = { ...doc, channels: [{ ...doc.channels[0], qr: '' }] };
   assert.equal(core.localizeMore(noQr, 'en').channels[0].qr, undefined);
   assert.equal(core.localizeMore(noQr, 'en', { placeholderQr: true }).channels[0].qr, '');
@@ -154,10 +191,47 @@ test('localizeMore picks a language, falls back to the other side and splits par
   assert.equal(core.replaceUpload(doc, 'other.png', '/uploads/x.png'), null);
 });
 
+test('publication CTA: status precedence, explicit links, email subjects and no-email safety', () => {
+  const publication = (title, availability, link) => ({ id: 'book', title, year: '2026', excerpt: [], availability, link });
+  const email = 'doro@example.test';
+  assert.equal(moreAction(publication('Sold', 'sold-out', { href: 'https://example.test/sold', label: 'Hidden' }), 'en', email), undefined);
+  assert.equal(moreAction(publication('Sold', 'sold-out'), 'en', email), undefined);
+
+  const explicit = moreAction(publication('Animal Specimens', 'contact', { href: 'https://example.test/enquiry', label: 'Enquire' }), 'en', '');
+  assert.deepEqual(explicit, { href: 'https://example.test/enquiry', label: 'Enquire', external: true });
+  assert.equal(moreAction(publication('Animal Specimens', 'contact', { href: 'https://example.test/enquiry' }), 'en', '')?.label, 'Contact the author');
+  assert.equal(moreAction(publication('自然研究', 'preorder', { href: 'https://example.test/interest' }), 'zh-CN', '')?.label, '登记预订意向');
+  assert.equal(moreAction(publication('Legacy', undefined, { href: 'https://example.test/order' }), 'en', '')?.label, 'Order a copy');
+
+  assert.deepEqual(moreAction(publication('Animal Specimens', 'contact'), 'en', email), {
+    href: `mailto:${email}?subject=${encodeURIComponent('About “Animal Specimens”')}`, label: 'Contact the author', external: false,
+  });
+  assert.deepEqual(moreAction(publication('动物标本', 'contact'), 'zh-CN', email), {
+    href: `mailto:${email}?subject=${encodeURIComponent('关于《动物标本》')}`, label: '联系作者', external: false,
+  });
+  assert.deepEqual(moreAction(publication('Studies in Nature', 'preorder'), 'en', email), {
+    href: `mailto:${email}?subject=${encodeURIComponent('Pre-order interest: “Studies in Nature”')}`, label: 'Register interest', external: false,
+  });
+  assert.deepEqual(moreAction(publication('自然研究', 'preorder'), 'zh-CN', email), {
+    href: `mailto:${email}?subject=${encodeURIComponent('《自然研究》预订意向')}`, label: '登记预订意向', external: false,
+  });
+  assert.equal(moreAction(publication('Legacy', undefined), 'en', email)?.label, 'Ask for a copy');
+  assert.equal(moreAction(publication('旧书', undefined), 'zh-CN', email)?.label, '来信索取');
+  for (const availability of [undefined, 'contact', 'preorder']) {
+    assert.equal(moreAction(publication('No email', availability), 'en', ''), undefined);
+    assert.equal(moreAction(publication('No email', availability), 'en', '   '), undefined);
+  }
+});
+
 test('editor model: paths, reordering and imports', () => {
   const doc = model.cloneDocument(core.normalizeMoreDocument(sampleDoc()));
   model.setPath(doc, 'publications.0.title.zh-CN', '新标题');
   assert.equal(doc.publications[0].title['zh-CN'], '新标题');
+  assert.ok('availability' in doc.publications[0], 'the editor adds the optional status field to legacy documents');
+  model.setPath(doc, 'publications.0.availability', 'contact');
+  model.setPath(doc, 'publications.0.description.en', 'Publication note');
+  assert.equal(doc.publications[0].availability, 'contact');
+  assert.equal(doc.publications[0].description.en, 'Publication note');
   assert.equal(model.getPath(doc, 'channels.0.handle'), 'redroom');
   assert.throws(() => model.setPath(doc, 'publications.0.nope', 1), /bad path/);
   const list = ['a', 'b', 'c'];
@@ -166,8 +240,20 @@ test('editor model: paths, reordering and imports', () => {
   assert.equal(model.move(list, 0, -1), 0, 'clamped at the top');
   assert.deepEqual(list, ['b', 'a', 'c']);
   const blank = model.blankPublication();
+  assert.deepEqual(blank.description, both(''));
+  assert.equal(blank.availability, undefined);
+  assert.deepEqual(blank.year, both(String(new Date().getFullYear())));
   assert.deepEqual(core.normalizeMoreDocument({ publications: [blank] }).publications[0].id, blank.id, 'a blank card is valid as is');
-  assert.equal(model.documentFromImport({ document: doc }), doc);
+  const imported = model.documentFromImport({ document: doc });
+  assert.deepEqual(imported, doc);
+  const exported = JSON.parse(JSON.stringify({ document: imported }));
+  assert.equal(exported.document.publications[0].availability, 'contact');
+  assert.equal(exported.document.publications[0].description.en, 'Publication note');
+  assert.equal(model.documentFromImport(exported), exported.document);
+  assert.equal(exported.document.publications[0].cover, '/uploads/cover.png');
+  assert.equal(exported.document.publications[0].link, 'https://shop.test/red-room');
+  assert.equal(exported.document.channels[0].qr, '/uploads/cover.png');
+  assert.equal(model.documentFromImport(doc), doc);
   assert.equal(model.documentFromImport(doc), doc);
   assert.equal(model.bilingualLabel(both('Same'), '—'), 'Same');
   assert.equal(model.bilingualLabel(both('', ''), '—'), '—');
@@ -175,19 +261,26 @@ test('editor model: paths, reordering and imports', () => {
 
 /* ── endpoints + page ───────────────────────────────────────────────── */
 
-test('before anything is saved the page shows the content/more.ts samples', async () => {
+test('before anything is saved the page shows the built-in publications without demo channels', async () => {
   const doc = await call(endpoints.readMoreDocument, { token: TOKEN });
   assert.equal(doc.status, 200);
   assert.equal(doc.data.custom, false);
   assert.equal(doc.data.updated, null);
-  assert.equal(doc.data.document.publications[0].id, 'sample-pub-1', 'stable sample ids');
+  assert.equal(doc.data.document.publications[0].id, 'sample-pub-1', 'stable built-in ids');
+  assert.deepEqual(doc.data.document.channels, []);
   const page = queries.getMore('zh-CN');
-  assert.equal(page.publications[0].title, '自印本 01');
-  assert.equal(page.channels[0].qr, '', 'samples keep their empty QR frames');
+  assert.deepEqual(page.publications.map((p) => p.title), ['孱弱的恶', '动物标本', '自然研究']);
+  assert.deepEqual(page.publications.map((p) => p.availability), ['sold-out', 'contact', 'preorder']);
+  assert.equal(page.publications[2].year, '2026–2027（预计）');
+  assert.equal(page.publications.every((p) => !p.cover && p.excerpt.length === 0 && !p.excerptSource), true);
+  assert.deepEqual(page.channels, []);
   const pub = await call(endpoints.publicMore, { path: '/api/more?lang=en' });
   assert.equal(pub.status, 200);
   assert.equal(pub.data.locale, 'en');
-  assert.equal(pub.data.publications[0].title, 'Zine No. 01');
+  assert.deepEqual(pub.data.publications.map((p) => p.title), ['The Weak Demon', 'Animal Specimens', 'Studies in Nature']);
+  assert.equal(pub.data.publications[2].year, '2026–2027 (planned)');
+  assert.match(pub.data.publications[1].description, /^Contact me to arrange a copy by post\./);
+  assert.doesNotMatch(JSON.stringify(pub.data), /your-handle|your-account|Zine No\.|自印本/);
   assert.match(pub.headers.get('cache-control'), /public/);
 });
 
@@ -203,6 +296,11 @@ test('PUT validates, saves and the page follows; errors name the field', async (
   const rejected = await call(endpoints.writeMoreDocument, { method: 'PUT', json: bad, token: TOKEN });
   assert.equal(rejected.status, 400);
   assert.equal(rejected.data.details.field, 'publications.0.link');
+  const badStatus = sampleDoc();
+  badStatus.publications[0].availability = 'available';
+  const rejectedStatus = await call(endpoints.writeMoreDocument, { method: 'PUT', json: badStatus, token: TOKEN });
+  assert.equal(rejectedStatus.status, 400);
+  assert.equal(rejectedStatus.data.details.field, 'publications.0.availability');
   assert.equal((await call(endpoints.readMoreDocument, { token: TOKEN })).data.custom, false, 'nothing saved on error');
 
   const saved = await call(endpoints.writeMoreDocument, { method: 'PUT', json: sampleDoc(), token: TOKEN });
@@ -215,7 +313,14 @@ test('PUT validates, saves and the page follows; errors name the field', async (
   assert.equal(page.intro, 'Books I print myself.');
   assert.deepEqual(page.publications.map((p) => p.title), ['Red Room']);
   assert.equal(page.publications[0].cover, '/uploads/cover.png');
+  assert.equal(page.publications[0].description, undefined);
+  assert.equal(page.publications[0].availability, undefined);
   assert.deepEqual(page.channels.map((c) => c.name), ['WeChat']);
+  const legacyDocument = (await call(endpoints.readMoreDocument, { token: TOKEN })).data.document;
+  assert.deepEqual(legacyDocument.publications[0].description, both(''));
+  assert.equal(legacyDocument.publications[0].availability, undefined);
+  assert.deepEqual(legacyDocument.publications[0].year, both('2025'));
+  assert.equal((await call(endpoints.writeMoreDocument, { method: 'PUT', json: legacyDocument, token: TOKEN })).status, 200, 'a legacy document can be saved again');
 
   // Reorder = save the list in the new order.
   const doc = sampleDoc();
@@ -228,6 +333,34 @@ test('PUT validates, saves and the page follows; errors name the field', async (
   await call(endpoints.writeMoreDocument, { method: 'PUT', json: empty, token: TOKEN });
   assert.deepEqual(queries.getMore('en').publications, []);
   assert.equal(queries.getMore('en').channels[0].qr, undefined, 'saved channels without a code show no frame');
+});
+
+test('all availability values and descriptions survive save/read/localization with existing links and channels', async () => {
+  const doc = sampleDoc();
+  doc.publications = ['sold-out', 'contact', 'preorder'].map((availability, index) => ({
+    ...doc.publications[0],
+    id: `book-${availability}`,
+    title: both(`Book ${availability}`, `书籍 ${availability}`),
+    year: index === 2 ? both('2026–2027 (planned)', '2026–2027（预计）') : '2026',
+    availability,
+    description: both(`Note ${availability}.\nSecond line.`, `说明 ${availability}。\n第二行。`),
+    excerpt: both(''),
+    excerptSource: both(''),
+  }));
+  const saved = await call(endpoints.writeMoreDocument, { method: 'PUT', json: doc, token: TOKEN });
+  assert.equal(saved.status, 200, JSON.stringify(saved.data));
+  invalidateMoreCache();
+  const stored = (await call(endpoints.readMoreDocument, { token: TOKEN })).data.document;
+  assert.deepEqual(stored.publications.map((p) => p.availability), ['sold-out', 'contact', 'preorder']);
+  assert.equal(stored.publications[2].year.en, '2026–2027 (planned)');
+  assert.equal(stored.publications.every((p) => p.cover === '/uploads/cover.png' && p.link === 'https://shop.test/red-room'), true);
+  assert.equal(stored.channels[0].qr, '/uploads/cover.png');
+  const en = queries.getMore('en');
+  const zh = queries.getMore('zh-CN');
+  assert.equal(en.publications[1].description, 'Note contact.\nSecond line.');
+  assert.equal(zh.publications[1].description, '说明 contact。\n第二行。');
+  assert.equal(en.publications.every((p) => p.excerpt.length === 0), true);
+  assert.equal(zh.publications[2].year, '2026–2027（预计）');
 });
 
 test('long bilingual excerpts fit (document cap well above MAX_JSON_KB)', async () => {
@@ -294,10 +427,10 @@ test('data safety: a full Notion resync and a credentials change leave /more alo
   assert.deepEqual((await call(endpoints.readMoreDocument, { token: TOKEN })).data, before);
 });
 
-test('DELETE resets to the built-in samples', async () => {
+test('DELETE resets to the built-in content', async () => {
   const reset = await call(endpoints.resetMoreDocument, { method: 'DELETE', token: TOKEN });
   assert.equal(reset.status, 200);
   assert.equal(reset.data.custom, false);
   invalidateMoreCache();
-  assert.equal(queries.getMore('en').publications[0].title, 'Zine No. 01');
+  assert.equal(queries.getMore('en').publications[0].title, 'The Weak Demon');
 });

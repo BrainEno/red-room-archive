@@ -1,50 +1,45 @@
 /**
- * Built-in content for the “More / 更多” page (/more).
+ * Built-in /more content. The admin can replace this whole bilingual document;
+ * a saved MoreDocument always takes precedence over these defaults.
  *
- * Edit the page in /admin → More: publications (cover, specs, excerpt, order
- * link) and contact channels (QR codes), English and Chinese side by side,
- * with uploads and reordering. Once saved there, the admin version is shown
- * and this file is ignored; “Reset to samples” in the admin brings it back.
- *
- * This file stays as the default for a fresh install. Every text can be one
- * string (shown in both interface languages) or `{ en, 'zh-CN' }`.
- *
- * Images: put files in `public/more/` and reference them as `/more/<file>`
- * (or upload them and use `/uploads/<file>`).
- *   - cover: any ratio works; about 1200 px on the long side is plenty.
- *     Leave it out and the page draws a typographic cover in the site style.
- *   - qr: a square PNG/JPG of the QR code. In these samples `qr: ''` shows an
- *     empty frame so the layout can be previewed.
- *
- * ⚠ The entries below are SAMPLES — replace them in /admin → More.
+ * Only supplied bibliographic facts belong here. Unknown specifications,
+ * covers, excerpts and contact channels stay empty rather than becoming demo
+ * content. English titles are working website translations, not claims of
+ * published English editions.
  */
+import type { MoreAvailability } from '../shared/contracts.ts';
 import type { Locale } from '../shared/i18n.ts';
 
 export type Text = string | Record<Locale, string>;
+export type Paragraph = Text;
 
 export interface Publication {
   title: Text;
   subtitle?: Text;
-  year: string;
-  /** Printing / binding, e.g. “Risograph, two colours”. */
+  /** Publication note shown below the subtitle; never treated as an excerpt. */
+  description?: Text;
+  /** Year or short date; a plain string in historical documents applies to both languages. */
+  year: Text;
+  availability?: MoreAvailability;
+  /** Printing / binding, when known. */
   format?: Text;
   pages?: number;
-  /** Print run, e.g. “Edition of 100”. */
+  /** Print run; the view uses a planned-run label for preorder entries. */
   edition?: Text;
   size?: Text;
+  /** Image URL; empty or omitted keeps the typographic cover. */
   cover?: string;
-  /** Selected passage, one string per paragraph. */
-  excerpt: Text[];
-  /** Where the passage is from, e.g. “from chapter three”. */
+  /** Selected passages, deliberately empty until the author supplies them. */
+  excerpt: Paragraph[];
   excerptSource?: Text;
-  /** Shop or order page; without it the page offers an email link instead. */
-  link?: { href: string; label?: Text };
+  /** Optional external link. Status-specific CTA behaviour lives in ui/more-action.ts. */
+  link?: string | { href: string; label?: Text };
+  linkLabel?: Text;
 }
 
 export interface Channel {
-  /** Platform, e.g. “微信公众号 / WeChat”. */
   name: Text;
-  handle: string;
+  handle?: string;
   href?: string;
   qr?: string;
   note?: Text;
@@ -58,65 +53,52 @@ export interface MoreContent {
 
 export const more: MoreContent = {
   intro: {
-    en: 'Placeholder — a line or two about the books you print yourself: why you make them, how to get a copy.',
-    'zh-CN': '占位文字——用一两句话介绍你的自印出版物：为什么做书，怎样得到一本。',
+    en: 'I write fiction and poetry, and record dreams in forms I have no need to define. This site holds drafts and experiments; the shorter works I am more satisfied with are collected and printed separately.',
+    'zh-CN': '写小说和诗，也用一些不必明确定义的形式记录梦。这里放着草稿和小样；相对满意的中短篇，会另行整理成纸本。',
   },
-
   publications: [
     {
-      title: { en: 'Zine No. 01', 'zh-CN': '自印本 01' },
-      subtitle: { en: 'Sample entry — one line about the book', 'zh-CN': '示例条目——一句话介绍这本书' },
-      year: '2026',
-      format: { en: 'Risograph, two colours', 'zh-CN': 'Risograph 双色印刷' },
-      pages: 48,
-      edition: { en: 'Edition of 100', 'zh-CN': '限量 100 册' },
-      size: 'A5 · 148 × 210 mm',
-      excerpt: [
-        {
-          en: 'Put a passage from the book here. Pick one that stands on its own — a few hundred words that make a reader want the rest. Paragraph breaks are kept as written.',
-          'zh-CN': '这里放一段书中的选读。挑一段能够独立成立的文字——两三百字，让读的人想要读完整本。段落会按照你写下的样子分开。',
-        },
-        {
-          en: 'A second paragraph is fine too. Longer excerpts work, but the page reads best when each book gets about the same space.',
-          'zh-CN': '也可以有第二段。更长的选读同样可以，不过每本书篇幅相近时，整页读起来最舒服。',
-        },
-      ],
-      excerptSource: { en: 'from the opening chapter', 'zh-CN': '选自第一章' },
+      title: { en: 'The Weak Demon', 'zh-CN': '孱弱的恶' },
+      subtitle: {
+        en: 'A self-published collection of fiction',
+        'zh-CN': '自印小说集',
+      },
+      year: { en: '2025.12', 'zh-CN': '2025.12' },
+      availability: 'sold-out',
+      edition: { en: '20 copies', 'zh-CN': '20 本' },
+      size: { en: '128 × 198 mm', 'zh-CN': '128 × 198 mm' },
+      excerpt: [],
     },
     {
-      title: { en: 'Zine No. 02', 'zh-CN': '自印本 02' },
-      subtitle: { en: 'Sample entry — poems and photographs', 'zh-CN': '示例条目——诗与照片' },
-      year: '2025',
-      format: { en: 'Digital print, saddle-stitched', 'zh-CN': '数码印刷，骑马钉' },
-      pages: 32,
-      edition: { en: 'Edition of 60', 'zh-CN': '限量 60 册' },
-      size: '170 × 240 mm',
-      excerpt: [
-        {
-          en: 'Short excerpts look good as well: a single stanza, or the first lines of the book.',
-          'zh-CN': '短一点的选读也很好看：一节诗，或者书的开头几行。',
-        },
-      ],
+      title: { en: 'Animal Specimens', 'zh-CN': '动物标本' },
+      subtitle: {
+        en: 'A fiction collection published by 副本制作, an independent press.',
+        'zh-CN': '独立小说集，由「副本制作」出版。',
+      },
+      description: {
+        en: 'Contact me to arrange a copy by post. The price is set by the publisher; I can help put you in touch with the sales channel.',
+        'zh-CN': '可联系我安排邮寄。定价由出版方制定，我可以协助联系购买渠道。',
+      },
+      year: { en: '2026.03', 'zh-CN': '2026.03' },
+      availability: 'contact',
+      size: { en: '130 × 184 mm', 'zh-CN': '130 × 184 mm' },
+      excerpt: [],
     },
     {
-      title: { en: 'Zine No. 03', 'zh-CN': '自印本 03' },
-      subtitle: { en: 'Sample entry — sold out', 'zh-CN': '示例条目——已售完' },
-      year: '2024',
-      format: { en: 'Photocopy, hand-bound', 'zh-CN': '复印，手工装订' },
-      pages: 24,
-      edition: { en: 'Edition of 30 (sold out)', 'zh-CN': '限量 30 册（已售完）' },
-      excerpt: [
-        {
-          en: 'Add a shop link and the button below points to it; without one, it opens an email to you with the book’s title as the subject.',
-          'zh-CN': '填上购买链接，下面的按钮就会指向它；没有的话，按钮会打开一封以书名为主题、写给你的邮件。',
-        },
-      ],
+      title: { en: 'Studies in Nature', 'zh-CN': '自然研究' },
+      subtitle: {
+        en: 'Working title; the final text is being prepared.',
+        'zh-CN': '暂定名，正在整理定稿。',
+      },
+      description: {
+        en: 'Printing is tentatively planned for late 2026 or early 2027, with an initial run of 20 copies. You can contact me to register your interest; the schedule and quantity may change.',
+        'zh-CN': '预计于 2026 年底至 2027 年初印刷，首印暂定 20 本。现可提前联系登记预订意向；印刷时间和数量仍可能调整。',
+      },
+      year: { en: '2026–2027 (planned)', 'zh-CN': '2026–2027（预计）' },
+      availability: 'preorder',
+      edition: { en: '20 copies', 'zh-CN': '20 本' },
+      excerpt: [],
     },
   ],
-
-  channels: [
-    { name: { en: 'WeChat Official Account', 'zh-CN': '微信公众号' }, handle: 'your-account', qr: '' },
-    { name: { en: 'Xiaohongshu', 'zh-CN': '小红书' }, handle: 'your-handle', qr: '' },
-    { name: 'Instagram', handle: '@your-handle', href: 'https://instagram.com/', qr: '' },
-  ],
+  channels: [],
 };

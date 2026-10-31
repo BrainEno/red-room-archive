@@ -13,6 +13,7 @@ import type {
   LocalizedText,
   MoreChannel,
   MoreChannelDoc,
+  MoreAvailability,
   MoreDocument,
   MorePublication,
   MorePublicationDoc,
@@ -28,7 +29,8 @@ const MORE_LIMITS = {
   intro: 2000,
   title: 200,
   short: 300,
-  year: 20,
+  description: 4000,
+  year: 40,
   excerpt: 20000,
   handle: 200,
   url: 2000,
@@ -46,6 +48,15 @@ function cleanText(value: unknown, max: number, field: string, multiline = false
   text = text.trim();
   if (text.length > max) throw badRequest(`${field} is too long (max ${max} characters)`, { field, max });
   return text;
+}
+
+/** Missing/empty means legacy behaviour; anything else must be a known status. */
+function cleanAvailability(value: unknown, field: string): MoreAvailability | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value !== 'string' || !['sold-out', 'contact', 'preorder'].includes(value)) {
+    throw badRequest(`${field} must be sold-out, contact, preorder, or empty`, { field });
+  }
+  return value as MoreAvailability;
 }
 
 /** `{ en, 'zh-CN' }`, or a plain string meaning “the same in both languages”. */
@@ -140,7 +151,9 @@ export function normalizeMoreDocument(input: unknown): MoreDocument {
       id: cleanId(item.id, 'pub', ids),
       title: cleanLocalized(item.title, L.title, at('title')),
       subtitle: cleanLocalized(item.subtitle, L.short, at('subtitle')),
-      year: cleanText(item.year, L.year, at('year')),
+      description: cleanLocalized(item.description, L.description, at('description'), true),
+      year: cleanLocalized(item.year, L.year, at('year')),
+      availability: cleanAvailability(item.availability, at('availability')),
       format: cleanLocalized(item.format, L.short, at('format')),
       pages: cleanPages(item.pages, at('pages')),
       edition: cleanLocalized(item.edition, L.short, at('edition')),
@@ -186,11 +199,11 @@ export const paragraphs = (text: string): string[] =>
 
 /**
  * The page in one language. `placeholderQr`: channels without a code show an
- * empty frame (used for the built-in samples, so the layout can be previewed);
+ * empty frame (used for built-in content, so the layout can be previewed);
  * saved content without a code shows the account as text only.
  */
 export function localizeMore(doc: MoreDocument, locale: Locale, options: { placeholderQr?: boolean } = {}): MoreResponse {
-  const pick = (text: LocalizedText) => pickText(text, locale);
+  const pick = (text: LocalizedText | undefined) => pickText(text ?? { en: '', 'zh-CN': '' }, locale);
   return {
     locale,
     intro: pick(doc.intro),
@@ -199,7 +212,9 @@ export function localizeMore(doc: MoreDocument, locale: Locale, options: { place
         id: p.id,
         title: pick(p.title),
         subtitle: optional(pick(p.subtitle)),
-        year: p.year,
+        description: optional(pick(p.description)),
+        year: pick(p.year),
+        availability: p.availability,
         format: optional(pick(p.format)),
         pages: p.pages ?? undefined,
         edition: optional(pick(p.edition)),
