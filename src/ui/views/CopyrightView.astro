@@ -13,7 +13,7 @@ import type { Locale } from '../../shared/i18n.ts';
 import { COPYRIGHT_PATH } from '../../shared/routes.ts';
 
 export interface Props {
-  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean };
+  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean; analytics?: boolean };
 }
 
 const { site } = Astro.props;
@@ -23,7 +23,7 @@ const pad = (i: number) => String(i + 1).padStart(2, '0');
 const external = (href: string) => /^https?:/i.test(href);
 const segments = (parts: Inline[]) => parts.filter((part) => part !== '');
 ---
-<Page title={`${doc.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} locale={locale} description={doc.intro} current={COPYRIGHT_PATH}>
+<Page title={`${doc.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} analytics={site.analytics} locale={locale} description={doc.intro} current={COPYRIGHT_PATH}>
   <div class="mp cp">
     <header class="mp-head">
       <p class="kicker">{site.name} / {doc.title}</p>

@@ -14,7 +14,7 @@ v2 起网站只读 Notion：没有任何创建/修改文章的接口，内容请
   | --- | --- | --- |
   | 400 | `bad_request` | 参数非法、Notion 未配置 |
   | 401 | `unauthorized` | 缺少或错误的 token（带 `WWW-Authenticate: Bearer`） |
-  | 403 | `forbidden` | 邮件订阅的公开接口收到跨站请求（`Origin` / `Sec-Fetch-Site` 不符） |
+  | 403 | `forbidden` | 邮件订阅或浏览统计的公开写入收到跨站请求（`Origin` / `Sec-Fetch-Site` 不符） |
   | 404 | `not_found` | 文章不存在（未发布、定时未到也是 404） |
   | 409 | `conflict` | 上传文件名冲突，或 Notion 设置/文章在操作期间发生变化，请重试 |
   | 410 | `gone` | 订阅确认链接已过期（`details.reason: "expired"`） |
@@ -61,6 +61,33 @@ interface ArticleSummary {
 | --- | --- | --- |
 | GET/HEAD | `/media/notion/:id` | Notion 上传文件的本地副本。只服务已发布文章引用过的 id；支持 Range、ETag；带 `Content-Security-Policy: sandbox`；非图片/音视频/PDF 类型以附件下载 |
 | GET/HEAD | `/uploads/:name` | 后台上传的文件 |
+
+## 第一方浏览统计
+
+`/api/analytics/*` 在 Node 由 SQLite、在 Netlify 静态站由 Function + Blobs 提供，两种部署共用 `src/server/analytics/http.ts` 和 DTO。统计只有每日 pageview 聚合，不是独立访客或用户跟踪；详细隐私和部署说明见 [ANALYTICS.md](ANALYTICS.md)。
+
+### 公开收集
+
+`POST /api/analytics/collect`，请求体最多 2 KiB，`Content-Type: application/json`：
+
+```json
+{ "path": "/articles/example", "referrer": "news.example" }
+```
+
+只接受公开路径白名单和来源主机（或 `(direct)` / `(internal)`）；查询字符串、完整 referrer、IP、User-Agent 和访客 ID 不进入接口契约。成功返回 `204`，无响应体。DNT/GPC 请求也返回 `204`，但不写入。跨站 Origin / Fetch-Site 返回 `403`。
+
+### 管理接口
+
+以下接口都需要 `Authorization: Bearer <ADMIN_TOKEN>`，并返回 `Cache-Control: no-store`：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/analytics/admin/summary?days=7\|30\|90` | `AnalyticsSummaryResponse`：UTC 日期范围、总量、今日、每日序列、路径／来源／语言计数、开关、存储类型和 90 天滚动窗口 |
+| PATCH | `/api/analytics/admin/settings` | `{ enabled: boolean }`，暂停／恢复收集；已有数据保留 |
+| DELETE | `/api/analytics/admin/data` | 删除所有每日聚合，保留开关；返回 `{ cleared: true }` |
+| GET | `/api/analytics/admin/export?days=7\|30\|90` | UTF-8 BOM CSV：`date,metric,key,pageviews`，防电子表格公式注入 |
+
+统计接口不使用 cookie 会话；管理 token 只在当前后台标签页保存。公开页面不会因为统计服务不可用而影响阅读。
 
 ## 后台接口（需要 token）
 

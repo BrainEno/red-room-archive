@@ -67,7 +67,17 @@ export const onRequest = defineMiddleware(async (context, next) => {
     response = prefixed ? await next(new URL(`${path}${url.search}`, url)) : await next();
   }
 
-  if (!response.headers.get('content-type')?.startsWith('text/html')) return response;
+  if (!response.headers.get('content-type')?.startsWith('text/html')) {
+    try {
+      // Astro fingerprints this directory; repeated visits need no revalidation.
+      if (url.pathname.startsWith('/_astro/') && !response.headers.has('Cache-Control')) response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+      if (url.pathname.startsWith('/models/') && !response.headers.has('Cache-Control')) response.headers.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+      // The worker is the update mechanism for every offline cache; never pin it for a year.
+      if (url.pathname === '/sw.js') response.headers.set('Cache-Control', 'no-cache');
+      if (url.pathname === '/manifest.webmanifest' && !response.headers.has('Cache-Control')) response.headers.set('Cache-Control', 'public, max-age=3600');
+    } catch { /* immutable asset response */ }
+    return response;
+  }
   try {
     response.headers.set('Content-Language', locale);
     for (const [name, value] of Object.entries(securityHeaders())) {

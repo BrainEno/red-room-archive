@@ -47,6 +47,8 @@ test('Node stopped-instance backup and restore preserves settings, More, uploads
     await json('/api/uploads?name=model.glb&as=model', { method: 'POST', headers: auth, body: Buffer.from('example model bytes') });
     doc.publications[0].cover = cover.url;
     await json('/api/more/document', { method: 'PUT', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify(doc) });
+    const collected = await fetch(server.base + '/api/analytics/collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: '/articles/migration-demo', referrer: '' }) });
+    assert.equal(collected.status, 204);
     await stop(server); server = undefined;
     const sourceDb = new Database(path.join(source, 'archive.db'));
     sourceDb.prepare('INSERT OR REPLACE INTO notion_first_publication(database_id,page_id,date) VALUES (?,?,?)').run('db', 'page', '2020-01-02');
@@ -60,6 +62,9 @@ test('Node stopped-instance backup and restore preserves settings, More, uploads
     assert.equal(settings.values.NOTION_DATABASE_ID, '0123456789abcdef0123456789abcdef');
     assert.equal(settings.values.NOTION_TOKEN, '••••oken');
     const restored = (await json('/api/more/document', { headers: auth })).document;
+    const analytics = await json('/api/analytics/admin/summary?days=90', { headers: auth });
+    assert.equal(analytics.totals.pageviews, 1);
+    assert.equal(analytics.pages[0].key, '/articles/migration-demo');
     assert.equal(restored.intro.en, 'Migrated More description');
     assert.equal(restored.publications[0].cover, cover.url);
     assert.equal(await (await fetch(server.base + cover.url)).text(), 'example cover bytes');

@@ -3,9 +3,9 @@
  * The token lives only in this tab's sessionStorage.
  * Tab ids (`data-tab`, `#hash`) stay English; only their labels are translated.
  *
- * On the static deployment the only server code is the newsletter's Netlify
- * Function: `/api/auth` and `/api/settings` answer 404 there, so the shell
- * checks the token against the newsletter API and shows that tab alone.
+ * On static deployment `/api/auth` and `/api/settings` answer 404, so the
+ * shell checks the same token against available Netlify Functions and shows
+ * only the server-backed modules that actually respond.
  */
 import { ApiError, createApiClient } from '../lib/api-client.ts';
 import { $, esc } from './dom.ts';
@@ -80,7 +80,7 @@ function renderLogin(message = '') {
 // A static host answers a missing route with 404 (or 405 for a POST to a static path).
 const notFound = (error: unknown) => error instanceof ApiError && (error.status === 404 || error.status === 405);
 
-/** Node server: POST /api/auth. Static deployment: the newsletter API with the same token. */
+/** Node server: POST /api/auth. Static deployment: available Function APIs with the same token. */
 async function verify(candidate: string) {
   try {
     await api.auth.login(candidate);
@@ -89,27 +89,53 @@ async function verify(candidate: string) {
     if (!notFound(error)) throw error;
   }
   token = candidate;
-  await api.newsletter.list({ limit: 1 });
+  let lastError: unknown = null;
+  let operationalError: unknown = null;
+  for (const probe of [() => api.analytics.summary(7), () => api.newsletter.list({ limit: 1 })]) {
+    try { await probe(); return; }
+    catch (error) {
+      if (error instanceof ApiError && error.status === 401) throw error;
+      lastError = error;
+      if (!notFound(error)) operationalError ??= error;
+    }
+  }
+  // One unavailable optional module must not lock the owner out of another
+  // working module. If neither works, surface the actionable failure first.
+  throw operationalError ?? lastError ?? new Error('No server-backed admin module is available');
 }
 
-const ALL_TABS: readonly TabId[] = ['Overview', 'Articles', 'More', 'Newsletter', 'Settings', 'Files'];
+const ALL_TABS: readonly TabId[] = ['Overview', 'Articles', 'More', 'Newsletter', 'Settings', 'Files', 'Analytics'];
 
 async function boot() {
   if (!token) return renderLogin();
   let settings: Awaited<ReturnType<typeof api.settings.get>> | null = null;
+  const staticTabs: TabId[] = [];
   try {
     settings = await api.settings.get();
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) return; // onUnauthorized already showed the login
     if (!notFound(error)) return renderLogin(errorText(error));
+    let firstError: unknown = null;
     try {
-      await api.newsletter.list({ limit: 1 });
+      await api.analytics.summary(7);
+      staticTabs.push('Analytics');
     } catch (inner) {
       if (inner instanceof ApiError && inner.status === 401) return;
-      return renderLogin(errorText(inner));
+      if (!notFound(inner)) firstError ??= inner;
     }
+    try {
+      await api.newsletter.list({ limit: 1 });
+      staticTabs.push('Newsletter');
+    } catch (inner) {
+      if (inner instanceof ApiError && inner.status === 401) return;
+      if (!notFound(inner)) firstError ??= inner;
+    }
+    if (!staticTabs.length) return renderLogin(firstError ? errorText(firstError) : errorText(error));
   }
-  const TABS: readonly TabId[] = settings ? ALL_TABS : ['Newsletter'];
+  // Keep the established Node tab order; on static hosts show only working modules.
+  const TABS: readonly TabId[] = settings ? ALL_TABS : staticTabs.includes('Newsletter')
+    ? [...staticTabs.filter((tab) => tab === 'Newsletter'), ...staticTabs.filter((tab) => tab !== 'Newsletter')]
+    : staticTabs;
 
   app.innerHTML = `
     <nav class="tabs" aria-label="${esc(t.shell.nav)}">
@@ -159,10 +185,32 @@ async function boot() {
   });
   $('#logout').onclick = () => logout();
 
-  const letters = newsletterPanel($('[data-panel=Newsletter]'), api);
-  onShow.Newsletter = () => void letters.refresh();
+  const letters = TABS.includes('Newsletter') ? newsletterPanel($('[data-panel=Newsletter]'), api) : null;
+  if (letters) onShow.Newsletter = () => void letters.refresh();
+  if (TABS.includes('Analytics')) {
+    // The report is useful on demand, not a reason to make every admin login
+    // download its table rendering and report behaviour. Static Analytics-only
+    // shells invoke this same loader for their initial tab below.
+    const root = $('[data-panel=Analytics]');
+    let panel: { refresh: () => void } | undefined;
+    let loading: Promise<{ refresh: () => void }> | undefined;
+    onShow.Analytics = () => {
+      if (panel) { panel.refresh(); return; }
+      loading ??= import('./panels/analytics.ts').then(({ analyticsPanel }) => {
+        panel = analyticsPanel(root, api);
+        return panel;
+      });
+      void loading.then((loaded) => loaded.refresh()).catch((error) => {
+        loading = undefined;
+        panel = undefined;
+        root.innerHTML = `<p class="warn" role="alert">${esc(errorText(error))}</p>`;
+      });
+    };
+  }
+  const fromHash = TABS.find((tab) => tab.toLowerCase() === location.hash.slice(1));
   if (!settings) {
-    void letters.refresh();
+    if (fromHash) goTo(fromHash);
+    else onShow[TABS[0]!]?.();
     return;
   }
 
@@ -182,7 +230,6 @@ async function boot() {
   });
   onShow.Overview = () => void overview.refresh();
 
-  const fromHash = TABS.find((tab) => tab.toLowerCase() === location.hash.slice(1));
   if (fromHash) goTo(fromHash);
 }
 

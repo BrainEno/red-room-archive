@@ -5,7 +5,7 @@
 ```
 src/
 ├── shared/      线上契约：API 类型（contracts.ts）、公开 URL 规则（routes.ts）、语言协商（i18n.ts）；零运行时依赖
-├── core/        纯函数：Notion 块 → HTML（blocks.ts）、富文本类型、URL 安全、slug、文本与日期格式、排序（order.ts）、中英标签归并（tags.ts）、“更多”页面文档的校验与按语言取值（more.ts）、媒体识别、错误类型、.env
+├── core/        纯函数：Notion 块 → HTML（blocks.ts）、富文本类型、URL 安全、slug、文本与日期格式、排序（order.ts）、中英标签归并（tags.ts）、“更多”页面文档的校验与按语言取值（more.ts）、媒体识别、每日浏览聚合（analytics.ts）、llms.txt 发现文档（discovery.ts）、错误类型、.env
 ├── content/     站点文案（en / zh-CN 两份）与默认值、“更多”页面的默认示例（more.ts）、内置标签对照（tags.ts）、演示文章（Notion 块格式）
 ├── middleware.ts 每个请求的语言：页面看路径（/zh-CN/x rewrite 到 /x，写 locals.locale / locals.path），?lang、cookie、Accept-Language 只触发跳转；API 仍按 ?lang → cookie → Accept-Language；另写安全头、Content-Language、Vary
 ├── server/      后端（只在 Node 里运行）
@@ -21,17 +21,19 @@ src/
 │   │                        store（NewsletterStore 接口）· document-store（Blobs 等键值存储上的 ETag 事务）· crypto（token 哈希、HMAC、AES-GCM）
 │   │                        config · mailer（Resend / Brevo 适配器）· emails（模板）· http（共用的路由处理）
 │   │                        node（SQLite 组合根）· netlify（Blobs 组合根）
+│   ├── analytics/           第一方浏览统计的可移植部件：store 接口、每日聚合同享 HTTP、
+│   │                        ETag 条件写文档存储、Netlify Blobs 组合根；不 import Astro/UI
 │   ├── presenters.ts        领域数据 → shared/contracts 里的 DTO
 │   ├── queries.ts           **页面唯一可用的服务端入口**（只读，返回 DTO）
 │   └── http/
 │       ├── respond.ts       JSON 响应、错误转换、请求体解析、分页、缓存头
-│       └── endpoints/       public · admin · more · uploads · media · legacy（旧地址 301）· newsletter
+│       └── endpoints/       public · admin · more · uploads · media · legacy（旧地址 301）· newsletter · analytics
 ├── ui/          前端（只做展示）
 │   ├── layouts/ components/ views/   Astro 组件，只通过 props 接收数据
 │   ├── i18n.ts              界面文字字典 messages(locale)
 │   ├── feeds.ts             RSS / sitemap（含 hreflang 两种语言）/ robots（纯函数）
-│   ├── scripts/site/        首页动画（Three.js / GSAP / Lenis / Canvas 招牌）· newsletter（订阅表单、确认/退订页）
-│   ├── scripts/admin/       后台单页应用（Articles / More / Newsletter / Settings / Files；more-model.ts 是编辑器的纯状态函数）
+│   ├── scripts/site/        首页动画（Three.js / GSAP / Lenis / Canvas 招牌）· newsletter（订阅表单、确认/退订页）· analytics（匿名 beacon）· offline（worker 注册）
+│   ├── scripts/admin/       后台单页应用（Articles / More / Newsletter / Settings / Files / Analytics；more-model.ts 是编辑器的纯状态函数，Analytics 面板按需加载）
 │   ├── scripts/lib/api-client.ts  带类型的浏览器 API 客户端
 │   └── styles/              base / home / pages（含 Notion 块与颜色）/ more（/more 页面）/ cjk（全部中文排版规则）/ admin
 └── pages/       路由（组合根）
@@ -39,7 +41,11 @@ src/
     ├── media/ uploads/      文件服务 → endpoints/media.ts、endpoints/uploads.ts
     ├── works/ writing/ journal/ posts/   旧地址 → endpoints/legacy.ts
     └── *.astro              调用 server/queries.ts，把结果交给 ui/views/*
-netlify/functions/newsletter.mts   静态部署上唯一的服务端代码：/api/newsletter/* → server/newsletter/http.ts + Netlify Blobs
+netlify/functions/newsletter.mts   静态订阅：/api/newsletter/* → server/newsletter/http.ts + Netlify Blobs
+netlify/functions/analytics.mts    静态统计：/api/analytics/* → server/analytics/http.ts + Netlify Blobs
+public/sw.js                       公共页面／资源离线缓存；明确绕过 API、后台和令牌页
+public/manifest.webmanifest        可安装站点元数据与既有图标
+src/pages/offline.astro            双语离线回退；src/pages/llms.txt.ts 生成公开发现指南
 ```
 
 ## 依赖规则（`tests/architecture.test.mjs` 自动检查）
@@ -52,7 +58,7 @@ ui/*          ──▶ shared/ core/ content/          （永远不 import serv
 server/*      ──▶ shared/ core/ content/          （永远不 import ui/）
 shared/ core/ ──▶ （叶子层，不 import server/ ui/ pages/）
 better-sqlite3 只出现在 server/db/connection.ts（订阅的 SQL 只在 db/newsletter.repository.ts）
-netlify/functions/* ──▶ server/newsletter/* + server/services/auth.ts   （打包图里没有 db/connection、astro、ui、pages；tests/newsletter.test.mjs 检查）
+netlify/functions/* ──▶ server/newsletter/* 或 server/analytics/* + server/services/auth.ts   （打包图里没有 db/connection、astro、ui、pages；对应单元测试检查）
 notion/client.ts 没有 PATCH/PUT/DELETE，唯一的 POST 是 databases/:id/query
 ```
 
@@ -98,9 +104,9 @@ GET /media/notion/<id>
 
 ## 数据库迁移
 
-`PRAGMA user_version` 记录版本。第 11 步新增邮件订阅的四张表：`newsletter_subscribers`（`normalized_email` 唯一）、`newsletter_tokens`（只存 SHA-256 哈希，`token_hash` 唯一，随订阅者级联删除）、`newsletter_send_counts`（每日 / 每月发信计数）、`newsletter_rate_limits`（键为 HMAC）；见 [NEWSLETTER.md](NEWSLETTER.md#数据结构)。第 9 步为正文增加 `body_renderer_version`，保留旧正文用于离线回退及搜索；第 8 步保存空 Date 的首次发现公开日期。第 7 步新增 `more_page`（单行：`id = 1`、`doc` JSON、`updated`），没有这一行时显示内置示例。第 6 步给 `articles` 加 `created` 列（旧缓存为空，下一次同步填上）。第 5 步新增 `articles` 与 `notion_media`；之前版本留下的 `items`、`posts`、`post_revisions`
+`PRAGMA user_version` 记录版本。第 12 步新增 `analytics_daily`：按 UTC 日期保存 total／path／locale／referrer 计数，没有原始浏览事件表；报表使用 90 天滚动窗口，过期聚合在后续收集写入时清理，开关在 settings，见 [ANALYTICS.md](ANALYTICS.md)。第 11 步新增邮件订阅的四张表：`newsletter_subscribers`（`normalized_email` 唯一）、`newsletter_tokens`（只存 SHA-256 哈希，`token_hash` 唯一，随订阅者级联删除）、`newsletter_send_counts`（每日 / 每月发信计数）、`newsletter_rate_limits`（键为 HMAC）；见 [NEWSLETTER.md](NEWSLETTER.md#数据结构)。第 9 步为正文增加 `body_renderer_version`，保留旧正文用于离线回退及搜索；第 8 步保存空 Date 的首次发现公开日期。第 7 步新增 `more_page`（单行：`id = 1`、`doc` JSON、`updated`），没有这一行时显示内置示例。第 6 步给 `articles` 加 `created` 列（旧缓存为空，下一次同步填上）。第 5 步新增 `articles` 与 `notion_media`；之前版本留下的 `items`、`posts`、`post_revisions`
 **不删除**（没有破坏性迁移），只是不再被读取。
 
 ## 静态快照构建
 
-`scripts/static-snapshot.mjs` 在临时目录启动构建后的 Node SSR，校验 Notion 标题和发布列，拉取已发布文章及媒体，生成仅公开内容的 `static-dist/`；构建失败时删除输出。此模式没有运行时数据库，也没有文章/设置 API；唯一的服务端部分是邮件订阅的 Netlify Function（数据在 Netlify Blobs），`/admin` 外壳在静态站上只显示订阅模块。构建会去掉 `NEWSLETTER_*` 环境变量，并在发布前扫描输出中的服务端密钥和数据库文件。可选的非机密 `site-profile.json` 在构建时通过认证的临时管理 API 导入；静态离线编辑器只能导入/导出本地文件，不能更改已部署站点。双语页面使用 `/zh-CN/` 路径，列表筛选及分页生成独立静态路径，搜索在浏览器读取公开索引。详细限制和部署流程见 README「静态部署」。
+`scripts/static-snapshot.mjs` 在临时目录启动构建后的 Node SSR，校验 Notion 标题和发布列，拉取已发布文章及媒体，生成仅公开内容的 `static-dist/`；构建失败时删除输出。此模式没有运行时数据库，也没有文章/设置 API；运行时服务端部分只有邮件订阅和浏览统计的 Netlify Functions（分别在 Netlify Blobs 保存加密名单和每日聚合），`/admin` 外壳按可用 Function 显示对应模块。构建会去掉 `NEWSLETTER_*` 环境变量，并在发布前扫描输出中的服务端密钥和数据库文件。可选的非机密 `site-profile.json` 在构建时通过认证的临时管理 API 导入；静态离线编辑器只能导入/导出本地文件，不能更改已部署站点。双语页面使用 `/zh-CN/` 路径，列表筛选及分页生成独立静态路径，搜索在浏览器读取公开索引。快照还包括双语离线页、`llms.txt`、sitemap alternate／lastmod、SW 和缓存头。详细限制和部署流程见 README「静态部署」。

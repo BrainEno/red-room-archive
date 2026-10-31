@@ -1,0 +1,7 @@
+---
+// Route: /offline — the service worker's last-resort, localised fallback.
+import OfflineView from '../ui/views/OfflineView.astro';
+import { getSite } from '../server/queries.ts';
+const site = getSite(Astro.locals.locale);
+---
+<OfflineView site={site} />

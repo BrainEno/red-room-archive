@@ -244,7 +244,7 @@ test('search with no matches communicates the empty state', async ({ page }) => 
   await page.goto('/search');
   await page.locator('input[name=q]').fill('no-such-article-4839');
   await page.locator('form[role=search] button').click();
-  await expect(page.locator('[role=status]')).toContainText('0 results');
+  await expect(page.locator('.article-intro[role=status]')).toContainText('0 results');
   await expect(page.locator('.empty')).toBeVisible();
   await noHorizontalOverflow(page);
 });

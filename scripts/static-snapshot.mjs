@@ -245,7 +245,7 @@ try {
   const topics = (await api('/api/tags?lang=en')).tags;
   // Newsletter pages are static shells; their form and links call /api/newsletter/*,
   // which netlify/functions/newsletter.mts serves on the static deployment.
-  const routes = ['/', '/more', '/copyright', '/search', '/topics', '/archive', '/subscribe', '/newsletter/confirm', '/newsletter/unsubscribe'];
+  const routes = ['/', '/more', '/copyright', '/search', '/offline', '/topics', '/archive', '/subscribe', '/newsletter/confirm', '/newsletter/unsubscribe'];
   for (let p = 1; p <= pageCount(total); p++) routes.push(p === 1 ? '/articles' : `/articles/page/${p}`);
   for (const topic of topics) {
     for (let p = 1; p <= pageCount(topic.count); p++) routes.push(`/topics/${encodeURIComponent(topic.slug)}${p > 1 ? `/page/${p}` : ''}`);
@@ -307,17 +307,28 @@ try {
   const missingDoc = parse(await missing.text());
   markDemoPreview(missingDoc);
   await writeFile(path.join(dest, '404.html'), serialize(missingDoc));
-  // The admin shell (no data, no secrets): on the static site it signs in against
-  // the newsletter function and shows only the Newsletter module.
+  // The admin shell (no data, no secrets): on the static site it probes the
+  // newsletter and analytics Functions and shows only modules that respond.
   await write('/admin', await (await get('/admin')).text());
   await writeFile(path.join(dest, 'static-search.json'), JSON.stringify(search));
   await cp(path.join(root, 'scripts/static-search.js'), path.join(dest, 'static-search.js'));
   await writeFile(path.join(dest, 'rss.xml'), await (await get('/rss.xml')).text());
+  await writeFile(path.join(dest, 'llms.txt'), await (await get('/llms.txt')).text());
   // /subscribe is always built (direct links keep working) but listed only when the
   // public sign-up entries are on: SHOW_NEWSLETTER_SIGNUP (the build has no saved settings).
   const signupListed = /^(1|true|on|yes)$/i.test((process.env.SHOW_NEWSLETTER_SIGNUP ?? '').trim());
-  const urls = routes.filter((r) => r !== '/search' && !r.includes('/page/') && !r.startsWith('/newsletter/') && (signupListed || r !== '/subscribe')).flatMap((r) => LANGS.map((lang) => `<url><loc>${xml(siteUrl + localized(r, lang))}</loc></url>`));
-  await writeFile(path.join(dest, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`);
+  const listed = routes.filter((r) => !['/search', '/offline'].includes(r) && !r.includes('/page/') && !r.startsWith('/newsletter/') && (signupListed || r !== '/subscribe'));
+  const urls = listed.map((route) => {
+    const article = articles.find((item) => item.href === route);
+    const latest = article?.updated || article?.date || (['/articles', '/archive'].includes(route) ? articles[0]?.updated : '');
+    const lastmod = /^\d{4}-\d{2}-\d{2}/.test(latest || '') ? `<lastmod>${String(latest).slice(0, 10)}</lastmod>` : '';
+    const alternates = [
+      ...LANGS.map((lang) => [lang, localized(route, lang)]),
+      ['x-default', localized(route, 'en')],
+    ].map(([lang, href]) => `<xhtml:link rel="alternate" hreflang="${lang}" href="${xml(siteUrl + href)}"/>`).join('');
+    return LANGS.map((lang) => `<url><loc>${xml(siteUrl + localized(route, lang))}</loc>${lastmod}${alternates}</url>`).join('\n');
+  });
+  await writeFile(path.join(dest, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${urls.join('\n')}</urlset>`);
   // robots.txt from the server (ui/feeds.ts): the AI-training crawler block stays in one place.
   await writeFile(path.join(dest, 'robots.txt'), previewDemo ? 'User-agent: *\nDisallow: /\n' : await (await get('/robots.txt')).text());
   // Same security headers as the Node server (server/http/security.ts), copied
@@ -328,6 +339,10 @@ try {
   if (security.some(([, value]) => !value)) throw new Error('The snapshot server did not send the expected security headers.');
   await writeFile(path.join(dest, '_headers'), [
     '/*', ...security.map(([name, value]) => `  ${name}: ${value}`),
+    '/_astro/*', '  Cache-Control: public, max-age=31536000, immutable',
+    '/models/*', '  Cache-Control: public, max-age=86400, stale-while-revalidate=604800',
+    '/sw.js', '  Cache-Control: no-cache',
+    '/manifest.webmanifest', '  Cache-Control: public, max-age=3600',
     '/media/notion/*', "  Content-Security-Policy: default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox",
     '/admin', '  Cache-Control: no-store', '  X-Robots-Tag: noindex, nofollow',
     '/admin/*', '  Cache-Control: no-store', '  X-Robots-Tag: noindex, nofollow',

@@ -89,6 +89,11 @@ export function newsletterSignupVisible(): boolean {
   return (stored === 'on' || stored === 'off' ? stored : signupDefault()) === 'on';
 }
 
+/** Public collector tag; the endpoint checks this setting again for old pages/beacons. */
+export function analyticsCollectionEnabled(): boolean {
+  return settingsRepository.get('analytics_enabled') !== '0';
+}
+
 export interface SiteProfile {
   name: string;
   email: string;

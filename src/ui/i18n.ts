@@ -34,6 +34,10 @@ const en = {
     email: 'Email',
   },
   page: { skip: 'Skip to content', language: 'Language' },
+  offline: {
+    notice: 'Offline — showing a saved page when available. Some links and forms may be unavailable.',
+    kicker: 'Offline', title: 'The connection is out', body: 'This page was not saved on this device. Reconnect and try again, or return to a page you have already read.', action: 'Back to articles',
+  },
   more: {
     title: 'More',
     publications: 'Print editions',
@@ -207,6 +211,10 @@ const zhCN: Messages = {
     email: '邮箱',
   },
   page: { skip: '跳到正文', language: '语言' },
+  offline: {
+    notice: '当前离线——可用时显示已保存的页面。部分链接和表单可能不可用。',
+    kicker: '离线', title: '连接已中断', body: '这台设备尚未保存此页面。请重新联网后重试，或回到已经读过的页面。', action: '返回文章列表',
+  },
   more: {
     title: '更多',
     publications: '纸本出版物',

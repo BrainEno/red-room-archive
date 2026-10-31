@@ -74,6 +74,15 @@ test('static snapshot exports only published Notion content, media and bilingual
     assert.match(await read('robots.txt'), /User-agent: GPTBot[\s\S]*Disallow: \/\n/);
     assert.match(await read('rss.xml'), /<copyright>© \d{4} [^<]+All rights reserved\.<\/copyright>/);
     assert.match(await read('sitemap.xml'), /archive\.test\/zh-CN\/copyright</);
+    assert.match(await read('sitemap.xml'), /xmlns:xhtml=/);
+    assert.match(await read('sitemap.xml'), /hreflang="x-default"/);
+    assert.match(await read('sitemap.xml'), /<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/);
+    assert.doesNotMatch(await read('sitemap.xml'), /\/offline</);
+    assert.match(await read('llms.txt'), /# SureShot Studio/);
+    assert.match(await read('llms.txt'), /does not grant an AI-training/);
+    assert.match(await read('offline/index.html'), /name="robots" content="noindex"/);
+    assert.match(await read('zh-CN/offline/index.html'), /连接已中断/);
+    assert.match(await read('sw.js'), /const VERSION = 'v1'/);
     assert.match(await read('zh-CN/search/index.html'), /action="\/zh-CN\/search"/);
     assert.match(await read('articles/page/2/index.html'), /article-entry/);
     assert.match(await read('topics/fiction/page/2/index.html'), /article-entry/);
@@ -125,6 +134,8 @@ test('static snapshot exports only published Notion content, media and bilingual
     const adminShell = await read('admin/index.html');
     assert.match(adminShell, /id="app"/); assert.doesNotMatch(adminShell, /[\w.+-]+@[\w-]+\.[a-z]{2,}|subscriber_id|token_hash/i);
     const staticHeaders = await read('_headers');
+    assert.match(staticHeaders, /^\/_astro\/\*\n {2}Cache-Control: public, max-age=31536000, immutable$/m);
+    assert.match(staticHeaders, /^\/sw\.js\n {2}Cache-Control: no-cache$/m);
     assert.match(staticHeaders, /^\/admin\n {2}Cache-Control: no-store$/m);
     assert.match(staticHeaders, /^\/newsletter\/\*\n {2}Referrer-Policy: no-referrer$/m);
     const { readdir } = await import('node:fs/promises');

@@ -38,11 +38,11 @@ test('admin tabs expose relationships and support keyboard navigation', async ({
   await expect(more).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tabpanel', { name: 'More' })).toBeVisible();
   await page.keyboard.press('End');
-  await expect(list.getByRole('tab', { name: 'Files' })).toBeFocused();
+  await expect(list.getByRole('tab', { name: 'Pageviews' })).toBeFocused();
   await page.keyboard.press('ArrowRight');
   await expect(overview).toBeFocused();
   await page.keyboard.press('ArrowLeft');
-  await expect(list.getByRole('tab', { name: 'Files' })).toBeFocused();
+  await expect(list.getByRole('tab', { name: 'Pageviews' })).toBeFocused();
   await page.keyboard.press('Home');
   await expect(overview).toBeFocused();
   let results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();

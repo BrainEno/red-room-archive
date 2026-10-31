@@ -211,7 +211,7 @@ test('admin Newsletter module on the Node server: counts, delivery state, empty 
   await axe(page);
 });
 
-test('admin on the static site: same token, Newsletter only, search and CSV via the function', async ({ page }) => {
+test('admin on the static site: Newsletter still works when Analytics is unavailable', async ({ page }) => {
   const subscribers = [
     { id: 2, email: 'b@example.com', status: 'pending', locale: 'zh-CN', source: 'article', createdAt: '2026-10-02T08:00:00.000Z', confirmedAt: null, unsubscribedAt: null, lastError: 'send_failed', lastErrorAt: '2026-10-02T08:00:01.000Z' },
     { id: 1, email: 'a@example.com', status: 'active', locale: 'en', source: 'subscribe-page', createdAt: '2026-10-01T08:00:00.000Z', confirmedAt: '2026-10-01T08:05:00.000Z', unsubscribedAt: null, lastError: null, lastErrorAt: null },
@@ -219,6 +219,7 @@ test('admin on the static site: same token, Newsletter only, search and CSV via 
   const seen = [];
   await page.route(`${STATIC}/api/**`, async (route) => {
     const url = new URL(route.request().url());
+    if (url.pathname.startsWith('/api/analytics/')) return json(route, 503, { error: 'Analytics storage unavailable', code: 'unavailable' });
     if (!url.pathname.startsWith('/api/newsletter/')) return route.fulfill({ status: 404, body: 'Not found' }); // a static host
     if (route.request().headers().authorization !== 'Bearer ui-test-only') return json(route, 401, { error: 'Unauthorized', code: 'unauthorized' });
     seen.push(url.pathname + url.search);

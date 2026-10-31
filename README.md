@@ -38,6 +38,8 @@ Windows PowerShell 可用 `Copy-Item .env.example .env` 创建配置文件。
 | `/subscribe` | 邮件订阅（双重确认）。文章末尾、页脚和首页信息栏的入口**默认隐藏**，开启方法见下文“邮件订阅” |
 | `/newsletter/confirm` · `/newsletter/unsubscribe` | 确认订阅 / 退订页（来自邮件链接，不被索引） |
 | `/rss.xml` · `/sitemap.xml` · `/robots.txt` | 订阅与搜索引擎 |
+| `/llms.txt` | 面向答案引擎的公开内容与版权发现指南，不授予训练或转载许可 |
+| `/offline` · `/zh-CN/offline` | 断网时的双语离线回退页，不被索引 |
 | `/media/notion/:id` | Notion 里上传的图片/文件的本地副本（见下文“图片”） |
 
 **语言**：英文 / 简体中文，导航栏右侧 `EN / 中文` 切换（在首页切换会停在原来的位置，不重播开场）。
@@ -175,6 +177,13 @@ JSON-LD 是浏览器不会执行的数据块，不受 CSP 影响，所有 `<` �
 
 封面图加载失败（外链失效、过期）时，脚本会移除破图，列表和文章页回到无封面的纯文字版式。
 
+## 性能、离线与浏览数据
+
+- 公共页面支持 Service Worker 离线重载：在线读过的页面优先联网更新，断网时使用保存的副本；未缓存页面显示中英文离线回退。后台、API、订阅令牌页和带查询的页面不进入离线缓存。
+- `/_astro` 指纹资源长期缓存，HTML 需要重新验证；首页场景保留。Analytics 后台报表按需加载，不让未打开报表的后台首屏承担完整面板成本。
+- `/admin → Pageviews / 浏览数据` 提供第一方每日 pageview 聚合：7／30／90 天、路径、来源主机、语言、CSV 和清除／暂停开关。Node 用 SQLite，Netlify 静态站用 Functions + Blobs；不引入第三方 analytics，不保存独立访客标识或 IP，尊重 DNT/GPC。
+- SEO／GEO 的缓存、离线限制、构建体积对比和上线后测速方法见 **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)**；统计指标、隐私、API 和部署见 **[docs/ANALYTICS.md](docs/ANALYTICS.md)**。
+
 ## “更多”页面 `/more`
 
 在后台 **`/admin` → More** 编辑（不经过 Notion），保存后立即生效：
@@ -205,7 +214,7 @@ Notion 和 GitHub 联动、发布自动化的调研见 [docs/NOTION-GITHUB.md](d
 
 输入 `ADMIN_TOKEN` 登录（只存在当前标签页的 sessionStorage；请用 HTTPS 部署）。
 
-后台界面支持 **English / 中文**：右上角 `EN / 中文` 切换，选择保存在浏览器（localStorage `rra.admin.lang`）；没选过时跟随浏览器语言，其余情况用英文。服务器返回的错误信息仍是英文，中文界面会在前面加一句中文说明（按错误码翻译）。下文用英文按钮名，中文界面里对应为“概览 / 文章 / 更多页 / 设置 / 文件”。
+后台界面支持 **English / 中文**：右上角 `EN / 中文` 切换，选择保存在浏览器（localStorage `rra.admin.lang`）；没选过时跟随浏览器语言，其余情况用英文。服务器返回的错误信息仍是英文，中文界面会在前面加一句中文说明（按错误码翻译）。下文用英文按钮名，中文界面里对应为“概览 / 文章 / 更多页 / 订阅 / 设置 / 文件 / 浏览数据”。
 
 - **Overview（概览）**：登录后的第一页。文章来源（Notion / 示例）与上次同步时间；文章、精选、主题、已缓存正文、出版物、联系渠道、上传文件的数量；**需要处理**的事项（未配置 Notion、同步失败、从未同步、没有已发布文章、正文未缓存、未设置 `SITE_URL`、没有联系邮箱、无标签文章、“更多”页使用内置内容），每条都带直达按钮；最新文章与每年文章数；快捷操作：立即同步、查看英文/中文网站、下载内容包、进入设置。数据来自 `GET /api/overview`，每次切到该标签都会刷新。
 - **Articles**：已发布文章一览；**Sync now** / **Sync + fetch bodies**（同时预取所有正文，让搜索覆盖全文）/ **Full resync**（清空正文和图片缓存后重新同步）；单篇 **Refresh** 重新拉取正文。
@@ -213,6 +222,7 @@ Notion 和 GitHub 联动、发布自动化的调研见 [docs/NOTION-GITHUB.md](d
 - **More**：编辑 `/more` 页面（出版物、联系方式、二维码，中英并排），见上文。
 - **Newsletter（订阅）**：订阅总数 / 已订阅 / 待确认 / 已退订、邮件服务状态与今日发信量；按邮箱搜索、按状态筛选；待确认地址可重发确认；**导出 CSV**（只含邮箱、状态、语言、来源和时间，不含 token、哈希或密钥）。静态 Netlify 站点的 `/admin` 也能用同一个 `ADMIN_TOKEN` 登录，但只显示这一模块。
 - **Files**：上传音频/视频/图片/PDF；上传 `.glb` 并选择 “Statue model” 可替换首页雕像（首页只请求实际存在的那一个模型：上传的或仓库内置的 `public/models/venus.glb`；建议先用 `npx gltfpack -i in.glb -o out.glb -cc` 压缩，内置模型就是这样从 11.7 MB 压到约 0.8 MB 的，三角面减半后肉眼无差别）；“更多”页面用到的文件标 on /more。
+- **Pageviews / 浏览数据**：查看第一方每日浏览量、热门公开路径、来源主机和界面语言，切换 7／30／90 天，导出 CSV、暂停收集或清除聚合。报表只在打开此 tab 时加载；指标与隐私边界见 [docs/ANALYTICS.md](docs/ANALYTICS.md)。
 
 网站**从不写回 Notion**（`tests/architecture.test.mjs` 会检查客户端里没有写请求）。
 
@@ -220,8 +230,8 @@ Notion 和 GitHub 联动、发布自动化的调研见 [docs/NOTION-GITHUB.md](d
 
 读者在站内订阅（替代 Substack），名单属于本项目：**双重确认**（提交后只发确认信，点击邮件链接才生效）、一键退订（含 RFC 8058 邮件头）、不暴露某邮箱是否已订阅、限流与蜜罐、后台管理与 CSV 导出。
 
-- **Netlify 静态站**：`/api/newsletter/*` 由 `netlify/functions/newsletter.mts`（Netlify Function）处理，数据加密存放在 **Netlify Blobs**——都包含在 Netlify 免费套餐里，不需要新的数据库账号。
-- **Node 站点**：同一套服务，数据在 SQLite（迁移 11）。
+- **Netlify 静态站**：`/api/newsletter/*` 由 `netlify/functions/newsletter.mts`（Netlify Function）处理，名单加密存放在 **Netlify Blobs**；`/api/analytics/*` 由 `netlify/functions/analytics.mts` 处理，保存不含访客标识的每日聚合并共用在 Netlify 免费套餐里，不需要新的数据库账号。
+- **Node 站点**：两套服务都在 SQLite（订阅迁移 11，浏览聚合迁移 12）。
 - **发信**：Resend（免费每天 100 封）或 Brevo（免费每天 300 封），均无需绑卡，需要验证发信域名。
 
 **订阅入口默认隐藏**（首页、文章末尾、页脚和 sitemap 都不出现），功能本身不受影响：`/subscribe`（不被索引）、确认 / 退订链接和后台“订阅”模块照常可用。重新开启：Node 站点在 `/admin → 设置 → 邮件订阅` 勾选，立即生效；Netlify 静态站设置构建变量 `SHOW_NEWSLETTER_SIGNUP=1` 后重新部署。详见 [docs/NEWSLETTER.md](docs/NEWSLETTER.md#显示--隐藏订阅入口)。
@@ -255,7 +265,7 @@ src/content  站点文案、演示文章                    src/pages    路由�
 | `NOTION_TIMEOUT_MS` | 15000 | 单次 Notion 请求超时（429/5xx 会按 `Retry-After` 重试 2 次） |
 | `MEDIA_CACHE_DIR` | `<DB 所在目录>/notion-media` | Notion 图片/文件的本地副本 |
 | `MAX_MEDIA_MB` | 50 | 媒体代理单个文件上限 |
-| `DB_PATH` | `data/archive.db` | SQLite 文件（文章缓存、站点设置和“更多”页面） |
+| `DB_PATH` | `data/archive.db` | SQLite 文件（文章缓存、站点设置、“更多”页面、订阅和每日浏览聚合） |
 | `UPLOAD_DIR` | `data/uploads` | 后台上传目录 |
 | `MAX_UPLOAD_MB` | 300 | 单个上传文件上限；multipart 单文件另限 8 MiB，较大文件使用 `?name=` 原始流上传 |
 | `MAX_JSON_KB` | 256 | JSON 请求体上限 |
@@ -351,7 +361,7 @@ cp -a /absolute/path/uploads "$backup/uploads"
 
 该 JSON 仅覆盖网站名、联系邮箱、中英文简介/引言/标语、首页信息栏和标签对照，**不包含** More 内容、文章、上传文件、雕像模型或任何凭据，不是完整站点备份（静态部署要带上 More 和图片请用上文的内容包）。格式版本为 2（新增首页信息栏）；旧的版本 1 文件仍可导入，信息栏视为留空（使用内置默认）。Node 动态版仍应同时备份数据库与上传目录。
 
-静态版有中英文页面（英文根路径、中文 `/zh-CN/`）、文章、标签/分页、RSS、sitemap、浏览器搜索和朗读；搜索需要 JavaScript。公开文章正文会进入下载到浏览器的搜索索引。Notion 上传的图片和常见音视频/PDF 在构建时复制到公开产物，外链媒体仍依赖外部地址；不支持的媒体类型会使构建失败。构建过程使用隔离的临时 SQLite，不复制数据库或 token。仅生成公开站点，**没有文章/设置管理 API、上传或实时同步**（`/admin` 只是一个外壳，在 Netlify 上用于管理邮件订阅，见“邮件订阅”）；后台保存的设置、More 内容和上传不会自动带入，需通过上述内容包（或单独的站点资料 JSON）显式导入；未导入时使用默认值，More 使用代码内置内容。页面地址与 Node 版完全相同（同一套路径，由 SSR 直接渲染后写出）；语言切换是普通链接，静态主机上没有 cookie 记忆和 `Accept-Language` 协商，也不支持 `?lang=` 和旧查询地址/旧博客重定向。
+静态版有中英文页面（英文根路径、中文 `/zh-CN/`）、文章、标签/分页、RSS、sitemap、`llms.txt`、浏览器搜索、离线回退和朗读；搜索需要 JavaScript，离线重读需要先在线打开页面并安装 Service Worker。公开文章正文会进入下载到浏览器的搜索索引。Notion 上传的图片和常见音视频/PDF 在构建时复制到公开产物，外链媒体仍依赖外部地址；不支持的媒体类型会使构建失败。构建过程使用隔离的临时 SQLite，不复制数据库或 token。仅生成公开站点，**没有文章/设置管理 API、上传或实时同步**（`/admin` 只是一个外壳，在 Netlify 上用于管理邮件订阅和浏览数据，见“邮件订阅”与 [docs/ANALYTICS.md](docs/ANALYTICS.md)）；后台保存的设置、More 内容和上传不会自动带入，需通过上述内容包（或单独的站点资料 JSON）显式导入；未导入时使用默认值，More 使用代码内置内容。页面地址与 Node 版完全相同（同一套路径，由 SSR 直接渲染后写出）；语言切换是普通链接，静态主机上没有 cookie 记忆和 `Accept-Language` 协商，也不支持 `?lang=` 和旧查询地址/旧博客重定向。
 
 注意：静态构建的临时数据库不会跨构建保留；**Date 留空的文章每次构建都会使用当次构建日期**，请在 Notion 填写 Date 以保持日期稳定。构建期间修改或撤回文章可能造成快照不一致，应等待更改完成后重新构建。静态快照会读取图片文件头，为 `<img>` 写入 width/height（防止图片晚到时正文跳动）：本地图片直接读取，外部图片只请求前 64 KiB、每张最多等 8 秒；设置 `STATIC_IMAGE_PROBE=0` 可跳过外部图片。只想预览演示内容时可显式设置 `STATIC_DEMO=1`（不能同时设置 Notion 凭据）；非 Netlify 环境仍需设置 `SITE_URL`。生产构建及普通本地构建缺少 Notion 配置不会自动切换成演示内容，以免误部署；Netlify Deploy Preview 的无凭据演示回退见上文。本地命令示例：
 
@@ -370,6 +380,7 @@ npm run typecheck   # tsc --noEmit
 npm run build       # 生产构建
 npm run check       # typecheck、单元测试、生产构建、SSR 与静态导出集成测试
 npm run test:render # 构建后检查有图/无图文章的 SSR 输出
+node scripts/asset-report.mjs # 构建后统计客户端 JS 原始大小与 gzip
 npm run test:ui     # Chromium / Firefox / WebKit 多视口与无障碍回归（需先安装 Playwright 浏览器）
 npm run test:visual:candidates # 生成供审阅的演示截图（尚非像素基线）
 node tests/fixtures/notion-mock.mjs 4999 [--showcase]   # 本地假 Notion：NOTION_API_BASE=http://127.0.0.1:4999/v1；--showcase 加几篇中英文章预览排版
