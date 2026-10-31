@@ -28,7 +28,7 @@ async function dispatchCopy(page) {
     document.dispatchEvent(event);
     return {
       prevented: event.defaultPrevented,
-      text: clipboardData.getData('text/plain'),
+      text: event.clipboardData?.getData('text/plain') || '',
       notice: document.querySelector('[data-article-toast]')?.textContent || '',
     };
   });
@@ -128,11 +128,11 @@ for (const mode of ['ssr', 'static']) {
     const selected = await selectPassage(page);
     const partial = await dispatchCopy(page);
     expect(partial.prevented).toBe(true);
+    expect(partial.notice).toBe('Copied with source and copyright notice.');
     expect(partial.text).toContain(selected);
     expect(partial.text).toContain('— Connect your Notion database');
     expect(partial.text).toContain('SureShot Archive');
     expect(partial.text).toContain('All rights reserved');
-    expect(partial.notice).toBe('Copied with source and copyright notice.');
   });
 
   test(`${mode}: article cover can be included or removed from the local PNG`, async ({ page }) => {
