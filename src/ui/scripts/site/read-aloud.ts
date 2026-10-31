@@ -56,7 +56,8 @@ export function matchingVoice(voices: SpeechSynthesisVoice[], lang: string): Spe
     ?? voices.find((voice) => voice.lang.toLowerCase().split('-')[0] === desired.split('-')[0]);
 }
 
-export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): void {
+/** Returns false (and leaves the control unusable) when there is nothing to read. */
+export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): boolean {
   const article = root.closest('article');
   const body = article?.querySelector('.article-body');
   const title = article?.querySelector('[data-article-title]');
@@ -65,16 +66,27 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): void {
   const stopButton = root.querySelector<HTMLButtonElement>('[data-stop]');
   const speed = root.querySelector<HTMLSelectElement>('[data-speed]');
   const status = root.querySelector<HTMLElement>('[data-status]');
-  if (!body || !title || !play || !label || !stopButton || !speed || !status) return;
+  // Optional visual layer: a visible caption and a progress line (the status above is for screen readers).
+  const caption = root.querySelector<HTMLElement>('[data-caption]');
+  const progress = root.querySelector<HTMLElement>('[data-progress]');
+  if (!body || !title || !play || !label || !stopButton || !speed || !status) return false;
   const text = articleSpeechText(body);
-  if (!text.trim()) return;
+  if (!text.trim()) return false;
   const chunks = speechChunks([title.textContent?.trim(), text].filter(Boolean).join('\n'));
-  if (!chunks.length) return;
+  if (!chunks.length) return false;
 
   const fallbackLang = article?.getAttribute('lang') || document.documentElement.lang || 'en';
   let state: 'idle' | 'playing' | 'paused' = 'idle';
   let generation = 0;
   let current: SpeechSynthesisUtterance | undefined;
+  let done = 0;
+  /** Progress as the share of passages already spoken (CSSOM, allowed by the strict CSP). */
+  const setProgress = (ratio: number) => {
+    progress?.style?.setProperty('--p', String(Math.max(0, Math.min(1, ratio))));
+    if (caption && state !== 'idle') {
+      caption.textContent = `${state === 'paused' ? root.dataset.paused : root.dataset.listening} · ${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`;
+    }
+  };
   const showState = (next: typeof state, message = '') => {
     state = next;
     root.dataset.state = next;
@@ -82,16 +94,22 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): void {
     stopButton.hidden = next === 'idle';
     status.textContent = message;
     status.classList?.toggle('read-aloud-error', message === root.dataset.error);
+    if (caption) caption.textContent = next === 'idle' ? (message && message !== root.dataset.error ? message : root.dataset.hint ?? '') : caption.textContent;
+    if (next !== 'idle') setProgress(done / chunks.length);
   };
   const stop = (message = '') => {
     generation++;
     synth.cancel();
     current = undefined;
+    done = 0;
     showState('idle', message);
+    setProgress(0);
   };
   const speakChunk = (index: number, run: number) => {
     if (run !== generation) return;
-    if (index >= chunks.length) { current = undefined; showState('idle', root.dataset.finished); return; }
+    done = index;
+    setProgress(index / chunks.length);
+    if (index >= chunks.length) { current = undefined; done = 0; showState('idle', root.dataset.finished); return; }
     try {
       const text = chunks[index]!;
       const utterance = new SpeechSynthesisUtterance(text);
@@ -112,18 +130,21 @@ export function initReadAloud(root: HTMLElement, synth: SpeechSynthesis): void {
     synth.cancel();
     // cancel() does not clear the synthesis engine's paused state.
     if (synth.paused) synth.resume();
+    done = 0;
     showState('playing', root.dataset.listening);
     speakChunk(0, generation);
   });
   stopButton.addEventListener('click', () => stop(root.dataset.stopped));
   window.addEventListener('pagehide', () => { if (state !== 'idle' || current) stop(); });
   root.hidden = false;
+  delete root.dataset.pending;
+  return true;
 }
 
-if (typeof window !== 'undefined' && typeof window.SpeechSynthesisUtterance === 'function' && 'speechSynthesis' in window) {
-  const synth = window.speechSynthesis;
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   const root = document.querySelector<HTMLElement>('[data-read-aloud]');
-  if (root && synth && ['speak', 'pause', 'resume', 'cancel', 'getVoices'].every((method) => typeof synth[method as keyof SpeechSynthesis] === 'function')) {
-    initReadAloud(root, synth);
-  }
+  const synth = typeof window.SpeechSynthesisUtterance === 'function' && 'speechSynthesis' in window ? window.speechSynthesis : undefined;
+  const usable = Boolean(synth && ['speak', 'pause', 'resume', 'cancel', 'getVoices'].every((method) => typeof synth[method as keyof SpeechSynthesis] === 'function'));
+  // The control holds its place from the first paint; remove it only where it cannot work.
+  if (root && !(usable && initReadAloud(root, synth!))) root.hidden = true;
 }

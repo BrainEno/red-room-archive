@@ -5,12 +5,12 @@ import { localePath, type Locale } from '../../shared/i18n.ts';
 import { ARTICLES_PATH, SEARCH_PATH } from '../../shared/routes.ts';
 
 export interface Props {
-  site: { locale: Locale; name: string; url: string; email: string };
+  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean };
 }
 const { site } = Astro.props;
 const t = messages(site.locale);
 ---
-<Page title={`${t.notFound.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={site.locale} noindex>
+<Page title={`${t.notFound.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} locale={site.locale} noindex>
   <section class="prose notfound">
     <p class="kicker">404</p>
     <h1>{t.notFound.heading}</h1>

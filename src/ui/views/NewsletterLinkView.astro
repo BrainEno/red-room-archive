@@ -12,7 +12,7 @@ import { localePath, type Locale } from '../../shared/i18n.ts';
 import { ARTICLES_PATH, SUBSCRIBE_PATH } from '../../shared/routes.ts';
 
 export interface Props {
-  site: { locale: Locale; name: string; url: string; email: string };
+  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean };
   action: 'confirm' | 'unsubscribe';
 }
 const { site, action } = Astro.props;
@@ -21,7 +21,7 @@ const n = messages(locale).newsletter;
 const t = action === 'confirm' ? n.confirm : n.unsubscribe;
 const payload = JSON.stringify({ ...t, unreachable: n.status.unreachable, rateLimited: n.status.rateLimited, error: n.status.error });
 ---
-<Page title={`${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} noindex>
+<Page title={`${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} locale={locale} noindex>
   <section class="prose letters letters-link" data-newsletter-link={action} data-messages={payload}>
     <p class="article-label">{site.name} / {n.title}</p>
     <h1>{t.title}</h1>

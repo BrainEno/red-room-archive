@@ -22,7 +22,7 @@ import { articleBody, featuredArticles, findArticle, listArticles, neighbours } 
 import { moreFor } from './services/more.ts';
 import { search } from './services/search.ts';
 import { tagIndex, tagLangOf, tagNamer, topicCounts } from './services/tags.ts';
-import { siteProfile } from './services/settings.ts';
+import { newsletterSignupVisible, siteProfile } from './services/settings.ts';
 import { statueModelUrl } from './storage/uploads.ts';
 
 export type { ArticleDetail, ArticleSummary, MoreChannel, MorePublication, MoreResponse, SearchResponse, TagCount };
@@ -41,11 +41,13 @@ export interface SiteView {
   facts: { key: string; value: string }[];
   articlesIntro: string;
   url: string;
+  /** Show newsletter sign-up entries on public pages (see newsletterSignupVisible). */
+  newsletterSignup: boolean;
 }
 
 export function getSite(locale: Locale = DEFAULT_LOCALE): SiteView {
   const { articlesIntro } = copy[locale];
-  return { locale, ...siteProfile(locale), articlesIntro, url: config.siteUrl() };
+  return { locale, ...siteProfile(locale), articlesIntro, url: config.siteUrl(), newsletterSignup: newsletterSignupVisible() };
 }
 
 export interface HomeData {

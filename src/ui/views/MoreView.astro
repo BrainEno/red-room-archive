@@ -14,7 +14,7 @@ import type { MorePublication, MoreResponse } from '../../shared/contracts.ts';
 type Publication = MorePublication;
 
 export interface Props {
-  site: { locale: Locale; name: string; url: string; email: string };
+  site: { locale: Locale; name: string; url: string; email: string; newsletterSignup?: boolean };
   more: MoreResponse;
 }
 
@@ -43,7 +43,7 @@ const num = (id: string) => pad(sections.findIndex((s) => s.id === id));
 /** Break opportunity before the @ so a long address wraps as `name / @domain`, never mid-word. */
 const [mailUser, mailDomain] = site.email.includes('@') ? [site.email.slice(0, site.email.indexOf('@')), site.email.slice(site.email.indexOf('@'))] : [site.email, ''];
 ---
-<Page title={`${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} locale={locale} description={more.intro} current={MORE_PATH}>
+<Page title={`${t.title} — ${site.name}`} siteName={site.name} siteUrl={site.url} email={site.email} newsletter={site.newsletterSignup} locale={locale} description={more.intro} current={MORE_PATH}>
   <div class="mp">
     <header class="mp-head">
       <p class="kicker">{site.name} / {t.title}</p>

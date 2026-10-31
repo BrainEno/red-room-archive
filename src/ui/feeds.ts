@@ -5,7 +5,7 @@
 import { escapeHtml } from '../core/text.ts';
 import type { ArticleSummary, TagCount } from '../shared/contracts.ts';
 import { DEFAULT_LOCALE, LOCALES, localizedPath } from '../shared/i18n.ts';
-import { ARCHIVE_PATH, ARTICLES_PATH, MORE_PATH, SUBSCRIBE_PATH, TOPICS_PATH, topicPath } from '../shared/routes.ts';
+import { ARCHIVE_PATH, ARTICLES_PATH, COPYRIGHT_PATH, MORE_PATH, SUBSCRIBE_PATH, TOPICS_PATH, topicPath } from '../shared/routes.ts';
 
 const xml = escapeHtml;
 
@@ -15,8 +15,8 @@ const rfc822 = (value: string) => {
   return Number.isNaN(date.getTime()) ? new Date(0).toUTCString() : date.toUTCString();
 };
 
-export function rssFeed(input: { origin: string; title: string; description: string; articles: ArticleSummary[] }): string {
-  const { origin, title, description, articles } = input;
+export function rssFeed(input: { origin: string; title: string; description: string; articles: ArticleSummary[]; copyright?: string }): string {
+  const { origin, title, description, articles, copyright } = input;
   const items = articles
     .map((article) => {
       const link = `${origin}${article.href}`;
@@ -37,21 +37,22 @@ export function rssFeed(input: { origin: string; title: string; description: str
     <link>${xml(`${origin}${ARTICLES_PATH}`)}</link>
     <atom:link href="${xml(`${origin}/rss.xml`)}" rel="self" type="application/rss+xml" />
     <description>${xml(description)}</description>
-${items}
+${copyright ? `    <copyright>${xml(copyright)}</copyright>\n` : ''}${items}
   </channel>
 </rss>
 `;
 }
 
-export function sitemap(input: { origin: string; articles: ArticleSummary[]; tags?: TagCount[] }): string {
-  const { origin, articles, tags = [] } = input;
+export function sitemap(input: { origin: string; articles: ArticleSummary[]; tags?: TagCount[]; newsletterSignup?: boolean }): string {
+  const { origin, articles, tags = [], newsletterSignup = false } = input;
   const urls: { loc: string; lastmod?: string }[] = [
     { loc: '/' },
     { loc: ARTICLES_PATH, lastmod: articles[0]?.updated },
     { loc: TOPICS_PATH },
     { loc: ARCHIVE_PATH, lastmod: articles[0]?.updated },
     { loc: MORE_PATH },
-    { loc: SUBSCRIBE_PATH },
+    { loc: COPYRIGHT_PATH },
+    ...(newsletterSignup ? [{ loc: SUBSCRIBE_PATH }] : []),
     ...tags.map((tag) => ({ loc: topicPath(tag.slug) })), // one URL per topic, whatever language it is written in
     ...articles.map((article) => ({ loc: article.href, lastmod: article.updated || article.date })),
   ];
@@ -78,5 +79,15 @@ ${body}
 `;
 }
 
+/**
+ * Crawlers that collect text for AI training (not search): the author
+ * reserves text and data mining (/copyright, TDMRep meta in Base.astro).
+ * Search engines and link previews are unaffected.
+ */
+export const AI_TRAINING_CRAWLERS = [
+  'GPTBot', 'ClaudeBot', 'anthropic-ai', 'CCBot', 'Google-Extended', 'Applebot-Extended',
+  'Bytespider', 'meta-externalagent', 'cohere-training-data-crawler', 'Diffbot', 'omgili',
+] as const;
+
 export const robots = (origin: string) =>
-  `User-agent: *\nDisallow: /admin\nDisallow: /api/\n\nSitemap: ${origin}/sitemap.xml\n`;
+  `User-agent: *\nDisallow: /admin\nDisallow: /api/\n\n# Text and data mining reserved — see ${origin}${COPYRIGHT_PATH}\n${AI_TRAINING_CRAWLERS.map((bot) => `User-agent: ${bot}`).join('\n')}\nDisallow: /\n\nSitemap: ${origin}/sitemap.xml\n`;

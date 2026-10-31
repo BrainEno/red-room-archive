@@ -294,8 +294,10 @@ test('site copy per language: Chinese overrides are separate from English, /api/
   const zh = queries.getSite('zh-CN');
   assert.equal(en.locale, 'en');
   assert.equal(zh.locale, 'zh-CN');
-  assert.equal(zh.tagline, '随笔、札记与小说');
-  assert.notEqual(zh.intro, en.intro);
+  assert.equal(zh.tagline, '小说、诗歌以及其他');
+  assert.notEqual(zh.about, en.about, 'each language has its own quote');
+  assert.equal(en.intro, '', 'no placeholder intro: hidden until the owner writes one');
+  assert.equal(zh.intro, '');
   assert.equal(queries.getSite().locale, 'en', 'English by default');
 
   const saved = await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_intro_zh: '你好，帷幕之后。', site_intro: 'Hello behind the curtain.' } });
@@ -355,7 +357,7 @@ test('settings: token masked, database accepts a pasted link, changing it resets
 
   const back = await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { NOTION_DATABASE_ID: '', site_name: '' } });
   assert.equal(back.data.values.NOTION_DATABASE_ID, DB, 'empty value falls back to the environment');
-  assert.equal(back.data.values.site_name, 'Red Room Archive');
+  assert.equal(back.data.values.site_name, 'SureShot Studio');
 });
 
 test('login: wrong tokens are throttled, missing tokens on other endpoints are not', async () => {
@@ -428,12 +430,48 @@ test('site profile import is authenticated, public-only, atomic and preserves No
   assert.equal((await call(admin.writeSiteProfile, { method: 'POST', token: TOKEN, json: makeProfile(before.data.values) })).status, 200);
 });
 
+test('newsletter entry points: hidden by default, the admin switch wins over SHOW_NEWSLETTER_SIGNUP, the sitemap follows', async () => {
+  const { newsletterSignupVisible } = await import('../src/server/services/settings.ts');
+  const { sitemap } = await import('../src/ui/feeds.ts');
+  const listed = (on) => /\/subscribe</.test(sitemap({ origin: 'https://archive.test', articles: [], newsletterSignup: on }));
+  const old = process.env.SHOW_NEWSLETTER_SIGNUP;
+  const write = (value) => call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { newsletter_signup: value } });
+  try {
+    delete process.env.SHOW_NEWSLETTER_SIGNUP;
+    assert.equal(newsletterSignupVisible(), false, 'off unless enabled');
+    assert.equal(queries.getSite('en').newsletterSignup, false);
+    assert.equal((await call(admin.readSettings, { token: TOKEN })).data.values.newsletter_signup, 'off');
+    assert.equal(listed(false), false);
+    assert.equal(listed(true), true);
+
+    process.env.SHOW_NEWSLETTER_SIGNUP = 'true';
+    assert.equal(newsletterSignupVisible(), true, 'the environment supplies the default');
+    assert.equal((await write('off')).status, 200);
+    assert.equal(newsletterSignupVisible(), false, 'a saved admin choice wins over the environment');
+    assert.equal((await write('on')).status, 200);
+    assert.equal(queries.getSite('zh-CN').newsletterSignup, true, 'takes effect without a restart');
+
+    // Saving the value that matches the environment default is not frozen as an
+    // override (the settings form submits every field on each save).
+    delete process.env.SHOW_NEWSLETTER_SIGNUP;
+    assert.equal(newsletterSignupVisible(), false, 'back to the environment default');
+    assert.equal((await write('on')).status, 200);
+    delete process.env.SHOW_NEWSLETTER_SIGNUP;
+    assert.equal(newsletterSignupVisible(), true, 'an explicit choice that differs from the default is kept');
+    assert.equal((await write('off')).status, 200);
+    assert.equal(newsletterSignupVisible(), false);
+  } finally {
+    if (old === undefined) delete process.env.SHOW_NEWSLETTER_SIGNUP; else process.env.SHOW_NEWSLETTER_SIGNUP = old;
+  }
+});
+
 test('homepage facts: editable per language, "-" hides, invalid text is rejected', async () => {
   const defaults = queries.getSite('en').facts;
-  assert.ok(defaults.length > 0, 'built-in facts by default');
+  assert.deepEqual(defaults, [], 'no placeholder facts: the row stays hidden until the owner fills it in');
+  assert.deepEqual(queries.getSite('zh-CN').facts, []);
   const initial = await call(admin.readSettings, { token: TOKEN });
-  assert.match(initial.data.values.site_facts, /^Based in: /, 'admin shows the defaults as editable text');
-  assert.match(initial.data.values.site_facts_zh, /^所在：/);
+  assert.equal(initial.data.values.site_facts, '-', 'admin shows the hidden default as "-", ready to edit');
+  assert.equal(initial.data.values.site_facts_zh, '-');
 
   const saved = await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_facts: 'Based in: Taipei\r\nOpen: 10:00–18:00', site_facts_zh: '-' } });
   assert.equal(saved.status, 200);
@@ -449,7 +487,7 @@ test('homepage facts: editable per language, "-" hides, invalid text is rejected
   // Saving the default text (or clearing) removes the override.
   await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { site_facts: initial.data.values.site_facts, site_facts_zh: '' } });
   assert.deepEqual(queries.getSite('en').facts, defaults);
-  assert.ok(queries.getSite('zh-CN').facts.length > 0);
+  assert.deepEqual(queries.getSite('zh-CN').facts, []);
 });
 
 test('content bundle: admin-only ZIP with profile, saved More page, its uploads and the model', async () => {

@@ -21,6 +21,7 @@ export function newsletterPanel(root: HTMLElement, api: ApiClient) {
     <header class="ov-head">
       <h2 class="ov-name">${esc(n.title)}</h2>
       <p class="hint" id="nl-delivery" role="status"></p>
+      <p class="hint" id="nl-entries">${esc(n.entries)}</p>
       <dl class="ov-stats" id="nl-counts"></dl>
     </header>
     <form class="row2 nl-filter" id="nl-filter" role="search">

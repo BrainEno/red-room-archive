@@ -147,16 +147,19 @@ const tokens = (text: string, lang: string): { word: string; space: boolean }[] 
   }
   return out;
 };
-const lede = $('.lede');
 if (!reduce) {
-  const text = lede.textContent!.trim(), words: HTMLElement[] = [];
-  lede.setAttribute('aria-label', text);
-  lede.textContent = '';
-  for (const { word, space } of tokens(text, lede.lang || document.documentElement.lang)) {
-    if (space) { lede.append(' '); continue; }
-    const s = document.createElement('span');
-    s.className = 'w'; s.setAttribute('aria-hidden', 'true'); s.textContent = word;
-    lede.append(s); words.push(s);
+  // The quote, then its attribution line (if any), light up as one sequence.
+  const words: HTMLElement[] = [];
+  for (const line of document.querySelectorAll<HTMLElement>('.lede, .lede-by')) {
+    const text = line.textContent!.trim();
+    line.setAttribute('aria-label', text);
+    line.textContent = '';
+    for (const { word, space } of tokens(text, line.lang || document.documentElement.lang)) {
+      if (space) { line.append(' '); continue; }
+      const s = document.createElement('span');
+      s.className = 'w'; s.setAttribute('aria-hidden', 'true'); s.textContent = word;
+      line.append(s); words.push(s);
+    }
   }
   const per = 0.22, gap = (1 - per) / Math.max(words.length - 1, 1);   // 总时长归一化为 1，对应一段滚动
   gsap.fromTo(words,

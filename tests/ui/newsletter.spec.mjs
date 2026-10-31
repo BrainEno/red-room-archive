@@ -140,20 +140,61 @@ test('unsubscribe page acts on click and is idempotent from the reader’s point
   await axe(page);
 });
 
-test('entry points: article end, footer and home link to the same sign-up', async ({ page }) => {
+test('entry points are hidden by default; /subscribe and the admin switch keep working', async ({ page }) => {
   await mockBackend(page);
+  // The Node harness runs without SHOW_NEWSLETTER_SIGNUP and nothing saved: off.
   await page.goto('/articles/notes-on-light');
+  await expect(page.locator('[data-article-title]')).toBeVisible();
+  await expect(page.locator('.letters-aside')).toHaveCount(0);
+  await expect(page.locator('a[href="/subscribe"]')).toHaveCount(0);
+  await page.goto('/');
+  await expect(page.locator('a[href="/subscribe"]')).toHaveCount(0);
+  await page.goto('/subscribe');
+  await expect(page.locator('.letters-page')).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+  const sitemap = await (await page.request.get('/sitemap.xml')).text();
+  expect(sitemap).not.toContain('/subscribe<');
+
+  // Admin → Settings → Newsletter. The browser projects share one server, so the
+  // save is answered by a stub (the server side is covered by the API tests).
+  await page.goto('/admin');
+  await page.locator('#tk').fill('ui-test-only');
+  await page.locator('#lg button').click();
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  const box = page.getByRole('checkbox', { name: /Show the sign-up on public pages/ });
+  await expect(box).not.toBeChecked();
+  await expect(page.locator('#newsletter-hint')).toContainText('SHOW_NEWSLETTER_SIGNUP');
+  let sent;
+  await page.route('**/api/settings', async (route) => {
+    if (route.request().method() !== 'PATCH') return route.fallback();
+    sent = JSON.parse(route.request().postData() || '{}');
+    const current = await (await page.request.get('/api/settings', { headers: { Authorization: 'Bearer ui-test-only' } })).json();
+    return json(route, 200, { ...current, values: { ...current.values, newsletter_signup: 'on' } });
+  });
+  await box.check();
+  await page.locator('#sf-save').click();
+  await expect.poll(() => sent?.newsletter_signup).toBe('on');
+  await page.unroute('**/api/settings');
+  await page.getByRole('tab', { name: 'Newsletter', exact: true }).click();
+  await expect(page.locator('#nl-entries')).toContainText('Settings');
+});
+
+test('with SHOW_NEWSLETTER_SIGNUP=1 the static build links article end, footer and home to the sign-up', async ({ page }) => {
+  // The UI snapshot (4179) is built with SHOW_NEWSLETTER_SIGNUP=1, like a Netlify site that opted in.
+  await mockBackend(page);
+  await page.goto(`${STATIC}/articles/notes-on-light`);
   const aside = page.locator('.letters-aside');
   await expect(aside.getByRole('heading', { name: 'Receive new writing by email.' })).toBeVisible();
   await expect(aside.locator('form')).toHaveAttribute('data-source', 'article');
   await expect(page.locator('.site-footer a[href="/subscribe"]')).toHaveText('Letters');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
-  await page.goto('/zh-CN/articles/notes-on-light');
+  await page.goto(`${STATIC}/zh-CN/articles/notes-on-light`);
   await expect(page.locator('.letters-aside h2')).toHaveText('通过邮件接收新文章。');
   await expect(page.locator('.site-footer a[href="/zh-CN/subscribe"]')).toHaveText('邮件订阅');
-  await page.goto('/');
+  await page.goto(`${STATIC}/`);
   await expect(page.locator('.reach a[href="/subscribe"]')).toHaveText('Receive new writing by email');
+  expect(await (await page.request.get(`${STATIC}/sitemap.xml`)).text()).toContain('/subscribe<');
 });
 
 test('admin Newsletter module on the Node server: counts, delivery state, empty list', async ({ page }) => {

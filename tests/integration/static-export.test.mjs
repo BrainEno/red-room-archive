@@ -61,6 +61,19 @@ test('static snapshot exports only published Notion content, media and bilingual
     assert.match(en, /\/media\/notion\/[0-9a-f]+\.png/);
     const mediaPath = en.match(/\/media\/notion\/[0-9a-f]+\.png/)[0];
     assert.ok((await readFile(path.join('static-dist', mediaPath))).length > 100);
+    // Covers and body images carry their intrinsic size, so the page does not jump when they load.
+    assert.match(en, /<img class="cover" src="\/media\/notion\/[0-9a-f]+\.png"[^>]*\bwidth="480" height="270"/);
+    const bodyImages = en.split('class="article-body"')[1].match(/<img [^>]*src="\/media\/notion\/[^>]*>/g) ?? [];
+    assert.ok(bodyImages.length > 0 && bodyImages.every((tag) => /\bwidth="480" height="270"/.test(tag)), bodyImages.join('\n'));
+    // Ownership: the terms page in both languages, linked from every footer and article.
+    assert.match(await read('copyright/index.html'), /id="third-party"[\s\S]*CC BY 4\.0/);
+    assert.match(await read('zh-CN/copyright/index.html'), /版权声明[\s\S]*未经作者事先书面许可/);
+    assert.match(en, /class="rights"[\s\S]*href="\/copyright"/);
+    assert.match(zh, /· 未经作者许可，请勿转载。[\s\S]*href="\/zh-CN\/copyright"/);
+    assert.match(en, /<meta name="tdm-reservation" content="1">/);
+    assert.match(await read('robots.txt'), /User-agent: GPTBot[\s\S]*Disallow: \/\n/);
+    assert.match(await read('rss.xml'), /<copyright>© \d{4} [^<]+All rights reserved\.<\/copyright>/);
+    assert.match(await read('sitemap.xml'), /archive\.test\/zh-CN\/copyright</);
     assert.match(await read('zh-CN/search/index.html'), /action="\/zh-CN\/search"/);
     assert.match(await read('articles/page/2/index.html'), /article-entry/);
     assert.match(await read('topics/fiction/page/2/index.html'), /article-entry/);
@@ -103,10 +116,12 @@ test('static snapshot exports only published Notion content, media and bilingual
       if (file.includes('newsletter/')) assert.match(html, /name="robots" content="noindex/, `${file}: token pages are not indexed`);
     }
     assert.match(await read('zh-CN/subscribe/index.html'), /确认/);
-    assert.match(await read('articles/first-light/index.html'), /data-source="article"/);
-    assert.match(await read('index.html'), /href="\/subscribe"/);
+    // Entry points are hidden by default (SHOW_NEWSLETTER_SIGNUP unset): the pages
+    // above still exist for confirm/unsubscribe links, but nothing links to them.
+    assert.doesNotMatch(await read('articles/first-light/index.html'), /data-source="article"|href="\/subscribe"/);
+    assert.doesNotMatch(await read('index.html'), /href="\/subscribe"|letters-reach/);
     const sitemapXml = await read('sitemap.xml');
-    assert.match(sitemapXml, /archive\.test\/subscribe</); assert.doesNotMatch(sitemapXml, /newsletter\//);
+    assert.doesNotMatch(sitemapXml, /subscribe<|newsletter\//);
     const adminShell = await read('admin/index.html');
     assert.match(adminShell, /id="app"/); assert.doesNotMatch(adminShell, /[\w.+-]+@[\w-]+\.[a-z]{2,}|subscriber_id|token_hash/i);
     const staticHeaders = await read('_headers');
@@ -120,9 +135,13 @@ test('static snapshot exports only published Notion content, media and bilingual
       for (const secret of ['newsletter-secret-never-in-static-dist', 're_never_in_static_dist_key', 'never-publish-this-secret']) assert.ok(!content.includes(secret), `${entry.name} contains a secret`);
     }
     // Configured previews use the actual Notion mock rather than falling back to demo.
-    const preview = await run({ ...env, CONTEXT: 'deploy-preview' });
+    // This rebuild also turns the newsletter entry points on (SHOW_NEWSLETTER_SIGNUP=1).
+    const preview = await run({ ...env, CONTEXT: 'deploy-preview', SHOW_NEWSLETTER_SIGNUP: '1' });
     assert.equal(preview.code, 0, preview.output);
     assert.match(await read('index.html'), /href="\/articles\/extra-0"/);
+    assert.match(await read('index.html'), /href="\/subscribe"/);
+    assert.match(await read('articles/first-light/index.html'), /data-source="article"/);
+    assert.match(await read('sitemap.xml'), /archive\.test\/subscribe</);
     assert.doesNotMatch(await read('index.html'), /data-demo-preview|href="\/articles\/connect-notion"/);
     assert.match(await read('articles/first-light/index.html'), /light through the curtain/);
     // A deeply nested article must abort the snapshot, not publish a partial body.

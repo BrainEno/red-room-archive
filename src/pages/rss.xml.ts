@@ -10,6 +10,7 @@ export const GET: APIRoute = async ({ url }) => {
     title: site.name,
     description: site.about,
     articles: await getRecentArticles(30),
+    copyright: `© ${new Date().getFullYear()} ${site.name}. All rights reserved.`,
   });
   return new Response(body, { headers: { 'Content-Type': 'application/rss+xml; charset=utf-8', 'Cache-Control': 'public, max-age=600' } });
 };

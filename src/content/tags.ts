@@ -32,6 +32,7 @@ Memoir = 回忆录
 Letters, Letter = 书信
 Theatre, Theater, Drama = 戏剧
 Philosophy = 哲学
+Else, Other, Others, Misc = 其他
 History = 历史
 City, Cities = 城市
 Dreams, Dream = 梦

@@ -3,12 +3,13 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
-import { mkdtemp, mkdir, cp, rm, writeFile, readFile, readdir, stat, copyFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, cp, rm, writeFile, readFile, readdir, stat, copyFile, open } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { parse, parseFragment, serialize } from 'parse5';
 import { validateProfile, PROFILE_MAX_BYTES } from '../public/profile-format.js';
+import { imageSize, IMAGE_HEADER_BYTES } from './lib/image-size.mjs';
 
 const root = process.cwd();
 // The UI harness has its own disposable output and never overwrites a user's snapshot.
@@ -89,6 +90,53 @@ const exportMedia = async (url) => {
   media.set(id, target);
   return target;
 };
+// Intrinsic sizes for <img> without width/height (covers, Notion images, More covers):
+// with them the browser reserves the space before the file arrives, so the text
+// does not jump down while the reader starts scrolling (iOS Safari has no scroll
+// anchoring). Local files are read from the output; external images (e.g. a
+// Cloudinary cover) are probed with one ranged request for the first 64 KiB.
+// Any failure leaves the tag as it was. STATIC_IMAGE_PROBE=0 skips external hosts.
+const sizes = new Map();
+const readHead = async (file) => {
+  const handle = await open(file);
+  try {
+    const { buffer, bytesRead } = await handle.read(Buffer.alloc(IMAGE_HEADER_BYTES), 0, IMAGE_HEADER_BYTES, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally { await handle.close(); }
+};
+const imageHead = async (src) => {
+  let url; try { url = new URL(src, siteUrl); } catch { return null; }
+  if (url.origin === new URL(siteUrl).origin) {
+    let pathname; try { pathname = decodeURIComponent(url.pathname); } catch { return null; }
+    for (const dir of [dest, path.join(root, 'public')]) {
+      const file = path.resolve(dir, '.' + pathname);
+      if (!file.startsWith(dir + path.sep)) return null;
+      try { return await readHead(file); } catch { /* not in this directory */ }
+    }
+    return null;
+  }
+  if (process.env.STATIC_IMAGE_PROBE === '0' || !/^https?:$/.test(url.protocol)) return null;
+  try {
+    const response = await fetch(url, { headers: { Range: `bytes=0-${IMAGE_HEADER_BYTES - 1}` }, signal: AbortSignal.timeout(8_000) });
+    if (!response.ok || !response.body) return null;
+    const reader = response.body.getReader(), parts = [];
+    let size = 0;
+    while (size < IMAGE_HEADER_BYTES) {                   // stop after the header even if Range was ignored
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value); size += value.length;
+    }
+    await reader.cancel().catch(() => {});
+    return Buffer.concat(parts).subarray(0, IMAGE_HEADER_BYTES);
+  } catch { return null; }
+};
+const sizeOf = (src) => {
+  if (!sizes.has(src)) sizes.set(src, imageHead(src).then((head) => (head ? imageSize(head) : null), () => null));
+  return sizes.get(src);
+};
+const needsSize = (node) => node.tagName === 'img' && getAttr(node, 'src') && !getAttr(node, 'width') && !getAttr(node, 'height') &&
+  !(getAttr(node, 'class') ?? '').split(/\s+/).includes('callout-icon');   // fixed-size icon
+
 // Files uploaded in /admin (More covers, QR codes, the statue model) that a page references.
 const uploads = new Set();
 const exportUpload = async (pathname) => {
@@ -197,7 +245,7 @@ try {
   const topics = (await api('/api/tags?lang=en')).tags;
   // Newsletter pages are static shells; their form and links call /api/newsletter/*,
   // which netlify/functions/newsletter.mts serves on the static deployment.
-  const routes = ['/', '/more', '/search', '/topics', '/archive', '/subscribe', '/newsletter/confirm', '/newsletter/unsubscribe'];
+  const routes = ['/', '/more', '/copyright', '/search', '/topics', '/archive', '/subscribe', '/newsletter/confirm', '/newsletter/unsubscribe'];
   for (let p = 1; p <= pageCount(total); p++) routes.push(p === 1 ? '/articles' : `/articles/page/${p}`);
   for (const topic of topics) {
     for (let p = 1; p <= pageCount(topic.count); p++) routes.push(`/topics/${encodeURIComponent(topic.slug)}${p > 1 ? `/page/${p}` : ''}`);
@@ -216,10 +264,11 @@ try {
     for (const route of routes) {
       const doc = parse(await (await get(localized(route, lang))).text());
       markDemoPreview(doc);
-      const changes = [];
+      const changes = [], images = [];
       let articleBody;
       walk(doc, (node) => {
         if (getAttr(node, 'class')?.split(/\s+/).includes('article-body')) articleBody = node;
+        if (needsSize(node)) images.push(node);
         const href = getAttr(node, 'href');
         const src = getAttr(node, 'src');
         for (const [key, value] of [['href', href], ['src', src], ['content', getAttr(node, 'content')], ['data-model', getAttr(node, 'data-model')]]) {
@@ -236,6 +285,10 @@ try {
         }
       });
       await Promise.all(changes);
+      await Promise.all(images.map(async (node) => {
+        const size = await sizeOf(getAttr(node, 'src'));
+        if (size) { setAttr(node, 'width', String(size.width)); setAttr(node, 'height', String(size.height)); }
+      }));
       if (articleBody) {
         const item = byLang[lang].get(route);
         if (item) {
@@ -260,9 +313,13 @@ try {
   await writeFile(path.join(dest, 'static-search.json'), JSON.stringify(search));
   await cp(path.join(root, 'scripts/static-search.js'), path.join(dest, 'static-search.js'));
   await writeFile(path.join(dest, 'rss.xml'), await (await get('/rss.xml')).text());
-  const urls = routes.filter((r) => r !== '/search' && !r.includes('/page/') && !r.startsWith('/newsletter/')).flatMap((r) => LANGS.map((lang) => `<url><loc>${xml(siteUrl + localized(r, lang))}</loc></url>`));
+  // /subscribe is always built (direct links keep working) but listed only when the
+  // public sign-up entries are on: SHOW_NEWSLETTER_SIGNUP (the build has no saved settings).
+  const signupListed = /^(1|true|on|yes)$/i.test((process.env.SHOW_NEWSLETTER_SIGNUP ?? '').trim());
+  const urls = routes.filter((r) => r !== '/search' && !r.includes('/page/') && !r.startsWith('/newsletter/') && (signupListed || r !== '/subscribe')).flatMap((r) => LANGS.map((lang) => `<url><loc>${xml(siteUrl + localized(r, lang))}</loc></url>`));
   await writeFile(path.join(dest, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`);
-  await writeFile(path.join(dest, 'robots.txt'), previewDemo ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nDisallow: /admin\nDisallow: /api/\nSitemap: ${siteUrl}/sitemap.xml\n`);
+  // robots.txt from the server (ui/feeds.ts): the AI-training crawler block stays in one place.
+  await writeFile(path.join(dest, 'robots.txt'), previewDemo ? 'User-agent: *\nDisallow: /\n' : await (await get('/robots.txt')).text());
   // Same security headers as the Node server (server/http/security.ts), copied
   // from what the snapshot server actually sent, so the two cannot drift apart.
   const pageHeaders = (await get('/')).headers;

@@ -4,17 +4,22 @@ import type { Locale } from '../../shared/i18n.ts';
 const { locale } = Astro.props as { locale: Locale };
 const t = messages(locale).article;
 ---
-<div class="read-aloud" lang={locale} hidden data-read-aloud
+{/* Rendered in place but invisible (data-pending) so the article does not jump
+    when the script reveals it; browsers that cannot speak remove it. */}
+<div class="read-aloud" lang={locale} data-pending data-read-aloud
   data-listen={t.listen} data-pause={t.pause} data-resume={t.resume}
   data-listening={t.listening} data-paused={t.paused} data-finished={t.finished}
-  data-stopped={t.stopped} data-error={t.speechError}>
+  data-stopped={t.stopped} data-error={t.speechError} data-hint={t.listenHint}>
   <div class="read-aloud-controls">
     <button type="button" class="read-aloud-play" data-play>
-      <span class="read-aloud-icon" aria-hidden="true"><svg class="icon-play" viewBox="0 0 24 24"><path d="M9 5.5 19 12 9 18.5z" fill="currentColor"/></svg><svg class="icon-pause" viewBox="0 0 24 24"><path d="M8 6h3v12H8zm5 0h3v12h-3z" fill="currentColor"/></svg></span>
-      <span data-play-label>{t.listen}</span>
+      <span class="read-aloud-icon" aria-hidden="true"><svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5.2 19 12 8 18.8z" fill="currentColor"/></svg><svg class="icon-pause" viewBox="0 0 24 24"><path d="M7.5 5.5h3v13h-3zm6 0h3v13h-3z" fill="currentColor"/></svg></span>
+      <span class="read-aloud-text">
+        <span class="read-aloud-label"><span data-play-label>{t.listen}</span><span class="read-aloud-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span>
+        <span class="read-aloud-caption" aria-hidden="true" data-caption>{t.listenHint}</span>
+      </span>
     </button>
     <button type="button" class="read-aloud-stop" data-stop hidden aria-label={t.stop} title={t.stop}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 7h10v10H7z" fill="currentColor"/></svg></button>
-    <label class="read-aloud-speed"><span class="sr">{t.speed}</span>
+    <label class="read-aloud-speed"><span class="read-aloud-speed-k" aria-hidden="true">{t.speed}</span>
       <select data-speed aria-label={t.speed}>
         <option value="0.8">0.8×</option>
         <option value="1" selected>1×</option>
@@ -23,6 +28,7 @@ const t = messages(locale).article;
       </select>
     </label>
   </div>
+  <span class="read-aloud-progress" aria-hidden="true"><span data-progress></span></span>
   <span class="sr" role="status" aria-live="polite" data-status></span>
 </div>
 <script>

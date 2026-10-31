@@ -34,6 +34,13 @@
 /* ── Homepage intro (Archivo 600 at up to 4.4rem, 1.06 leading) ───────── */
 .lede:lang(zh) { font-size: clamp(1.7rem, 3.7vw, 3.7rem); line-height: 1.32; letter-spacing: .02em; }
 @media (max-width: 720px) { .lede:lang(zh) { font-size: clamp(1.45rem, 6vw, 2.1rem); } }
+/* A quotation with its attribution (core/quote.ts) is short: set it larger. */
+.lede-quote .lede:lang(zh) { font-size: clamp(2.2rem, 5.2vw, 5.6rem); line-height: 1.3; letter-spacing: .02em; }
+.lede-quote .lede-by:lang(zh) { font-size: clamp(1.55rem, 3.65vw, 3.9rem); line-height: 1.3; letter-spacing: .02em; }
+@media (max-width: 720px) {
+  .lede-quote .lede:lang(zh) { font-size: clamp(1.9rem, 8.4vw, 2.9rem); }
+  .lede-quote .lede-by:lang(zh) { font-size: clamp(1.35rem, 5.9vw, 2rem); }
+}
 
 /* ── Small interface text ────────────────────────────────────────────── */
 html:lang(zh) body { line-height: 1.6; }
@@ -65,3 +72,6 @@ html:lang(zh) body { line-height: 1.6; }
 .pub-sub:lang(zh), .pub-specs dd:lang(zh), .channel .note:lang(zh) { letter-spacing: .02em; }
 .pub-excerpt blockquote:lang(zh) { line-height: 1.95; letter-spacing: .03em; text-align: justify; line-break: strict; }
 :is(.mp-rule, .mp .lbl, .btn, .qr-empty):lang(zh) { letter-spacing: .08em; }
+
+/* ── /copyright ──────────────────────────────────────────────────────── */
+.cp-body:lang(zh) :is(p, li) { line-height: 1.9; letter-spacing: .02em; }

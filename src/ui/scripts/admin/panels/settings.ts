@@ -9,8 +9,8 @@ import type { ApiClient } from '../../lib/api-client.ts';
 import { $, busy, esc, fail, pickFile, toast } from '../dom.ts';
 import { errorText, lang, t } from '../i18n.ts';
 
-export type SettingsSection = 'site' | 'home' | 'topics' | 'notion' | 'backup';
-const SECTIONS: SettingsSection[] = ['site', 'home', 'topics', 'notion', 'backup'];
+export type SettingsSection = 'site' | 'home' | 'topics' | 'newsletter' | 'notion' | 'backup';
+const SECTIONS: SettingsSection[] = ['site', 'home', 'topics', 'newsletter', 'notion', 'backup'];
 
 /** Homepage rows: English key, Chinese key, single-line or rows. */
 const HOME_ROWS = [
@@ -121,6 +121,13 @@ export function settingsPanel(root: HTMLElement, api: ApiClient, initial: Settin
           <legend>${esc(s.groups.topics)}</legend>
           <label>${label('tag_glossary')}<textarea name="tag_glossary" rows="5" spellcheck="false" placeholder="Fiction = 小说&#10;Poetry, Poem = 诗歌" aria-describedby="topics-hint">${value('tag_glossary')}</textarea></label>
           <p class="hint" id="topics-hint">${esc(s.topicsHint)}</p>
+        </fieldset>
+
+        <fieldset class="set-group" id="set-newsletter">
+          <legend>${esc(s.groups.newsletter)}</legend>
+          <input type="hidden" name="newsletter_signup" value="off">
+          <label class="check"><input type="checkbox" name="newsletter_signup" value="on" aria-describedby="newsletter-hint"${state.values.newsletter_signup === 'on' ? ' checked' : ''}>${esc(s.labels.newsletter_signup ?? '')}</label>
+          <p class="hint" id="newsletter-hint">${esc(s.newsletterHint)}</p>
         </fieldset>
 
         <fieldset class="set-group" id="set-notion">

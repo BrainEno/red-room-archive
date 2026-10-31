@@ -23,44 +23,45 @@ export interface SiteIdentity {
  * *about you* and that /admin can override (`about`, `intro`, `tagline`).
  */
 export interface SiteCopy {
-  /** One line: homepage, meta description, RSS description. */
+  /**
+   * One line: homepage, meta description, RSS description. A trailing
+   * attribution after a dash (`…战斗。——作者`, `… dignity. — Author`) is set on
+   * its own line on the homepage (core/quote.ts).
+   */
   about: string;
-  /** Two or three sentences shown in the intro section, revealed word by word. */
+  /** Two or three sentences shown in the intro section, revealed word by word ('' = none). */
   intro: string;
   /** Short line in the homepage's bottom meta row. */
   tagline: string;
+  /** Homepage facts row ([] = hidden). */
   facts: { key: string; value: string }[];
   /** Lead paragraph of the /articles index. */
   articlesIntro: string;
 }
 
 export const site: SiteIdentity = {
-  name: 'Red Room Archive',
+  name: 'SureShot Studio',
   email: 'nodeman24@outlook.com',
 };
 
+/**
+ * An empty `intro` or `facts` hides that part of the homepage: with no intro
+ * the `about` line takes the large, word-by-word intro slot instead. Both can
+ * be filled in later from /admin (or site-profile.json) without a code change.
+ */
 export const copy: Record<Locale, SiteCopy> = {
   en: {
-    about: 'Writing, published from Notion.',
-    intro:
-      'Placeholder — replace this with two or three sentences about yourself. Say who you are, what you write about, and what a visitor will find once they step through the curtain.',
-    tagline: 'Essays, notes and fiction',
-    facts: [
-      { key: 'Based in', value: 'Your city' },
-      { key: 'Writing', value: 'Essays, notes and fiction' },
-      { key: 'Currently', value: 'A short line about what you are working on' },
-    ],
+    about: 'Writing is nothing less than the artist’s duel with the audience—waged for the sake of one’s own singularity and dignity. — Witold Gombrowicz',
+    intro: '',
+    tagline: 'Fiction, poetry and other writings',
+    facts: [],
     articlesIntro: 'Everything published from the notebook, newest first.',
   },
   'zh-CN': {
-    about: '写作，发布自 Notion。',
-    intro: '占位文字——请在后台换成两三句关于你自己的话：你是谁，写些什么，访客掀开帷幕之后会看到什么。',
-    tagline: '随笔、札记与小说',
-    facts: [
-      { key: '所在', value: '你的城市' },
-      { key: '写作', value: '随笔、札记与小说' },
-      { key: '近况', value: '一句话说说你正在写的东西' },
-    ],
+    about: '写作就是艺术家为了自己的个性和荣誉跟大众进行的一场战斗。——维托尔德·贡布罗维奇',
+    intro: '',
+    tagline: '小说、诗歌以及其他',
+    facts: [],
     articlesIntro: '笔记本里发布的全部文章，按时间由新到旧排列。',
   },
 };

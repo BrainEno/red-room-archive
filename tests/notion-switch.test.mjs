@@ -55,7 +55,7 @@ test('invalid settings leave every field and existing article cache unchanged', 
   assert.throws(() => updateSettings({ site_name: 'Unexpected', NOTION_TOKEN: 'new-token', NOTION_DATABASE_ID: 'bad-id' }), /database id or link/);
   assert.equal(notionConfig().token, 'original-token');
   assert.equal(notionConfig().databaseId, DB);
-  assert.equal(siteProfile().name, 'Red Room Archive');
+  assert.equal(siteProfile().name, 'SureShot Studio');
   assert.equal(articlesRepository.count(), 3);
   assert.equal(syncState().syncedAt, before.syncedAt);
 });
@@ -67,7 +67,7 @@ test('a SQL failure rolls back all settings', () => {
     assert.throws(() => updateSettings({ site_name: 'Unexpected', NOTION_TOKEN: 'new-token', NOTION_DATABASE_ID: other }), /test failure/);
     assert.equal(notionConfig().token, 'original-token');
     assert.equal(notionConfig().databaseId, DB);
-    assert.equal(siteProfile().name, 'Red Room Archive');
+    assert.equal(siteProfile().name, 'SureShot Studio');
     assert.equal(settingsRepository.get('site_name'), undefined);
     assert.equal(articlesRepository.count(), 3);
   } finally {

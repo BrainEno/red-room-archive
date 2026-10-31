@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-for (const route of ['/articles', '/zh-CN/articles/connect-notion', '/articles/notes-on-light', '/zh-CN/articles/a-room-with-red-curtains', '/search', '/search?q=no-such-article', '/zh-CN/more', '/topics', '/zh-CN/archive', '/admin', 'http://127.0.0.1:4179/zh-CN/articles', 'http://127.0.0.1:4179/profile-editor.html']) {
+for (const route of ['/articles', '/zh-CN/articles/connect-notion', '/articles/notes-on-light', '/zh-CN/articles/a-room-with-red-curtains', '/search', '/search?q=no-such-article', '/zh-CN/more', '/copyright', '/zh-CN/copyright', '/topics', '/zh-CN/archive', '/admin', 'http://127.0.0.1:4179/zh-CN/articles', 'http://127.0.0.1:4179/profile-editor.html']) {
   test(`automated accessibility scan: ${route}`, async ({ page }) => {
     await page.goto(route);
     if (route === '/admin') await expect(page.locator('#tk')).toBeVisible();
@@ -138,7 +138,7 @@ test('admin speaks Chinese: saved choice, translated shell, grouped settings, un
   await list.getByRole('tab', { name: '设置' }).click();
   await expect(page).toHaveURL(/#settings$/);
   const nav = page.getByRole('navigation', { name: '设置分组' });
-  await expect(nav.getByRole('link')).toHaveText(['站点', '首页文案', '主题', 'Notion', '备份与静态部署']);
+  await expect(nav.getByRole('link')).toHaveText(['站点', '首页文案', '主题', '邮件订阅', 'Notion', '备份与静态部署']);
   await expect(page.locator('#sf-state')).toHaveText('所有修改已保存');
   await page.getByRole('textbox', { name: '标语 — 中文' }).fill('测试标语');
   await expect(page.locator('#sf-state')).toHaveText('有未保存的修改');
