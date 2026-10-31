@@ -57,6 +57,8 @@ export interface HomeData {
   total: number;
   /** Statue model URL for the WebGL scene (uploaded or bundled). */
   model: string;
+  /** Notice beside the neon sign (content/site.ts `announce`; empty title = hidden). */
+  announce: { kicker: string; title: string; action: string; subject: string };
 }
 
 const HOME_ARTICLE_LIMIT = 10;
@@ -71,6 +73,7 @@ export async function getHome(locale: Locale = DEFAULT_LOCALE): Promise<HomeData
     topics: topicCounts(all, locale),
     total: all.length,
     model: statueModelUrl(),
+    announce: copy[locale].announce,
   };
 }
 

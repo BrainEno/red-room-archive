@@ -96,9 +96,12 @@ test('covered and text-only articles render correctly in the built site', async 
     // trailing attribution is set as its own line (core/quote.ts).
     const defaultHome = await get('/?lang=zh-CN');
     assert.match(defaultHome, /<div class="intro-copy" data-script="cjk">/);
-    assert.match(defaultHome, /<blockquote><p class="lede" lang="zh-CN">写作就是艺术家为了自己的个性和荣誉跟大众进行的一场战斗。<\/p><\/blockquote><figcaption class="lede-by" lang="zh-CN">——维托尔德·贡布罗维奇<\/figcaption>/);
+    assert.match(defaultHome, /<blockquote><p class="lede" lang="zh-CN">写作就是艺术家为了自己的个性<br class="lede-break">和荣誉跟大众进行的一场战斗。<\/p><\/blockquote><figcaption class="lede-by" lang="zh-CN">——维托尔德·贡布罗维奇<\/figcaption>/);
     assert.match(defaultHome, /小说、诗歌以及其他/);
-    assert.match(defaultHome, /class="go-hint">有些篇章，只印在纸上。/);
+    assert.doesNotMatch(defaultHome, /发布自 Notion/);
+    assert.match(defaultHome, /class="go-hint">部分重要作品，暂时不打算放在这里/);
+    assert.match(defaultHome, /<link rel="icon" href="\/favicon.svg" type="image\/svg\+xml">/);
+    assert.match(defaultHome, /<link rel="apple-touch-icon" href="\/apple-touch-icon.png" sizes="180x180">/);
     assert.match(await get('/?lang=en'), /class="lede-by" lang="en">— Witold Gombrowicz</);
     const save = await fetch(`http://127.0.0.1:${port}/api/settings`, {
       method: 'PATCH', headers: { 'Authorization': 'Bearer test-admin', 'Content-Type': 'application/json' },

@@ -26,7 +26,10 @@ export interface Props {
     facts: { key: string; value: string }[];
     newsletterSignup?: boolean;
   };
-  home: { latest: ArticleSummary[]; featured: ArticleSummary[]; topics: TagCount[]; total: number; model: string };
+  home: {
+    latest: ArticleSummary[]; featured: ArticleSummary[]; topics: TagCount[]; total: number; model: string;
+    announce: { kicker: string; title: string; action: string; subject: string };
+  };
 }
 
 const { site, home } = Astro.props;
@@ -41,6 +44,11 @@ const nav = ['intro', 'latest', 'topics', 'more'] as const;
 // attribution (`…战斗。——作者`) set on its own line.
 const lede = site.intro ? { quote: site.intro, cite: '' } : splitQuote(site.about);
 const ledeLang = contentLang(lede.quote);
+// First-screen notice beside the sign (a forthcoming book): the action writes to the site email.
+const notice = home.announce.title ? home.announce : undefined;
+const noticeHref = notice && (site.email
+  ? `mailto:${site.email}${notice.subject ? `?subject=${encodeURIComponent(notice.subject)}` : ''}`
+  : to(MORE_PATH));
 const jsonLd = site.url
   ? [websiteLd({ url: absoluteUrl(site.url, to('/')), name: site.name, description: site.about, inLanguage: locale, searchUrl: absoluteUrl(site.url, to(SEARCH_PATH)) })]
   : [];
@@ -65,6 +73,13 @@ const jsonLd = site.url
   <main id="content" tabindex="-1">
     <section id="home" class="s">
       <h1 class="sr">{site.name}</h1>
+      {notice && (
+        <aside class="notice" aria-label={notice.kicker || notice.title}>
+          {notice.kicker && <p class="notice-k">{notice.kicker}</p>}
+          <p class="notice-t" lang={contentLang(notice.title)}>{notice.title}</p>
+          {notice.action && <a class="notice-a" href={noticeHref}><span class="dot" aria-hidden="true"></span><span class="notice-l">{notice.action}</span><span class="arr" aria-hidden="true">→</span></a>}
+        </aside>
+      )}
       <div class="meta"><span>{site.name}</span><span>{site.tagline}</span><span>{t.home.scroll}</span></div>
     </section>
 
@@ -75,7 +90,9 @@ const jsonLd = site.url
           {site.intro && <p class="site-about" lang={contentLang(site.about)}>{site.about}</p>}
           {lede.cite ? (
             <figure class="lede-quote">
-              <blockquote><p class="lede" lang={ledeLang}>{lede.quote}</p></blockquote>
+              <blockquote><p class="lede" lang={ledeLang}>{lede.quote.split('\n').map((line, index) => (
+                <>{index > 0 && <br class="lede-break" />}{line}</>
+              ))}</p></blockquote>
               <figcaption class="lede-by" lang={contentLang(lede.cite)}>{lede.cite}</figcaption>
             </figure>
           ) : <p class="lede" lang={ledeLang}>{lede.quote}</p>}

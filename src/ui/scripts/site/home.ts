@@ -130,6 +130,27 @@ gsap.ticker.add((t) => {
   qrx(my * -4 + (reduce ? 0 : Math.cos(t * 0.37) * 1.1));
 });
 
+// Latin attribution: match the visible right edge of the balanced quote, not
+// the wider grid column (which reaches into the statue). Measuring the caption
+// itself would be circular; changing its width never changes the quote above.
+const latinQuote = document.querySelector<HTMLElement>('.intro-copy:not([data-script="cjk"]) .lede-quote');
+const alignLatinAttribution = () => {
+  if (!latinQuote) return;
+  const quote = latinQuote.querySelector<HTMLElement>('.lede');
+  if (!quote) return;
+  const range = document.createRange(); range.selectNodeContents(quote);
+  const left = latinQuote.getBoundingClientRect().left;
+  const right = Math.max(0, ...[...range.getClientRects()].filter((r) => r.width > 0).map((r) => r.right));
+  if (right > left) latinQuote.style.setProperty('--by-w', `${right - left}px`);
+};
+if (latinQuote) {
+  alignLatinAttribution();
+  const quote = latinQuote.querySelector('.lede')!;
+  if ('ResizeObserver' in window) new ResizeObserver(alignLatinAttribution).observe(quote);
+  else addEventListener('resize', alignLatinAttribution);
+  document.fonts.ready.then(alignLatinAttribution);
+}
+
 // 4) 引言：逐词“点亮”。每个词先是霓虹红 + 辉光，再冷却成正文色，像灯管通电后稳定下来；
 //    起点卡在招牌飞行的后半程，所以文字是在招牌熄灭的同时被点亮的
 //    中文没有空格：按 Intl.Segmenter 的词切分（标点并入前一个词），不支持时退回逐字
@@ -151,11 +172,19 @@ if (!reduce) {
   // The quote, then its attribution line (if any), light up as one sequence.
   const words: HTMLElement[] = [];
   for (const line of document.querySelectorAll<HTMLElement>('.lede, .lede-by')) {
-    const text = line.textContent!.trim();
+    // Read SSR <br> elements as newlines before rebuilding the word spans.
+    const source = line.cloneNode(true) as HTMLElement;
+    source.querySelectorAll('br').forEach((br) => br.replaceWith('\n'));
+    const text = source.textContent!.trim();
     line.setAttribute('aria-label', text);
     line.textContent = '';
     for (const { word, space } of tokens(text, line.lang || document.documentElement.lang)) {
-      if (space) { line.append(' '); continue; }
+      if (space) {
+        // Keep intentional quotation line breaks through the word-by-word reveal.
+        if (word.includes('\n')) { const br = document.createElement('br'); br.className = 'lede-break'; line.append(br); }
+        else line.append(' ');
+        continue;
+      }
       const s = document.createElement('span');
       s.className = 'w'; s.setAttribute('aria-hidden', 'true'); s.textContent = word;
       line.append(s); words.push(s);
@@ -182,6 +211,9 @@ intro.to(n, { v: 100, duration: 2.2, ease: 'power2.inOut', onUpdate: () => (coun
   .add(() => lenis?.start(), '<1.2')
   .from('.bar', { autoAlpha: 0, yPercent: -100, duration: 1, ease: 'expo.out' }, '<1.8')
   .from('.meta span', { autoAlpha: 0, y: 16, stagger: 0.1, duration: 1, ease: 'expo.out' }, '<0.2');
+// 告示：红竖线先从上往下画出，三行字再依次亮出
+if (document.querySelector('.notice')) intro.fromTo('.notice', { '--rule': 0 }, { '--rule': 1, duration: 1.2, ease: 'expo.out' }, '<0.1')
+  .from('.notice > *', { autoAlpha: 0, x: 14, stagger: 0.12, duration: 1.1, ease: 'expo.out' }, '<0.2');
 document.fonts.ready.then(() => {
   if (reduce || resumeY !== null) { intro.progress(1); neon.ignite(); } else intro.play();
   if (resumeY !== null) requestAnimationFrame(() => {

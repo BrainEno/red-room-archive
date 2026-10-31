@@ -26,6 +26,28 @@
 .meta span { min-width: 0; overflow-wrap: anywhere; }
 .meta span:last-child { flex-shrink: 0; }
 
+/* 首屏告示：招牌右侧的一块小牌子（新书付印、接受预购）。细红竖线 + 小字标签 + 一句粗体 +
+   一盏常亮的红灯，和招牌一样偶尔闪一下。宽屏站在右 3 列，窄屏落到招牌下方。 */
+#home { grid-template-rows: 1fr auto; }
+.notice { grid-column: 10 / 13; grid-row: 1; align-self: end; position: relative; z-index: 6; min-width: 0;
+  margin-bottom: clamp(48px, 23svh, 240px); padding: 2px 0 4px 20px; }
+.notice::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 1px; background: rgba(255, 58, 38, .55); transform: scaleY(var(--rule, 1)); transform-origin: top; }
+.notice-k { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; opacity: .55; }
+.notice-t { margin-top: 10px; font-size: clamp(1.2rem, 1.55vw, 1.6rem); font-weight: 700; line-height: 1.3; text-wrap: balance; }
+.notice-a { display: inline-flex; align-items: baseline; gap: .55em; margin-top: 14px; font-size: 13px; font-weight: 600; line-height: 1.4; opacity: .86; transition: opacity .3s, color .3s; }
+.notice-a .dot { flex: none; align-self: center; width: 6px; height: 6px; border-radius: 50%; background: #ff3a26;
+  box-shadow: 0 0 6px rgba(255, 40, 20, .95), 0 0 14px rgba(255, 40, 20, .5); animation: notice-hum 5.2s steps(1, end) infinite; }
+.notice-l { position: relative; }
+.notice-l::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px; background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform .5s var(--ease); }
+.notice-a .arr { transition: transform .45s var(--ease); }
+.notice-a:hover, .notice-a:focus-visible { opacity: 1; color: var(--accent-soft); }
+.notice-a:hover .notice-l::after, .notice-a:focus-visible .notice-l::after { transform: scaleX(1); }
+.notice-a:hover .arr, .notice-a:focus-visible .arr { transform: translateX(4px); }
+@keyframes notice-hum { 0%, 84%, 89%, 100% { opacity: 1; } 86% { opacity: .2; } 91% { opacity: .4; } }
+@media (max-width: 1023px) { .notice { grid-column: 1 / 8; margin-bottom: clamp(28px, 6svh, 56px); } }
+@media (max-width: 720px) { .notice { grid-column: 1 / 13; margin-bottom: clamp(28px, 11svh, 110px); } }
+@media (prefers-reduced-motion: reduce) { .notice-a .dot { animation: none; } }
+
 /* 引言：sticky 舞台，滚动时逐词“点亮”，与招牌退场衔接 */
 .intro { position: relative; height: 220svh; }
 .intro .stage { position: sticky; top: 0; height: 100svh; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: 1fr auto; column-gap: 16px;
@@ -33,11 +55,18 @@
 .intro-copy { grid-column: 1 / 9; align-self: center; min-width: 0; overflow-wrap: anywhere; }
 .site-about { margin-bottom: 1rem; font-size: clamp(.85rem, 1.4vw, 1rem); opacity: .7; }
 .lede { font-weight: 600; font-size: clamp(1.9rem, 4.4vw, 4.4rem); line-height: 1.06; letter-spacing: -.015em; text-wrap: balance; }
-/* Attribution: its own line, same voice as the quote but quieter, closing at the right. */
+/* Attribution: its own line, quieter than the quote. Latin attributions are
+   aligned to the quote's measured text edge (home.ts), not the statue's column. */
 .lede-by { margin-top: .3em; font-weight: 600; font-size: clamp(1.35rem, 3.1vw, 3.1rem); line-height: 1.06; letter-spacing: -.015em; text-align: right; opacity: .62; }
-/* A Chinese quote is short (two lines at the English size left the stage empty):
-   a wider column here, the larger size in cjk.css — two lines of quote plus the attribution. */
+.intro-copy:not([data-script="cjk"]) .lede-by { width: var(--by-w, auto); max-width: 100%; margin-top: .55em; }
+/* Chinese quotation: two deliberate lines plus a right-aligned attribution.
+   The source's newline survives both SSR and the word-by-word reveal; fit-content
+   keeps the attribution under the quote rather than at the grid's far edge. */
 .intro-copy[data-script="cjk"] { grid-column: 1 / 11; }
+@media (min-width: 721px) {
+  .intro-copy[data-script="cjk"] .lede-quote { width: fit-content; max-width: 100%; }
+  .lede-quote .lede:lang(zh) { text-wrap: wrap; }
+}
 .facts { grid-column: 1 / 11; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .facts > div { position: relative; padding-top: 12px; }
 .facts > div::before { content: ""; position: absolute; inset: 0 0 auto; height: 1px; background: currentColor; opacity: .7; transform: scaleX(var(--r, 1)); transform-origin: left; }
@@ -112,6 +141,7 @@ body:has(.bar .brand.on) .scrim { opacity: 1; }
   .lede { font-size: clamp(1.6rem, 7vw, 2.4rem); }
   .lede-by { font-size: clamp(1.15rem, 5vw, 1.7rem); }
   .intro-copy[data-script="cjk"] { grid-column: 1 / 13; }
+  .lede-break { display: none; }
   .facts { grid-column: 1 / 13; grid-template-columns: 1fr; gap: 10px; }
   .row { grid-template-columns: 2.2rem minmax(0, 1fr) 3.2rem; }
   .row span:nth-child(3), .row .r { display: none; }

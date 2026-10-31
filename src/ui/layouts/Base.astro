@@ -78,6 +78,10 @@ const rightsPolicy = siteUrl ? new URL(localizedPath(COPYRIGHT_PATH, locale), si
   {noindex && <meta name="robots" content="noindex" />}
   {canonical && <link rel="canonical" href={canonical} />}
   <meta name="theme-color" content="#0a0506" />
+  <link rel="icon" href="/favicon.ico" sizes="16x16 32x32" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
   <link rel="preload" href={archivoLatin} as="font" type="font/woff2" crossorigin />
   {siteName && <meta name="copyright" content={`© ${new Date().getFullYear()} ${siteName}. All rights reserved.`} />}
   {/* W3C TDMRep: text-and-data-mining rights are reserved; the policy is the copyright page. */}

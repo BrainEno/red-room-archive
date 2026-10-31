@@ -168,6 +168,8 @@ Notion 只有一个标签列，中英文章混写时会出现 `Fiction` 和 `小
 ### 分享卡片与结构化数据
 
 每个页面都有 Open Graph 和 Twitter 卡片信息。文章用自己的封面，其他页面用默认卡片 `public/og/card.jpg`（1200×630，首页霓虹招牌截图；想换就替换这个文件，尺寸保持不变）。
+
+全站浏览器标签图标是 `public/favicon.svg`：黑色底上的红色霓虹 **S**，另附 16/32px PNG、`favicon.ico`、192/512px PNG 和 180px Apple 触控图标；都在 `src/ui/layouts/Base.astro` 接入，不需要第三方图标服务。
 文章页另有 `article:published_time` / `article:modified_time` / `article:tag`；设置了 `SITE_URL` 时，还会输出 schema.org JSON-LD：首页是 `WebSite` 和站内搜索，文章页是 `BlogPosting` 和面包屑，主题页是面包屑。
 JSON-LD 是浏览器不会执行的数据块，不受 CSP 影响，所有 `<` 都会转义。
 
@@ -193,7 +195,7 @@ JSON-LD 是浏览器不会执行的数据块，不受 CSP 影响，所有 `<` �
 
 邮箱默认 `nodeman24@outlook.com`（`src/content/site.ts`），后台 Settings 里的 Contact email 优先。
 
-首页的霓虹招牌是一幅固定的装饰插画，不是根据站点名生成的 Logo；站点名显示在导航和首页底部。后台保存后，同一浏览器、同一来源（协议、域名、端口）的已打开站点页面会自动刷新；不同浏览器或设备请手动刷新。中文、英文文案各自独立，切换语言时请填写相应字段。
+首页的霓虹招牌（“The INK / NEW / PRINT”）是一幅固定的装饰插画，不是根据站点名生成的 Logo；招牌右侧（手机上在招牌下方）有一块小告示（新书付印、接受预购），文案在 `src/content/site.ts` 的 `announce`，中英文各一份，把 `title` 设为空字符串即可隐藏；告示上的链接会打开写给站点邮箱的邮件（主题为 `subject`），没设邮箱时改为链接到“更多”页面。站点名显示在导航和首页底部。后台保存后，同一浏览器、同一来源（协议、域名、端口）的已打开站点页面会自动刷新；不同浏览器或设备请手动刷新。中文、英文文案各自独立，切换语言时请填写相应字段。
 
 Notion 和 GitHub 联动、发布自动化的调研见 [docs/NOTION-GITHUB.md](docs/NOTION-GITHUB.md)。
 
@@ -235,7 +237,7 @@ src/content  站点文案、演示文章                    src/pages    路由�
 ```
 
 - 首页动画参数：`src/ui/scripts/site/home.ts`（镜头关键帧）、`neon.ts`（招牌）、`scene.ts`（窗帘、雕像、灯光）。
-- 首页默认文案（facts 等）：`src/content/site.ts`；“更多”页面：后台 More（默认示例在 `src/content/more.ts`）；标签对照：`src/content/tags.ts`；界面文字（导航、区块标题、分页…）：`src/ui/i18n.ts`；名称/邮箱/简介/引言/标语在后台改。
+- 首页默认文案（facts、招牌旁的新书告示 `announce` 等）：`src/content/site.ts`；“更多”页面：后台 More（默认示例在 `src/content/more.ts`）；标签对照：`src/content/tags.ts`；界面文字（导航、区块标题、分页…）：`src/ui/i18n.ts`；名称/邮箱/简介/引言/标语在后台改。
 - 中文显示字体：`public/fonts/display-sc/`，由 `scripts/fonts/build-display-sc.py` 生成，见 [docs/I18N.md](docs/I18N.md)。
 - 接口约定见 **[docs/API.md](docs/API.md)**；为什么选择在本仓库实现、而不是回到旧仓库，见 [docs/NOTION-ONLY.md](docs/NOTION-ONLY.md)。
 
@@ -337,7 +339,7 @@ cp -a /absolute/path/uploads "$backup/uploads"
 
 #### 内置默认资料
 
-没有导入站点资料（也没有在后台保存过）时，网站使用 `src/content/site.ts` 和 `src/content/tags.ts` 里的内置默认值，现已是本站的资料：站点名 **SureShot Studio**、邮箱 `nodeman24@outlook.com`、中英文引言（首页大字；句末的“——作者”会单独排成右对齐的署名行，见 `src/core/quote.ts`）、标语“小说、诗歌以及其他 / Fiction, poetry and other writings”，以及标签对照 Fiction = 小说、Else / Other = 其他、Poetry = 诗歌。首页简介段落和信息栏默认**不显示**（没有占位文字）；需要时在 Node 后台填写，或在站点资料 JSON 里填写后重新部署。因此静态站不放 `site-profile.json` 也会显示正确的资料。“更多”页面不在站点资料里，仍需用内容包或修改 `src/content/more.ts`。
+没有导入站点资料（也没有在后台保存过）时，网站使用 `src/content/site.ts` 和 `src/content/tags.ts` 里的内置默认值，现已是本站的资料：站点名 **SureShot Studio**、邮箱 `nodeman24@outlook.com`、中英文引言（首页大字；句末的作者会单独排成右对齐的署名行（英文按正文实际右缘对齐，避免遮挡雕像），见 `src/core/quote.ts`）、标语“小说、诗歌以及其他 / Fiction, poetry and other writings”，以及标签对照 Fiction = 小说、Else / Other = 其他、Poetry = 诗歌。首页简介段落和信息栏默认**不显示**（没有占位文字）；需要时在 Node 后台填写，或在站点资料 JSON 里填写后重新部署。因此静态站不放 `site-profile.json` 也会显示正确的资料。“更多”页面不在站点资料里，仍需用内容包或修改 `src/content/more.ts`。
 
 #### 可迁移的站点资料 JSON
 

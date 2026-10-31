@@ -93,6 +93,57 @@ test('home navigation is not blocked by the loader with reduced motion', async (
   await expect(page.locator('#latest')).toBeInViewport();
 });
 
+test('the forthcoming-book notice sits on the first screen beside the sign and links to email', async ({ page }) => {
+  const overlap = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  for (const [path, title] of [['/', 'A book of fiction is going to print.'], ['/zh-CN/', '小说集，即将付印。']]) {
+    await page.goto(path);
+    await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
+    const notice = page.getByRole('complementary', { name: /New print|NEW PRINT/ });
+    await expect(notice).toBeInViewport({ ratio: 1 });
+    await expect(notice.locator('.notice-t')).toHaveText(title);
+    const box = await notice.boundingBox();
+    for (const other of ['.meta', '.bar']) {
+      const rects = await page.locator(other).evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON()).filter((r) => r.width > 0));
+      for (const r of rects) expect(overlap(box, r), `${path}: .notice overlaps ${other}`).toBe(false);
+    }
+    expect(await notice.locator('a').getAttribute('href')).toMatch(/^mailto:[^?]+@[^?]+\?subject=.+/);
+  }
+});
+
+test('the Chinese quotation keeps its two-line composition and attribution, without the old source label', async ({ page }, testInfo) => {
+  await page.goto('/zh-CN/');
+  await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page.locator('.site-about')).toHaveCount(0);
+  await expect(page.getByText('发布自 Notion', { exact: true })).toHaveCount(0);
+  expect(await page.locator('.lede').textContent()).toBe('写作就是艺术家为了自己的个性和荣誉跟大众进行的一场战斗。');
+  await expect(page.locator('.lede-break')).toHaveCount(1);
+  if (testInfo.project.use.viewport.width <= 720) await expect(page.locator('.lede-break')).toBeHidden();
+  await expect(page.locator('.lede-by')).toHaveText('——维托尔德·贡布罗维奇');
+  const lineCount = async (selector) => page.locator(selector).evaluate((el) => {
+    const range = document.createRange(); range.selectNodeContents(el);
+    return new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.y))).size;
+  });
+  if (testInfo.project.use.viewport.width > 720) await expect.poll(() => lineCount('.lede')).toBe(2);
+  await expect.poll(() => lineCount('.lede-by')).toBe(1);
+});
+
+test('the Latin attribution aligns with the visible right edge of the quote', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('.loader')).not.toBeInViewport({ timeout: 25_000 });
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page.locator('.lede-by')).toHaveText('— Witold Gombrowicz');
+  const position = async () => page.locator('.lede-by').evaluate((el) => {
+    const range = document.createRange(); range.selectNodeContents(el);
+    const text = [...range.getClientRects()].find((r) => r.width > 0);
+    const quoteRange = document.createRange(); quoteRange.selectNodeContents(el.closest('figure').querySelector('.lede'));
+    const quoteRight = Math.max(...[...quoteRange.getClientRects()].filter((r) => r.width > 0).map((r) => r.right));
+    return { textRight: text.right, quoteRight, align: getComputedStyle(el).textAlign };
+  });
+  expect((await position()).align).toBe('right');
+  await expect.poll(async () => Math.abs((await position()).textRight - (await position()).quoteRight)).toBeLessThanOrEqual(1);
+});
+
 test('long unbroken titles and site names do not expand the layout', async ({ page }) => {
   await page.goto('/articles');
   await page.evaluate(() => {
@@ -162,6 +213,7 @@ test('home remains navigable without WebGL or JavaScript', async ({ browser, bas
     const page = await noJs.newPage();
     await page.goto('/');
     await expect(page.locator('.loader')).toBeHidden();
+    await expect(page.locator('.notice')).toBeVisible();
     await page.locator('.bar a[href="#latest"]').click();
     await expect(page.locator('#latest')).toBeInViewport();
   } finally { await noJs.close(); }
