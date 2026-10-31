@@ -55,7 +55,11 @@ for (const origin of ['', STATIC]) {
       await expect(page.locator('h1')).toHaveText('The connection is out');
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
       const localizedFallback = await page.goto(`${base}/zh-CN/topics`, { waitUntil: 'domcontentloaded' });
-      expect(localizedFallback?.fromServiceWorker()).toBe(true);
+      const diagnostics = localizedFallback ? JSON.stringify({
+        url: localizedFallback.url(), status: localizedFallback.status(),
+        headers: await localizedFallback.allHeaders(), h1: await page.locator('h1').textContent(),
+      }) : 'no navigation response';
+      expect(localizedFallback?.fromServiceWorker(), diagnostics).toBe(true);
       await expect(page.locator('h1')).toHaveText('连接已中断');
     } finally {
       await setOutage(page, base, id, false);

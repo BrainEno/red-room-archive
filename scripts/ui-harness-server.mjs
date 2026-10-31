@@ -52,10 +52,10 @@ function proxy(port, target, key) {
     // two workers against the same origins, so a global switch would race.
     const id = /(?:^|;\s*)rra_harness_outage=([a-z0-9-]+)/.exec(req.headers.cookie || '')?.[1];
     const mode = id && outage[key].get(id);
-    if (mode === '503') { res.writeHead(503, { 'content-type': 'text/html', 'cache-control': 'no-store' }).end('<h1>Origin unavailable</h1>'); return; }
+    if (mode === '503') { res.writeHead(503, { 'content-type': 'text/html', 'cache-control': 'no-store', 'x-rra-harness-outage': mode }).end('<h1>Origin unavailable</h1>'); return; }
     if (mode) { req.socket.destroy(); return; }
     const upstream = httpRequest({ host: '127.0.0.1', port: target, path: req.url, method: req.method, headers: req.headers }, (response) => {
-      res.writeHead(response.statusCode || 502, response.headers);
+      res.writeHead(response.statusCode || 502, { ...response.headers, 'x-rra-harness-outage': mode || 'off' });
       response.pipe(res);
     });
     upstream.on('error', () => { if (!res.headersSent) res.writeHead(502); res.end(); });
