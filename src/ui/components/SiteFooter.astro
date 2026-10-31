@@ -15,7 +15,10 @@ const t = messages(locale);
 const year = new Date().getFullYear();
 ---
 <footer class="site-footer">
-  <span>{t.legal.rights(year, siteName)}</span>
+  <div class="site-footer-owner">
+    <span>{t.legal.rights(year, siteName)}</span>
+    <span class="site-credit">{t.legal.credit} <a href="https://github.com/BrainEno" target="_blank" rel="noopener noreferrer">BrainEno</a></span>
+  </div>
   <nav aria-label="Footer">
     {email && <a href={`mailto:${email}`}>{email}</a>}
     <a href={localePath(ARCHIVE_PATH, locale)}>{t.nav.archive}</a>

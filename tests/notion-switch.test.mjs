@@ -49,13 +49,24 @@ function gateFirst(fragment) {
   return { entered, release };
 }
 
+test('the former default site name is upgraded without renaming custom sites', () => {
+  try {
+    settingsRepository.set('site_name', 'SureShot Studio');
+    assert.equal(siteProfile().name, 'SureShot Archive');
+    settingsRepository.set('site_name', 'My Custom Archive');
+    assert.equal(siteProfile().name, 'My Custom Archive');
+  } finally {
+    settingsRepository.remove('site_name');
+  }
+});
+
 test('invalid settings leave every field and existing article cache unchanged', async () => {
   await syncArticles();
   const before = syncState();
   assert.throws(() => updateSettings({ site_name: 'Unexpected', NOTION_TOKEN: 'new-token', NOTION_DATABASE_ID: 'bad-id' }), /database id or link/);
   assert.equal(notionConfig().token, 'original-token');
   assert.equal(notionConfig().databaseId, DB);
-  assert.equal(siteProfile().name, 'SureShot Studio');
+  assert.equal(siteProfile().name, 'SureShot Archive');
   assert.equal(articlesRepository.count(), 3);
   assert.equal(syncState().syncedAt, before.syncedAt);
 });
@@ -67,7 +78,7 @@ test('a SQL failure rolls back all settings', () => {
     assert.throws(() => updateSettings({ site_name: 'Unexpected', NOTION_TOKEN: 'new-token', NOTION_DATABASE_ID: other }), /test failure/);
     assert.equal(notionConfig().token, 'original-token');
     assert.equal(notionConfig().databaseId, DB);
-    assert.equal(siteProfile().name, 'SureShot Studio');
+    assert.equal(siteProfile().name, 'SureShot Archive');
     assert.equal(settingsRepository.get('site_name'), undefined);
     assert.equal(articlesRepository.count(), 3);
   } finally {

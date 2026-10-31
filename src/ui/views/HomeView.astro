@@ -152,6 +152,7 @@ const jsonLd = site.url
         {site.newsletterSignup && <p class="letters-reach"><span class="k">{t.newsletter.homeKey}</span><a href={to(SUBSCRIBE_PATH)}>{t.newsletter.homeLink}</a></p>}
         <p class="what">{t.home.moreTopics}</p>
         <p class="yr"><a href={to(COPYRIGHT_PATH)} title={t.legal.copyright}>© {new Date().getFullYear()} {site.name}</a></p>
+        <p class="credit">{t.legal.credit} <a href="https://github.com/BrainEno" target="_blank" rel="noopener noreferrer">BrainEno</a></p>
       </div>
     </section>
   </main>

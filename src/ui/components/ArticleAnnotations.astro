@@ -1,0 +1,65 @@
+---
+import { messages } from '../i18n.ts';
+import { COPYRIGHT_PATH } from '../../shared/routes.ts';
+import { localePath, type Locale } from '../../shared/i18n.ts';
+import { NOTE_LIMIT, PASSAGE_LIMIT } from '../../shared/article-annotations.ts';
+
+const { locale, slug, title, siteName, year } = Astro.props as {
+  locale: Locale;
+  slug: string;
+  title: string;
+  siteName: string;
+  year: number;
+};
+const t = messages(locale).article;
+---
+<div class="article-annotations" lang={locale} data-article-annotations
+  data-slug={slug} data-title={title} data-site={siteName} data-year={year}
+  data-locale={locale} data-copyright-path={localePath(COPYRIGHT_PATH, locale)}
+  data-passage-limit={PASSAGE_LIMIT} data-note-limit={NOTE_LIMIT}
+  data-count-unit={t.characterUnit} data-selection-too-long={t.selectionTooLong(PASSAGE_LIMIT)}
+  data-highlight-saved={t.highlightSaved} data-note-saved={t.noteSaved}
+  data-annotation-deleted={t.annotationDeleted} data-storage-error={t.storageError} data-annotation-limit={t.annotationLimit}
+  data-copy-watermark={t.copyWatermark} data-full-copy-blocked={t.fullCopyBlocked}
+  data-edit-label={t.addNote} data-share-label={t.share} data-delete-label={t.deleteAnnotation}
+  data-confirm-delete-label={t.confirmDelete}>
+  <div class="selection-tools" data-selection-tools role="group" aria-label={t.selectionActions} hidden>
+    <span class="selection-count" data-selection-count aria-live="polite"></span>
+    <div class="selection-actions">
+      <button type="button" data-selection-highlight>{t.highlight}</button>
+      <button type="button" data-selection-note>{t.addNote}</button>
+      <button type="button" data-selection-share>{t.share}</button>
+    </div>
+  </div>
+
+  <details class="annotation-shelf" data-annotation-shelf hidden>
+    <summary><span>{t.savedAnnotations}</span><span data-annotation-count></span></summary>
+    <p class="annotation-local">{t.localAnnotations}</p>
+    <div class="annotation-list" data-annotation-list></div>
+  </details>
+
+  <dialog class="annotation-dialog" data-note-dialog aria-labelledby="annotation-note-title">
+    <div class="annotation-dialog-head">
+      <h2 id="annotation-note-title">{t.noteTitle}</h2>
+      <button type="button" class="annotation-dialog-close" data-note-close aria-label={t.close} title={t.close}>×</button>
+    </div>
+    <div class="annotation-dialog-body">
+      <blockquote class="annotation-note-quote" data-note-quote></blockquote>
+      <label class="annotation-note-label" for="annotation-note-input">{t.passageNote}</label>
+      <textarea id="annotation-note-input" data-note-input maxlength={NOTE_LIMIT} rows="4" placeholder={t.notePlaceholder}></textarea>
+      <div class="annotation-note-meta">
+        <span data-note-count></span>
+        <span>{t.localAnnotations}</span>
+      </div>
+      <p class="annotation-note-status" data-note-status role="status"></p>
+      <div class="annotation-note-actions">
+        <button type="button" class="annotation-note-delete" data-note-delete hidden>{t.deleteAnnotation}</button>
+        <button type="button" class="annotation-note-save" data-note-save>{t.saveNote}</button>
+      </div>
+    </div>
+  </dialog>
+  <p class="article-toast" data-article-toast role="status" aria-live="polite" hidden></p>
+</div>
+<script>
+  import '../scripts/site/article-annotations.ts';
+</script>

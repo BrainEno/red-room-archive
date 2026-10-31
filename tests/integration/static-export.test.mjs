@@ -78,7 +78,7 @@ test('static snapshot exports only published Notion content, media and bilingual
     assert.match(await read('sitemap.xml'), /hreflang="x-default"/);
     assert.match(await read('sitemap.xml'), /<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/);
     assert.doesNotMatch(await read('sitemap.xml'), /\/offline</);
-    assert.match(await read('llms.txt'), /# SureShot Studio/);
+    assert.match(await read('llms.txt'), /# SureShot Archive/);
     assert.match(await read('llms.txt'), /does not grant an AI-training/);
     assert.match(await read('offline/index.html'), /name="robots" content="noindex"/);
     assert.match(await read('zh-CN/offline/index.html'), /连接已中断/);

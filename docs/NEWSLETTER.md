@@ -115,14 +115,14 @@ newsletter_rate_limits(key PRIMARY KEY, window_start, count)  -- key 为 HMAC
 | `NEWSLETTER_SECRET` | ✔ | 至少 32 个字符的随机串（`openssl rand -base64 48`）。用于加密 Blobs 文档、生成退订链接和限流键。**丢失 = 名单无法解密。请离线备份。** |
 | `NEWSLETTER_EMAIL_PROVIDER` | ✔ | `resend` 或 `brevo` |
 | `NEWSLETTER_EMAIL_API_KEY` | ✔ | 提供商 API key（只给发信权限即可） |
-| `NEWSLETTER_FROM` | ✔ | `SureShot Studio <letters@你的域名>`，域名须已在提供商验证 |
+| `NEWSLETTER_FROM` | ✔ | `SureShot Archive <letters@你的域名>`，域名须已在提供商验证 |
 | `SITE_URL` | ✔ | 站点源（如 `https://archive.example`）。Netlify 上未设置时使用内置的 `URL`。用于邮件链接和同站校验。 |
 | `ADMIN_TOKEN` | 后台 | 与 Node 站点相同的后台 token；静态站后台用它管理订阅。 |
 | `NEWSLETTER_REPLY_TO` |  | 回复地址 |
 | `NEWSLETTER_DAILY_LIMIT` |  | 每天（UTC）最多发几封，默认 90（Resend 免费层每天 100） |
 | `NEWSLETTER_MONTHLY_LIMIT` |  | 每月（UTC 自然月）最多发几封，默认 2800（Resend 免费层每月 3,000） |
 | `NEWSLETTER_TOKEN_TTL_HOURS` |  | 确认链接有效期，默认 48 |
-| `NEWSLETTER_SITE_NAME` |  | 邮件里的站点名，默认用站点名（内置为 `SureShot Studio`） |
+| `NEWSLETTER_SITE_NAME` |  | 邮件里的站点名，默认用站点名（内置为 `SureShot Archive`） |
 
 缺少任何一个必填变量，订阅都会保持关闭（503），后台会列出缺少的变量名（不显示值）。
 

@@ -357,7 +357,7 @@ test('settings: token masked, database accepts a pasted link, changing it resets
 
   const back = await call(admin.writeSettings, { method: 'PATCH', token: TOKEN, json: { NOTION_DATABASE_ID: '', site_name: '' } });
   assert.equal(back.data.values.NOTION_DATABASE_ID, DB, 'empty value falls back to the environment');
-  assert.equal(back.data.values.site_name, 'SureShot Studio');
+  assert.equal(back.data.values.site_name, 'SureShot Archive');
 });
 
 test('login: wrong tokens are throttled, missing tokens on other endpoints are not', async () => {

@@ -133,6 +133,7 @@
 .reach .what { grid-column: 6 / 10; opacity: .55; }
 .reach .yr { grid-column: 10 / 13; text-align: right; opacity: .55; }
 .reach .letters-reach { grid-column: 1 / 6; grid-row: 2; }
+.reach .credit { grid-column: 6 / 13; grid-row: 2; text-align: right; opacity: .55; }
 #contact { position: absolute; }
 
 /* 导航下的暗幕：.bar 用 mix-blend-mode: difference，白字压在白字上会糊成一团。
@@ -165,8 +166,8 @@ body:has(.bar .brand.on) .scrim { opacity: 1; }
   .facts { grid-column: 1 / 13; grid-template-columns: 1fr; gap: 10px; }
   .row { grid-template-columns: 2.2rem minmax(0, 1fr) 3.2rem; }
   .row span:nth-child(3), .row .r { display: none; }
-  .reach > :first-child, .reach .what, .reach .yr { grid-column: 1 / 13; text-align: left; }
-  .reach .letters-reach { grid-column: 1 / 13; grid-row: auto; }
+  .reach > :first-child, .reach .what, .reach .yr, .reach .credit { grid-column: 1 / 13; text-align: left; }
+  .reach .letters-reach, .reach .credit { grid-column: 1 / 13; grid-row: auto; }
 }
 @media (prefers-reduced-motion: reduce) { .grain { display: none; } }
 

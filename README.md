@@ -351,7 +351,7 @@ cp -a /absolute/path/uploads "$backup/uploads"
 
 #### 内置默认资料
 
-没有导入站点资料（也没有在后台保存过）时，网站使用 `src/content/site.ts` 和 `src/content/tags.ts` 里的内置默认值，现已是本站的资料：站点名 **SureShot Studio**、邮箱 `nodeman24@outlook.com`、中英文引言（首页大字；句末的作者会单独排成右对齐的署名行（英文按正文实际右缘对齐，避免遮挡雕像），见 `src/core/quote.ts`）、标语“小说、诗歌以及其他 / Fiction, poetry and other writings”，以及标签对照 Fiction = 小说、Else / Other = 其他、Poetry = 诗歌。首页简介段落和信息栏默认**不显示**（没有占位文字）；需要时在 Node 后台填写，或在站点资料 JSON 里填写后重新部署。因此静态站不放 `site-profile.json` 也会显示正确的资料。“更多”页面不在站点资料里，仍需用内容包或修改 `src/content/more.ts`。
+没有导入站点资料（也没有在后台保存过）时，网站使用 `src/content/site.ts` 和 `src/content/tags.ts` 里的内置默认值，现已是本站的资料：站点名 **SureShot Archive**、邮箱 `nodeman24@outlook.com`、中英文引言（首页大字；句末的作者会单独排成右对齐的署名行（英文按正文实际右缘对齐，避免遮挡雕像），见 `src/core/quote.ts`）、标语“小说、诗歌以及其他 / Fiction, poetry and other writings”，以及标签对照 Fiction = 小说、Else / Other = 其他、Poetry = 诗歌。首页简介段落和信息栏默认**不显示**（没有占位文字）；需要时在 Node 后台填写，或在站点资料 JSON 里填写后重新部署。因此静态站不放 `site-profile.json` 也会显示正确的资料。“更多”页面不在站点资料里，仍需用内容包或修改 `src/content/more.ts`。
 
 #### 可迁移的站点资料 JSON
 
@@ -390,7 +390,7 @@ CI（`.github/workflows/validate.yml`）运行类型检查、单元测试、构�
 
 ## 版权与许可
 
-本仓库**不是开源项目**。代码、设计和站点内容归 SureShot Studio 所有，保留所有权利，条款见 [LICENSE](LICENSE)（中英双语）。`package.json` 标为 `"license": "UNLICENSED"`，第三方素材及其许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。首页雕像模型按 CC BY 4.0 使用，必须保留署名。
+本仓库**不是开源项目**。代码、设计和站点内容归 SureShot Archive 所有，保留所有权利，条款见 [LICENSE](LICENSE)（中英双语）。`package.json` 标为 `"license": "UNLICENSED"`，第三方素材及其许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。首页雕像模型按 CC BY 4.0 使用，必须保留署名。
 
 网站上对应的设置：
 
