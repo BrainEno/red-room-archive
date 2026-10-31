@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+// These tests mock API POST/PATCH bodies. Playwright WebKit can lose those
+// bodies when a service worker controls the page; offline behaviour has its own
+// real-worker tests in offline-analytics.spec.mjs.
+test.use({ serviceWorkers: 'block' });
+
 const STATIC = 'http://127.0.0.1:4179';
 const TOKEN = 'Ab3_' + 'x'.repeat(39);
 const axe = async (page) => {
